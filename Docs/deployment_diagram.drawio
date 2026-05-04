@@ -1,0 +1,40 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0" version="29.5.2">
+  <diagram name="Страница-1" id="YqKiAOiVvGioBHD2ZYe0">
+    <mxGraphModel dx="757" dy="483" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="y5RivFXXL8fPeusAH_pK-2" parent="1" style="verticalAlign=top;align=center;spacingTop=8;spacingLeft=2;spacingRight=12;shape=cube;size=10;direction=south;fontStyle=4;html=1;whiteSpace=wrap;" value="&lt;div&gt;&amp;lt;&amp;lt;device&amp;gt;&amp;gt;&lt;/div&gt;NGINX Reverse Proxy" vertex="1">
+          <mxGeometry height="140" width="197.27" x="290" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="y5RivFXXL8fPeusAH_pK-3" parent="1" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;" value="Vue+Vite bundle" vertex="1">
+          <mxGeometry height="60" width="120" x="314" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="y5RivFXXL8fPeusAH_pK-4" parent="1" style="verticalAlign=top;align=center;spacingTop=8;spacingLeft=2;spacingRight=12;shape=cube;size=10;direction=south;fontStyle=4;html=1;whiteSpace=wrap;shadow=0;" value="&lt;div&gt;&amp;lt;&amp;lt;ClientDevice&amp;gt;&amp;gt;&lt;/div&gt;&lt;div&gt;Web-browser&lt;/div&gt;" vertex="1">
+          <mxGeometry height="140" width="197.27" x="40" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="y5RivFXXL8fPeusAH_pK-5" parent="1" style="verticalAlign=top;align=center;spacingTop=8;spacingLeft=2;spacingRight=12;shape=cube;size=10;direction=south;fontStyle=4;html=1;whiteSpace=wrap;" value="&lt;div&gt;&amp;lt;&amp;lt;device&amp;gt;&amp;gt;&lt;/div&gt;NGINX Reverse Proxy" vertex="1">
+          <mxGeometry height="140" width="197.27" x="540" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="y5RivFXXL8fPeusAH_pK-6" parent="1" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;" value="Vue+Vite bundle" vertex="1">
+          <mxGeometry height="60" width="120" x="564" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="y5RivFXXL8fPeusAH_pK-7" parent="1" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.database;whiteSpace=wrap;" value="&amp;lt;&amp;lt;device&amp;gt;&amp;gt;&lt;div&gt;DB Server&lt;/div&gt;" vertex="1">
+          <mxGeometry height="190" width="190" x="816" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="y5RivFXXL8fPeusAH_pK-9" parent="1" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;" value="PostgreSQL" vertex="1">
+          <mxGeometry height="50" width="100" x="855" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="y5RivFXXL8fPeusAH_pK-10" parent="1" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.database;whiteSpace=wrap;" value="&amp;lt;&amp;lt;device&amp;gt;&amp;gt;&lt;div&gt;DB Server&lt;/div&gt;" vertex="1">
+          <mxGeometry height="190" width="190" x="810" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="y5RivFXXL8fPeusAH_pK-11" parent="1" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;" value="Redis" vertex="1">
+          <mxGeometry height="50" width="100" x="855" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="y5RivFXXL8fPeusAH_pK-12" parent="1" style="verticalAlign=top;align=center;spacingTop=8;spacingLeft=2;spacingRight=12;shape=cube;size=10;direction=south;fontStyle=4;html=1;whiteSpace=wrap;shadow=0;" value="&lt;div&gt;&amp;lt;&amp;lt;ExternalDevice&amp;gt;&amp;gt;&lt;/div&gt;&lt;div&gt;Steam API Gateway&lt;/div&gt;" vertex="1">
+          <mxGeometry height="140" width="197.27" x="480" y="470" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

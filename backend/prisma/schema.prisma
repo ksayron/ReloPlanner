@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  PREMIUM
+  ADMIN
+}
+
+enum SkillCategory {
+  HARD_SKILL
+  LANGUAGE
+  CERTIFICATION
+  SOFT_SKILL
+}
+
+enum GapType {
+  HARD_SKILL
+  LANGUAGE
+  CERTIFICATION
+  EXPERIENCE
+}
+
+enum Severity {
+  CRITICAL
+  MODERATE
+  MINOR
+}
+
+enum GapStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum CostCategory {
+  RENT
+  FOOD
+  TRANSPORT
+  UTILITIES
+  OTHER
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  profiles     RelocationProfile[]
+  @@map("users")
+}
+
+model RelocationProfile {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  targetCountry   String   @map("target_country")
+  targetCity      String?  @map("target_city")
+  currentCountry  String   @map("current_country")
+  yearsExperience Int      @map("years_experience") @db.SmallInt
+  desiredRole     String   @map("desired_role")
+  createdAt       DateTime @default(now()) @map("created_at")
+  user            User     @relation(fields: [userId], references: [id])
+  skills          UserSkill[]
+  analyses        AnalysisResult[]
+  @@map("relocation_profiles")
+}
+
+model Skill {
+  id            String          @id @default(uuid())
+  name          String          @unique
+  category      SkillCategory
+  parentId      String?         @map("parent_id")
+  parent        Skill?          @relation("SkillHierarchy", fields: [parentId], references: [id])
+  children      Skill[]         @relation("SkillHierarchy")
+  aliases       SkillAlias[]
+  userSkills    UserSkill[]
+  marketDemands MarketSkillDemand[]
+  gapItems      GapItem[]
+  transfersFrom SkillTransferability[] @relation("TransferSource")
+  transfersTo   SkillTransferability[] @relation("TransferTarget")
+  @@map("skills")
+}
+
+model SkillAlias {
+  id      String @id @default(uuid())
+  alias   String @unique
+  skillId String @map("skill_id")
+  skill   Skill  @relation(fields: [skillId], references: [id])
+  @@map("skill_aliases")
+}
+
+model SkillTransferability {
+  sourceSkillId String @map("source_skill_id")
+  targetSkillId String @map("target_skill_id")
+  coefficient   Decimal @db.Decimal(3,2)
+  sourceSkill   Skill   @relation("TransferSource", fields: [sourceSkillId], references: [id])
+  targetSkill   Skill   @relation("TransferTarget", fields: [targetSkillId], references: [id])
+  @@id([sourceSkillId, targetSkillId])
+  @@map("skill_transferability")
+}
+
+model UserSkill {
+  profileId   String            @map("profile_id")
+  skillId     String            @map("skill_id")
+  proficiency Decimal           @db.Decimal(3,2)
+  profile     RelocationProfile @relation(fields: [profileId], references: [id])
+  skill       Skill             @relation(fields: [skillId], references: [id])
+  @@id([profileId, skillId])
+  @@map("user_skills")
+}
+
+model MarketSnapshot {
+  id             String   @id @default(uuid())
+  country        String
+  city           String?
+  snapshotDate   DateTime @map("snapshot_date") @db.Date
+  source         String
+  totalVacancies Int      @map("total_vacancies")
+  skillDemands   MarketSkillDemand[]
+  analyses       AnalysisResult[]
+  @@map("market_snapshots")
+}
+
+model MarketSkillDemand {
+  snapshotId       String         @map("snapshot_id")
+  skillId          String         @map("skill_id")
+  frequency        Decimal        @db.Decimal(5,4)
+  avgRequiredLevel Decimal        @map("avg_required_level") @db.Decimal(3,2)
+  snapshot         MarketSnapshot @relation(fields: [snapshotId], references: [id])
+  skill            Skill          @relation(fields: [skillId], references: [id])
+  @@id([snapshotId, skillId])
+  @@map("market_skill_demands")
+}
+
+model CostOfLivingData {
+  id            String       @id @default(uuid())
+  country       String
+  city          String
+  category      CostCategory
+  avgMonthlyUsd Decimal      @map("avg_monthly_usd") @db.Decimal(10,2)
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  @@map("cost_of_living_data")
+}
+
+model AnalysisResult {
+  id              String            @id @default(uuid())
+  profileId       String            @map("profile_id")
+  snapshotId      String            @map("snapshot_id")
+  fitScore        Decimal           @map("fit_score") @db.Decimal(4,3)
+  skillBreakdown  Json              @map("skill_breakdown")
+  totalPrepMonths Decimal           @map("total_prep_months") @db.Decimal(4,1)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  profile         RelocationProfile @relation(fields: [profileId], references: [id])
+  snapshot        MarketSnapshot    @relation(fields: [snapshotId], references: [id])
+  gaps            GapItem[]
+  @@map("analysis_results")
+}
+
+model GapItem {
+  id              String         @id @default(uuid())
+  analysisId      String         @map("analysis_id")
+  skillId         String         @map("skill_id")
+  gapType         GapType        @map("gap_type")
+  severity        Severity
+  currentLevel    Decimal        @map("current_level") @db.Decimal(3,2)
+  requiredLevel   Decimal        @map("required_level") @db.Decimal(3,2)
+  estimatedMonths Decimal        @map("estimated_months") @db.Decimal(3,1)
+  dependsOn       String[]       @map("depends_on")
+  orderIndex      Int            @map("order_index") @db.SmallInt
+  status          GapStatus      @default(PENDING)
+  analysis        AnalysisResult @relation(fields: [analysisId], references: [id])
+  skill           Skill          @relation(fields: [skillId], references: [id])
+  @@map("gap_items")
+}

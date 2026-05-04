@@ -1,0 +1,29 @@
+:root {
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #213547;
+  background: #f5f5f5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1, h2, h3 {
+  color: #1a1a2e;
+}
+
+input, select, textarea {
+  color: #213547;
+  font-family: inherit;
+  font-size: inherit;
+}

@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: reloplanner
+      POSTGRES_PASSWORD: reloplanner_dev
+      POSTGRES_DB: reloplanner
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://reloplanner:reloplanner_dev@postgres:5432/reloplanner
+      JWT_SECRET: dev-secret-change-in-production
+      PORT: 3000
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-your_app_id}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-your_app_key}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./frontend/dist:/usr/share/nginx/html
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
