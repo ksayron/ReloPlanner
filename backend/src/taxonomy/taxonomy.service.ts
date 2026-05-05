@@ -20,6 +20,12 @@ export class TaxonomyService {
     });
   }
 
+  findAllCompetencies() {
+    return this.prisma.competency.findMany({
+      orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    });
+  }
+
   create(dto: CreateSkillDto) {
     return this.prisma.skill.create({ data: dto });
   }

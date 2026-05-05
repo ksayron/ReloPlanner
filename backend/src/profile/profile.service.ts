@@ -16,8 +16,8 @@ export class ProfileService {
     const profile = await this.prisma.relocationProfile.findFirst({
       where: { id, userId },
       include: {
-        skills: {
-          include: { skill: true },
+        competencies: {
+          include: { competency: true },
         },
       },
     });
@@ -30,7 +30,7 @@ export class ProfileService {
   }
 
   async create(userId: string, dto: CreateProfileDto) {
-    const { skills, ...profileData } = dto;
+    const { competencies, ...profileData } = dto;
 
     return this.prisma.$transaction(async (tx: any) => {
       const profile = await tx.relocationProfile.create({
@@ -40,12 +40,14 @@ export class ProfileService {
         },
       });
 
-      if (skills.length > 0) {
-        await tx.userSkill.createMany({
-          data: skills.map((s) => ({
+      if (competencies.length > 0) {
+        await tx.userCompetency.createMany({
+          data: competencies.map((c) => ({
             profileId: profile.id,
-            skillId: s.skillId,
-            proficiency: s.proficiency,
+            competencyId: c.competencyId,
+            hardSkillLevel: c.hardSkillLevel ?? null,
+            languageLevel: c.languageLevel ?? null,
+            certificationStatus: c.certificationStatus ?? null,
           })),
         });
       }

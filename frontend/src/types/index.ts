@@ -1,9 +1,26 @@
 export type Role = 'USER' | 'PREMIUM' | 'ADMIN';
-export type SkillCategory = 'HARD_SKILL' | 'LANGUAGE' | 'CERTIFICATION' | 'SOFT_SKILL';
-export type GapType = 'HARD_SKILL' | 'LANGUAGE' | 'CERTIFICATION' | 'EXPERIENCE';
-export type Severity = 'CRITICAL' | 'MODERATE' | 'MINOR';
 export type GapStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+export type SkillCategory = 'HARD_SKILL' | 'LANGUAGE' | 'CERTIFICATION' | 'SOFT_SKILL';
 export type CostCategory = 'RENT' | 'FOOD' | 'TRANSPORT' | 'UTILITIES' | 'OTHER';
+
+export type CompetencyType =
+  | 'HARD_SKILL'
+  | 'LANGUAGE'
+  | 'CERTIFICATION'
+  | 'DOMAIN_KNOWLEDGE'
+  | 'SOFT_SKILL';
+
+export type RequirementPriority = 'CORE' | 'IMPORTANT' | 'OPTIONAL' | 'CONTEXTUAL';
+export type RoleRelevance = 'CORE' | 'RELATED' | 'WEAKLY_RELATED' | 'IRRELEVANT';
+export type RecommendationType =
+  | 'ACTIONABLE_GAP'
+  | 'OPTIONAL_IMPROVEMENT'
+  | 'MARKET_CONTEXT'
+  | 'EXCLUDED_AS_IRRELEVANT';
+
+export type HardSkillLevel = 'NONE' | 'BASIC' | 'PRACTICAL' | 'CONFIDENT' | 'ADVANCED';
+export type LanguageLevel = 'NONE' | 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+export type CertificationStatus = 'NONE' | 'PLANNED' | 'IN_PROGRESS' | 'OBTAINED' | 'EXPIRED';
 
 export interface User {
   id: string;
@@ -15,19 +32,28 @@ export interface AuthPayload {
   access_token: string;
 }
 
+export interface Competency {
+  id: string;
+  name: string;
+  type: CompetencyType;
+  family?: string | null;
+  parentId?: string | null;
+}
+
 export interface Skill {
   id: string;
   name: string;
   category: SkillCategory;
-  parentId: string | null;
+  parentId?: string | null;
   children?: Skill[];
   aliases?: { id: string; alias: string }[];
 }
 
-export interface UserSkill {
-  skillId: string;
-  proficiency: number;
-  skill?: Skill;
+export interface UserCompetencyInput {
+  competencyId: string;
+  hardSkillLevel?: HardSkillLevel;
+  languageLevel?: LanguageLevel;
+  certificationStatus?: CertificationStatus;
 }
 
 export interface RelocationProfile {
@@ -37,7 +63,52 @@ export interface RelocationProfile {
   currentCountry: string;
   yearsExperience: number;
   desiredRole: string;
-  skills: UserSkill[];
+  competencies?: UserCompetencyInput[];
+}
+
+export interface AnalysisItem {
+  competency: {
+    id: string;
+    name: string;
+    type: CompetencyType;
+    family: string | null;
+  };
+  priority: RequirementPriority;
+  roleRelevance: RoleRelevance;
+  currentLevel: string;
+  requiredLevel: string;
+  normalizedCurrentScore: number;
+  normalizedRequiredScore: number;
+  matchScore: number;
+  weight: number;
+  recommendationType: RecommendationType;
+  includedInRoadmap: boolean;
+  reason: string;
+}
+
+export interface FitContributor {
+  competencyId: string;
+  competencyName: string;
+  matchScore: number;
+  weight: number;
+  recommendationType: RecommendationType;
+  reason: string;
+}
+
+export interface RoadmapStep {
+  id: string;
+  competencyId: string;
+  competencyName: string;
+  priority: RequirementPriority;
+  roleRelevance: RoleRelevance;
+  recommendationType: RecommendationType;
+  currentDisplayLevel: string;
+  requiredDisplayLevel: string;
+  estimatedHours: number;
+  orderIndex: number;
+  dependsOn: string[];
+  reason: string;
+  status: GapStatus;
 }
 
 export interface SkillMatchResult {
@@ -52,8 +123,8 @@ export interface SkillMatchResult {
 export interface GapItem {
   id: string;
   skillId: string;
-  gapType: GapType;
-  severity: Severity;
+  gapType: 'HARD_SKILL' | 'LANGUAGE' | 'CERTIFICATION' | 'EXPERIENCE';
+  severity: 'CRITICAL' | 'MODERATE' | 'MINOR' | 'HIGH';
   currentLevel: number;
   requiredLevel: number;
   estimatedMonths: number;
@@ -63,13 +134,23 @@ export interface GapItem {
   skill?: Skill;
 }
 
+export interface TimeEstimate {
+  optimisticHours: number;
+  realisticHours: number;
+  criticalPathHours: number;
+}
+
 export interface AnalysisResult {
   id: string;
   fitScore: number;
-  skillBreakdown: SkillMatchResult[];
   totalPrepMonths: number;
+  timeEstimate: TimeEstimate | null;
   createdAt: string;
-  gaps: GapItem[];
+  analysisItems: AnalysisItem[];
+  fitScoreContributors: FitContributor[];
+  actionableGaps: AnalysisItem[];
+  marketContext: AnalysisItem[];
+  roadmapSteps: RoadmapStep[];
 }
 
 export interface CostComparison {

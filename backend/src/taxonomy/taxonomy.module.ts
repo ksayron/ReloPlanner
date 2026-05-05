@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TaxonomyService } from './taxonomy.service';
-import { TaxonomyController, SkillsController } from './taxonomy.controller';
+import {
+  TaxonomyController,
+  SkillsController,
+  CompetenciesController,
+} from './taxonomy.controller';
 
 @Module({
   providers: [TaxonomyService],
-  controllers: [TaxonomyController, SkillsController],
+  controllers: [TaxonomyController, SkillsController, CompetenciesController],
 })
 export class TaxonomyModule {}

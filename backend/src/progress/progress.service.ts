@@ -7,7 +7,7 @@ export class ProgressService {
   constructor(private readonly prisma: PrismaService) {}
 
   async updateStatus(gapId: string, userId: string, dto: UpdateGapStatusDto) {
-    const gap = await this.prisma.gapItem.findUnique({
+    const gap = await this.prisma.roadmapStep.findUnique({
       where: { id: gapId },
       include: {
         analysis: {
@@ -19,14 +19,14 @@ export class ProgressService {
     });
 
     if (!gap) {
-      throw new NotFoundException(`GapItem with id ${gapId} not found`);
+      throw new NotFoundException(`RoadmapStep with id ${gapId} not found`);
     }
 
     if (gap.analysis.profile.userId !== userId) {
       throw new ForbiddenException('You do not own this gap item');
     }
 
-    const updated = await this.prisma.gapItem.update({
+    const updated = await this.prisma.roadmapStep.update({
       where: { id: gapId },
       data: { status: dto.status },
     });

@@ -1,102 +1,138 @@
-import { ScoringService } from '../scoring.service';
-import { TransferEdge, SkillDemand } from '../scoring.types';
+﻿import { ScoringService } from '../scoring.service';
+import { CompetencyRequirement, TransferEdge, UserCompetencyState } from '../scoring.types';
 
-describe('ScoringService', () => {
+describe('ScoringService v2', () => {
   let service: ScoringService;
 
   beforeEach(() => {
     service = new ScoringService();
   });
 
-  describe('expandSkillVector', () => {
-    it('should expand skills via transferability edges', () => {
-      const userVec = new Map<string, number>([['csharp', 0.8]]);
-      const transferMatrix = new Map<string, TransferEdge[]>([
-        ['csharp', [{ targetId: 'java', coefficient: 0.7 }]],
-      ]);
-
-      const expanded = service.expandSkillVector(userVec, transferMatrix);
-
-      expect(expanded.get('csharp')).toBe(0.8);
-      expect(expanded.get('java')).toBeCloseTo(0.56, 2);
-    });
-
-    it('should keep the higher value when user has direct and transferred skill', () => {
-      const userVec = new Map<string, number>([
-        ['csharp', 0.8],
-        ['java', 0.9],
-      ]);
-      const transferMatrix = new Map<string, TransferEdge[]>([
-        ['csharp', [{ targetId: 'java', coefficient: 0.7 }]],
-      ]);
-
-      const expanded = service.expandSkillVector(userVec, transferMatrix);
-
-      // Direct java (0.9) > transferred (0.8 * 0.7 = 0.56)
-      expect(expanded.get('java')).toBe(0.9);
-    });
+  const baseReq = (overrides: Partial<CompetencyRequirement>): CompetencyRequirement => ({
+    id: 'r1',
+    competencyId: 'c1',
+    competencyName: 'Docker',
+    competencyType: 'HARD_SKILL',
+    competencyFamily: 'containers',
+    priority: 'CORE',
+    roleRelevance: 'CORE',
+    frequency: 0.5,
+    importance: 1,
+    hardSkillRequiredLevel: 'PRACTICAL',
+    languageRequiredLevel: null,
+    certificationRequirementLevel: null,
+    requiredCertificationStatus: null,
+    languageContext: null,
+    ...overrides,
   });
 
-  describe('computeFitScore', () => {
-    it('should return 1.0 for perfect match', () => {
-      const expanded = new Map<string, number>([
-        ['js', 0.8],
-        ['python', 0.7],
-      ]);
-      const demandVec = new Map<string, SkillDemand>([
-        ['js', { frequency: 0.6, requiredLevel: 0.7 }],
-        ['python', { frequency: 0.4, requiredLevel: 0.7 }],
-      ]);
-      const originalSkills = new Set(['js', 'python']);
+  it('applies transferability only for hard-skill computation and produces actionable gap', () => {
+    const requirements: CompetencyRequirement[] = [
+      baseReq({ competencyId: 'k8s', competencyName: 'Kubernetes' }),
+    ];
 
-      const result = service.computeFitScore(expanded, demandVec, originalSkills);
+    const user: UserCompetencyState[] = [
+      {
+        competencyId: 'docker',
+        competencyType: 'HARD_SKILL',
+        hardSkillLevel: 'CONFIDENT',
+      },
+    ];
 
-      expect(result.score).toBe(1.0);
-      expect(result.breakdown).toHaveLength(2);
+    const edges: TransferEdge[] = [
+      {
+        sourceCompetencyId: 'docker',
+        targetCompetencyId: 'k8s',
+        coefficient: 0.35,
+      },
+    ];
+
+    const result = service.computeAnalysis({
+      requirements,
+      userCompetencies: user,
+      transferEdges: edges,
+      countryLanguageRelevance: new Map(),
+      effortProfiles: new Map(),
+      weeklyHours: 8,
     });
 
-    it('should return ~0 for empty profile', () => {
-      const expanded = new Map<string, number>();
-      const demandVec = new Map<string, SkillDemand>([
-        ['js', { frequency: 0.6, requiredLevel: 0.7 }],
-        ['python', { frequency: 0.4, requiredLevel: 0.7 }],
-      ]);
-      const originalSkills = new Set<string>();
+    expect(result.analysisItems).toHaveLength(1);
+    expect(result.analysisItems[0].matchScore).toBeGreaterThan(0);
+    expect(result.analysisItems[0].recommendationType).toBe('ACTIONABLE_GAP');
+  });
 
-      const result = service.computeFitScore(expanded, demandVec, originalSkills);
+  it('excludes irrelevant language by country filter', () => {
+    const requirements: CompetencyRequirement[] = [
+      baseReq({
+        competencyId: 'fr',
+        competencyName: 'French',
+        competencyType: 'LANGUAGE',
+        priority: 'IMPORTANT',
+        roleRelevance: 'RELATED',
+        hardSkillRequiredLevel: null,
+        languageRequiredLevel: 'A2',
+      }),
+    ];
 
-      expect(result.score).toBeCloseTo(0, 1);
+    const result = service.computeAnalysis({
+      requirements,
+      userCompetencies: [],
+      transferEdges: [],
+      countryLanguageRelevance: new Map([['fr', 'IRRELEVANT']]),
+      effortProfiles: new Map(),
+      weeklyHours: 8,
     });
 
-    it('should detect transferability source correctly', () => {
-      const expanded = new Map<string, number>([
-        ['csharp', 0.8],
-        ['java', 0.56],
-      ]);
-      const demandVec = new Map<string, SkillDemand>([
-        ['java', { frequency: 0.5, requiredLevel: 1.0 }],
-      ]);
-      // csharp is original, java is derived via transfer
-      const originalSkills = new Set(['csharp']);
+    expect(result.analysisItems[0].recommendationType).toBe('EXCLUDED_AS_IRRELEVANT');
+    expect(result.actionableGaps).toHaveLength(0);
+  });
 
-      const result = service.computeFitScore(expanded, demandVec, originalSkills);
+  it('optional/contextual non-roadmap items are not actionable', () => {
+    const requirements: CompetencyRequirement[] = [
+      baseReq({
+        competencyId: 'react',
+        competencyName: 'React',
+        priority: 'OPTIONAL',
+        roleRelevance: 'WEAKLY_RELATED',
+      }),
+    ];
 
-      expect(result.breakdown[0].source).toBe('transferability');
-      expect(result.breakdown[0].matchScore).toBeCloseTo(0.56, 2);
+    const result = service.computeAnalysis({
+      requirements,
+      userCompetencies: [],
+      transferEdges: [],
+      countryLanguageRelevance: new Map(),
+      effortProfiles: new Map(),
+      weeklyHours: 8,
     });
 
-    it('should filter noise (frequency < 0.05)', () => {
-      const expanded = new Map<string, number>([['js', 0.8]]);
-      const demandVec = new Map<string, SkillDemand>([
-        ['js', { frequency: 0.6, requiredLevel: 0.7 }],
-        ['obscure', { frequency: 0.03, requiredLevel: 0.9 }],
-      ]);
-      const originalSkills = new Set(['js']);
+    expect(result.analysisItems[0].includedInRoadmap).toBe(false);
+    expect(result.analysisItems[0].recommendationType).toBe('OPTIONAL_IMPROVEMENT');
+  });
 
-      const result = service.computeFitScore(expanded, demandVec, originalSkills);
+  it('returns dual time output with legacy totalPrepMonths', () => {
+    const requirements: CompetencyRequirement[] = [
+      baseReq({ competencyId: 'linux', competencyName: 'Linux' }),
+      baseReq({ competencyId: 'docker', competencyName: 'Docker' }),
+    ];
 
-      expect(result.breakdown).toHaveLength(1);
-      expect(result.breakdown[0].skillId).toBe('js');
+    const effortProfiles = new Map<string, Map<string, number>>([
+      ['linux', new Map([['PRACTICAL', 40]])],
+      ['docker', new Map([['PRACTICAL', 80]])],
+    ]);
+
+    const result = service.computeAnalysis({
+      requirements,
+      userCompetencies: [],
+      transferEdges: [],
+      countryLanguageRelevance: new Map(),
+      effortProfiles,
+      weeklyHours: 8,
     });
+
+    expect(result.totalPrepMonths).toBeGreaterThan(0);
+    expect(result.timeEstimate.optimisticHours).toBeGreaterThan(0);
+    expect(result.timeEstimate.realisticHours).toBeGreaterThan(0);
+    expect(result.timeEstimate.criticalPathHours).toBeGreaterThan(0);
   });
 });

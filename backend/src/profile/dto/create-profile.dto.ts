@@ -1,14 +1,41 @@
-import { IsString, IsOptional, IsInt, IsArray, ValidateNested, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsInt,
+  IsArray,
+  ValidateNested,
+  IsEnum,
+  ValidateIf,
+} from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+  HardSkillLevel,
+  LanguageLevel,
+  CertificationStatus,
+} from '@prisma/client';
 
-export class SkillInput {
+export class CompetencyInput {
   @IsString()
-  skillId: string;
+  competencyId: string;
 
-  @IsNumber()
-  @Min(0)
-  @Max(1)
-  proficiency: number;
+  @IsOptional()
+  @IsEnum(HardSkillLevel)
+  hardSkillLevel?: HardSkillLevel;
+
+  @IsOptional()
+  @IsEnum(LanguageLevel)
+  languageLevel?: LanguageLevel;
+
+  @IsOptional()
+  @IsEnum(CertificationStatus)
+  certificationStatus?: CertificationStatus;
+
+  @ValidateIf(
+    (o: CompetencyInput) =>
+      !o.hardSkillLevel && !o.languageLevel && !o.certificationStatus,
+  )
+  @IsString()
+  _levelRequiredForValidation?: string;
 }
 
 export class CreateProfileDto {
@@ -30,6 +57,6 @@ export class CreateProfileDto {
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => SkillInput)
-  skills: SkillInput[];
+  @Type(() => CompetencyInput)
+  competencies: CompetencyInput[];
 }

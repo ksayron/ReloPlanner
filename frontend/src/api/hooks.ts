@@ -1,6 +1,11 @@
 import { useState, useCallback } from 'react';
 import client from './client';
-import type { RelocationProfile, AnalysisResult, Skill } from '../types';
+import type {
+  RelocationProfile,
+  AnalysisResult,
+  Competency,
+  UserCompetencyInput,
+} from '../types';
 
 export function useProfiles() {
   const [profiles, setProfiles] = useState<RelocationProfile[]>([]);
@@ -16,7 +21,12 @@ export function useProfiles() {
     }
   }, []);
 
-  const create = useCallback(async (dto: Omit<RelocationProfile, 'id' | 'skills'> & { skills: { skillId: string; proficiency: number }[] }) => {
+  const create = useCallback(
+    async (
+      dto: Omit<RelocationProfile, 'id' | 'competencies'> & {
+        competencies: UserCompetencyInput[];
+      },
+    ) => {
     setLoading(true);
     try {
       const res = await client.post('/profiles', dto);
@@ -25,7 +35,9 @@ export function useProfiles() {
     } finally {
       setLoading(false);
     }
-  }, []);
+    },
+    [],
+  );
 
   return { profiles, loading, create, refresh };
 }
@@ -60,13 +72,13 @@ export function useAnalysis(profileId: string | undefined) {
 }
 
 export function useSkills() {
-  const [skills, setSkills] = useState<Skill[]>([]);
+  const [skills, setSkills] = useState<Competency[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await client.get('/skills');
+      const res = await client.get('/competencies');
       setSkills(res.data);
     } finally {
       setLoading(false);

@@ -67,3 +67,14 @@ export class SkillsController {
     return this.taxonomyService.upsertTransferability(dto);
   }
 }
+
+@Controller('competencies')
+@UseGuards(AuthGuard('jwt'))
+export class CompetenciesController {
+  constructor(private readonly taxonomyService: TaxonomyService) {}
+
+  @Get()
+  findAll() {
+    return this.taxonomyService.findAllCompetencies();
+  }
+}
