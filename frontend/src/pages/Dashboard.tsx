@@ -3,6 +3,33 @@ import { useParams, Link } from 'react-router-dom';
 import client from '../api/client';
 import type { AnalysisResult } from '../types';
 
+const formatEnumLabel = (value: string) =>
+  value
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const priorityLabel: Record<string, string> = {
+  CORE: 'Critical',
+  IMPORTANT: 'Important',
+  OPTIONAL: 'Nice to Have',
+  CONTEXTUAL: 'Contextual',
+};
+
+const getFitScoreMessage = (scorePct: number) => {
+  if (scorePct >= 80) {
+    return 'Strong readiness for your target role/market. Focus on polishing targeted gaps to improve competitiveness.';
+  }
+  if (scorePct >= 60) {
+    return 'Moderate readiness. You already match part of the market expectation, but important gaps still impact hiring chances.';
+  }
+  if (scorePct >= 40) {
+    return 'Early-to-mid readiness. You need focused upskilling on core requirements before the profile is market-competitive.';
+  }
+  return 'Low readiness for current target settings. Start with core skills and critical prerequisites to build a viable path.';
+};
+
 export default function Dashboard() {
   const { profileId } = useParams<{ profileId: string }>();
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -44,6 +71,23 @@ export default function Dashboard() {
 
   const scoreColor = (score: number) =>
     score >= 70 ? '#4caf50' : score >= 40 ? '#ff9800' : '#f44336';
+  const fitScorePct = result ? Math.round(result.fitScore * 100) : 0;
+  const analysisByCompetency = new Map(
+    result?.analysisItems.map((item) => [item.competency.id, item]),
+  );
+  const groupedContributors = result
+    ? result.fitScoreContributors.reduce(
+        (acc, contributor) => {
+          const item = analysisByCompetency.get(contributor.competencyId);
+          const priority = item?.priority ?? 'OPTIONAL';
+          if (!acc[priority]) acc[priority] = [];
+          acc[priority].push(contributor);
+          return acc;
+        },
+        {} as Record<string, typeof result.fitScoreContributors>,
+      )
+    : {};
+  const groupOrder = ['CORE', 'IMPORTANT', 'OPTIONAL', 'CONTEXTUAL'];
 
   return (
     <div style={{ maxWidth: '980px', margin: '2rem auto' }}>
@@ -94,11 +138,14 @@ export default function Dashboard() {
               style={{
                 fontSize: '3rem',
                 fontWeight: 'bold',
-                color: scoreColor(Math.round(result.fitScore * 100)),
+                color: scoreColor(fitScorePct),
               }}
             >
-              {Math.round(result.fitScore * 100)}%
+              {fitScorePct}%
             </div>
+            <p style={{ color: '#444', maxWidth: '760px', margin: '0 auto 0.75rem' }}>
+              {getFitScoreMessage(fitScorePct)}
+            </p>
             <p style={{ color: '#666' }}>Critical-path estimate: {result.totalPrepMonths} months</p>
             {result.timeEstimate && (
               <div
@@ -126,25 +173,76 @@ export default function Dashboard() {
             }}
           >
             <h3 style={{ marginBottom: '1rem' }}>Fit Score Contributors</h3>
-            {result.fitScoreContributors.map((c) => (
-              <div
-                key={c.competencyId}
-                style={{ display: 'grid', gridTemplateColumns: '220px 1fr 80px', gap: '0.5rem', marginBottom: '0.5rem' }}
-              >
-                <span>{c.competencyName}</span>
-                <div style={{ background: '#eee', borderRadius: 4 }}>
+            <p style={{ marginTop: 0, color: '#666', fontSize: '0.9rem' }}>
+              Top bar: your current level. Bottom bar: expected target level for this competency.
+            </p>
+            {groupOrder.map((group) => {
+              const contributors = groupedContributors[group] ?? [];
+              if (contributors.length === 0) return null;
+              return (
+                <div key={group} style={{ marginBottom: '1rem' }}>
                   <div
                     style={{
-                      width: `${c.matchScore * 100}%`,
-                      background: scoreColor(c.matchScore * 100),
-                      height: 14,
-                      borderRadius: 4,
+                      fontWeight: 700,
+                      marginBottom: '0.45rem',
+                      color: '#1a1a2e',
                     }}
-                  />
+                  >
+                    {priorityLabel[group] ?? formatEnumLabel(group)}
+                  </div>
+                  {contributors.map((c) => {
+                    const item = analysisByCompetency.get(c.competencyId);
+                    const currentPct = Math.round(
+                      (Number(item?.normalizedCurrentScore ?? c.matchScore) || 0) * 100,
+                    );
+                    const expectedPct = Math.round(
+                      (Number(item?.normalizedRequiredScore ?? 1) || 0) * 100,
+                    );
+                    return (
+                      <div
+                        key={c.competencyId}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '220px 1fr 80px',
+                          gap: '0.5rem',
+                          marginBottom: '0.5rem',
+                        }}
+                      >
+                        <span>{c.competencyName}</span>
+                        <div
+                          style={{
+                            background: '#eee',
+                            borderRadius: 4,
+                            overflow: 'hidden',
+                            padding: '4px 4px 3px',
+                            display: 'grid',
+                            gap: '3px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${currentPct}%`,
+                              background: scoreColor(currentPct),
+                              height: 8,
+                              borderRadius: 3,
+                            }}
+                          />
+                          <div
+                            style={{
+                              width: `${expectedPct}%`,
+                              background: 'rgb(26, 26, 46)',
+                              height: 8,
+                              borderRadius: 3,
+                            }}
+                          />
+                        </div>
+                        <span>{currentPct}/{expectedPct}%</span>
+                      </div>
+                    );
+                  })}
                 </div>
-                <span>{Math.round(c.matchScore * 100)}%</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div
@@ -169,7 +267,7 @@ export default function Dashboard() {
                   </span>
                 </div>
                 <div style={{ fontSize: '0.85rem', color: '#666' }}>
-                  {g.priority} / {g.roleRelevance} / {g.recommendationType}
+                  {formatEnumLabel(g.priority)} / {formatEnumLabel(g.roleRelevance)} / {formatEnumLabel(g.recommendationType)}
                 </div>
                 <div style={{ fontSize: '0.85rem', color: '#444' }}>{g.reason}</div>
               </div>
@@ -188,7 +286,7 @@ export default function Dashboard() {
             <h3 style={{ marginBottom: '1rem' }}>Market Context / Exclusions</h3>
             {result.marketContext.map((g) => (
               <div key={g.competency.id} style={{ padding: '0.45rem 0', borderBottom: '1px solid #f6f6f6' }}>
-                <strong>{g.competency.name}</strong> - {g.recommendationType}
+                <strong>{g.competency.name}</strong> - {formatEnumLabel(g.recommendationType)}
                 <div style={{ fontSize: '0.82rem', color: '#555' }}>{g.reason}</div>
               </div>
             ))}

@@ -26,6 +26,45 @@ export class TaxonomyService {
     });
   }
 
+  async findRelevantCompetencies(roleName?: string, countryCode?: string) {
+    const normalizedRole = roleName?.trim();
+    const normalizedCountry = countryCode?.trim().toUpperCase();
+
+    if (!normalizedRole || !normalizedCountry) {
+      return this.findAllCompetencies();
+    }
+
+    const requirements = await this.prisma.marketRequirement.findMany({
+      where: {
+        roleName: normalizedRole,
+        countryCode: normalizedCountry,
+        isActive: true,
+      },
+      orderBy: [
+        { priority: 'asc' },
+        { roleRelevance: 'asc' },
+        { frequency: 'desc' },
+        { importance: 'desc' },
+      ],
+      include: { competency: true },
+    });
+
+    if (requirements.length === 0) {
+      return this.findAllCompetencies();
+    }
+
+    const seen = new Set<string>();
+    const relevantCompetencies = [];
+    for (const req of requirements) {
+      if (!seen.has(req.competencyId)) {
+        seen.add(req.competencyId);
+        relevantCompetencies.push(req.competency);
+      }
+    }
+
+    return relevantCompetencies;
+  }
+
   create(dto: CreateSkillDto) {
     return this.prisma.skill.create({ data: dto });
   }

@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles, RolesGuard } from '../auth/roles.guard';
@@ -74,7 +75,10 @@ export class CompetenciesController {
   constructor(private readonly taxonomyService: TaxonomyService) {}
 
   @Get()
-  findAll() {
-    return this.taxonomyService.findAllCompetencies();
+  findAll(
+    @Query('roleName') roleName?: string,
+    @Query('countryCode') countryCode?: string,
+  ) {
+    return this.taxonomyService.findRelevantCompetencies(roleName, countryCode);
   }
 }

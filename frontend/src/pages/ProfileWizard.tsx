@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import type {
+  CertificationStatus,
   Competency,
   HardSkillLevel,
   LanguageLevel,
-  CertificationStatus,
   UserCompetencyInput,
 } from '../types';
 
@@ -54,21 +54,24 @@ const ROLES = [
   'Engineering Manager',
 ];
 
-const HARD_LEVELS: HardSkillLevel[] = [
-  'NONE',
-  'BASIC',
-  'PRACTICAL',
-  'CONFIDENT',
-  'ADVANCED',
-];
+const HARD_LEVELS: HardSkillLevel[] = ['NONE', 'BASIC', 'PRACTICAL', 'CONFIDENT', 'ADVANCED'];
 const LANGUAGE_LEVELS: LanguageLevel[] = ['NONE', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-const CERT_LEVELS: CertificationStatus[] = [
-  'NONE',
-  'PLANNED',
-  'IN_PROGRESS',
-  'OBTAINED',
-  'EXPIRED',
-];
+const CERT_LEVELS: CertificationStatus[] = ['NONE', 'PLANNED', 'IN_PROGRESS', 'OBTAINED', 'EXPIRED'];
+
+const HARD_LEVEL_LABELS: Record<HardSkillLevel, string> = {
+  NONE: 'None - не знаю',
+  BASIC: 'Basic - понимаю основы, могу читать код/конфиги',
+  PRACTICAL: 'Practical - могу использовать в простых задачах',
+  CONFIDENT: 'Confident - использую в рабочих задачах самостоятельно',
+  ADVANCED: 'Advanced - могу проектировать решения и помогать другим',
+};
+
+const formatEnumLabel = (value: string) =>
+  value
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 
 export default function ProfileWizard() {
   const navigate = useNavigate();
@@ -76,26 +79,40 @@ export default function ProfileWizard() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const [currentCountry, setCurrentCountry] = useState('');
+  const [targetCountry, setTargetCountry] = useState('');
+  const [targetCity, setTargetCity] = useState('');
   const [yearsExperience, setYearsExperience] = useState(0);
   const [desiredRole, setDesiredRole] = useState('');
+
+  const [currentCountry, setCurrentCountry] = useState('');
+  const [budget] = useState('');
+  const [visa] = useState('');
 
   const [allCompetencies, setAllCompetencies] = useState<Competency[]>([]);
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState<SelectedCompetency[]>([]);
 
-  const [targetCountry, setTargetCountry] = useState('');
-  const [targetCity, setTargetCity] = useState('');
-
   useEffect(() => {
-    client
-      .get('/competencies')
-      .then((res) => setAllCompetencies(res.data))
-      .catch(() => {});
-  }, []);
+    const loadCompetencies = async () => {
+      try {
+        const params: Record<string, string> = {};
+        if (desiredRole) params.roleName = desiredRole;
+        if (targetCountry) params.countryCode = targetCountry;
+        const res = await client.get('/competencies', { params });
+        setAllCompetencies(res.data);
+      } catch {
+        setAllCompetencies([]);
+      }
+    };
+    void loadCompetencies();
+  }, [desiredRole, targetCountry]);
 
-  const filtered = allCompetencies.filter((c) =>
-    c.name.toLowerCase().includes(filter.toLowerCase()),
+  const filtered = useMemo(
+    () =>
+      allCompetencies.filter((c) =>
+        c.name.toLowerCase().includes(filter.toLowerCase().trim()),
+      ),
+    [allCompetencies, filter],
   );
 
   const getDefaultLevel = (type: Competency['type']) => {
@@ -145,7 +162,44 @@ export default function ProfileWizard() {
       return { competencyId: x.competencyId, hardSkillLevel: x.level as HardSkillLevel };
     });
 
+  const levelOptions = (type: Competency['type']) => {
+    if (type === 'LANGUAGE') return LANGUAGE_LEVELS;
+    if (type === 'CERTIFICATION') return CERT_LEVELS;
+    return HARD_LEVELS;
+  };
+
+  const validateStep = (step: number) => {
+    if (step === 1) {
+      if (!targetCountry || !desiredRole) {
+        setError('Goal page: desired country and desired role are required.');
+        return false;
+      }
+      if (yearsExperience < 0) {
+        setError('Years of experience must be 0 or more.');
+        return false;
+      }
+    }
+    if (step === 2 && !currentCountry) {
+      setError('Source page: current country is required.');
+      return false;
+    }
+    setError('');
+    return true;
+  };
+
+  const nextStep = () => {
+    if (!validateStep(currentStep)) return;
+    setCurrentStep((s) => Math.min(3, s + 1));
+  };
+
+  const prevStep = () => {
+    setError('');
+    setCurrentStep((s) => Math.max(1, s - 1));
+  };
+
   const handleSubmit = async () => {
+    if (!validateStep(1) || !validateStep(2)) return;
+
     setSubmitting(true);
     setError('');
     try {
@@ -165,12 +219,7 @@ export default function ProfileWizard() {
     }
   };
 
-  const countryName = (code: string) => COUNTRIES.find((c) => c.code === code)?.name ?? code;
-  const levelOptions = (type: Competency['type']) => {
-    if (type === 'LANGUAGE') return LANGUAGE_LEVELS;
-    if (type === 'CERTIFICATION') return CERT_LEVELS;
-    return HARD_LEVELS;
-  };
+  const visaLikelyRequired = !!targetCountry && !!currentCountry && targetCountry !== currentCountry;
 
   const selectStyle = {
     width: '100%',
@@ -191,10 +240,10 @@ export default function ProfileWizard() {
   } as const;
 
   return (
-    <div style={{ maxWidth: '700px', margin: '2rem auto' }}>
+    <div style={{ maxWidth: '760px', margin: '2rem auto' }}>
       <h2>Create Relocation Profile</h2>
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        {[1, 2, 3, 4].map((step) => (
+        {[1, 2, 3].map((step) => (
           <div
             key={step}
             style={{
@@ -210,11 +259,14 @@ export default function ProfileWizard() {
 
       {currentStep === 1 && (
         <div>
-          <h3>Basic Information</h3>
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Current Country</label>
+          <h3>Page 1: Goal</h3>
+          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Desired Country *</label>
           <select
-            value={currentCountry}
-            onChange={(e) => setCurrentCountry(e.target.value)}
+            value={targetCountry}
+            onChange={(e) => {
+              setTargetCountry(e.target.value);
+              setTargetCity('');
+            }}
             style={selectStyle}
           >
             <option value="">-- Select country --</option>
@@ -225,17 +277,32 @@ export default function ProfileWizard() {
             ))}
           </select>
 
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Years of Experience</label>
+          <label style={{ display: 'block', marginBottom: '0.25rem' }}>City (optional)</label>
+          <select
+            value={targetCity}
+            onChange={(e) => setTargetCity(e.target.value)}
+            style={selectStyle}
+            disabled={!targetCountry}
+          >
+            <option value="">-- Select city (optional) --</option>
+            {(CITIES[targetCountry] || []).map((city) => (
+              <option key={city} value={city}>
+                {city}
+              </option>
+            ))}
+          </select>
+
+          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Years of Experience (min 0)</label>
           <input
             type="number"
             value={yearsExperience}
-            onChange={(e) => setYearsExperience(Number(e.target.value))}
+            onChange={(e) => setYearsExperience(Math.max(0, Number(e.target.value) || 0))}
             min={0}
             max={40}
             style={inputStyle}
           />
 
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Desired Role</label>
+          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Desired Role *</label>
           <select
             value={desiredRole}
             onChange={(e) => setDesiredRole(e.target.value)}
@@ -253,16 +320,83 @@ export default function ProfileWizard() {
 
       {currentStep === 2 && (
         <div>
-          <h3>Competencies</h3>
+          <h3>Page 2: Source</h3>
+          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Current Country *</label>
+          <select
+            value={currentCountry}
+            onChange={(e) => setCurrentCountry(e.target.value)}
+            style={selectStyle}
+          >
+            <option value="">-- Select country --</option>
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          <label style={{ display: 'block', marginBottom: '0.25rem' }}>
+            Budget (inactive, planned)
+          </label>
           <input
-            placeholder="Search competencies..."
+            type="text"
+            value={budget}
+            disabled
+            placeholder="Will be activated in next iteration"
+            style={{ ...inputStyle, background: '#f5f5f5', color: '#888' }}
+          />
+
+          <label style={{ display: 'block', marginBottom: '0.25rem' }}>
+            Visa {visaLikelyRequired ? '(likely required)' : '(inactive, planned)'}
+          </label>
+          <input
+            type="text"
+            value={visa}
+            disabled
+            placeholder={
+              visaLikelyRequired
+                ? 'Visa field planned (route differs by source -> goal)'
+                : 'Will be activated in next iteration'
+            }
+            style={{ ...inputStyle, background: '#f5f5f5', color: '#888' }}
+          />
+        </div>
+      )}
+
+      {currentStep === 3 && (
+        <div>
+          <h3>Page 3: Skills / Competencies</h3>
+          <p style={{ marginTop: 0, color: '#666' }}>
+            List is filtered by role and country relevance priority, not full taxonomy.
+          </p>
+          <div
+            style={{
+              padding: '0.75rem',
+              border: '1px solid #eee',
+              borderRadius: '6px',
+              background: '#fafafa',
+              marginBottom: '1rem',
+            }}
+          >
+            <strong>Skill Levels</strong>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.92rem', color: '#333' }}>
+              {HARD_LEVELS.map((lvl) => (
+                <div key={lvl} style={{ marginBottom: '0.25rem' }}>
+                  {HARD_LEVEL_LABELS[lvl]}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <input
+            placeholder="Search relevant competencies..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             style={inputStyle}
           />
           <div
             style={{
-              maxHeight: '360px',
+              maxHeight: '420px',
               overflowY: 'auto',
               border: '1px solid #eee',
               borderRadius: '4px',
@@ -280,11 +414,7 @@ export default function ProfileWizard() {
                   borderBottom: '1px solid #f0f0f0',
                 }}
               >
-                <input
-                  type="checkbox"
-                  checked={isSelected(c.id)}
-                  onChange={() => toggle(c)}
-                />
+                <input type="checkbox" checked={isSelected(c.id)} onChange={() => toggle(c)} />
                 <span style={{ flex: 1 }}>{c.name}</span>
                 <span
                   style={{
@@ -295,7 +425,7 @@ export default function ProfileWizard() {
                     borderRadius: '4px',
                   }}
                 >
-                  {c.type}
+                  {formatEnumLabel(c.type)}
                 </span>
                 {isSelected(c.id) && (
                   <select
@@ -306,7 +436,7 @@ export default function ProfileWizard() {
                         e.target.value as HardSkillLevel | LanguageLevel | CertificationStatus,
                       )
                     }
-                    style={{ ...selectStyle, width: '190px', marginBottom: 0 }}
+                    style={{ ...selectStyle, width: '240px', marginBottom: 0 }}
                   >
                     {levelOptions(c.type).map((lvl) => (
                       <option key={lvl} value={lvl}>
@@ -317,114 +447,26 @@ export default function ProfileWizard() {
                 )}
               </div>
             ))}
-            {filtered.length === 0 && <p style={{ color: '#999' }}>No competencies found</p>}
+            {filtered.length === 0 && (
+              <p style={{ color: '#999', margin: '0.75rem 0' }}>
+                No competencies found for current role/country filter.
+              </p>
+            )}
           </div>
           <p style={{ marginTop: '0.5rem', color: '#666' }}>{selected.length} competency(s) selected</p>
         </div>
       )}
 
-      {currentStep === 3 && (
-        <div>
-          <h3>Target Location</h3>
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Target Country</label>
-          <select
-            value={targetCountry}
-            onChange={(e) => {
-              setTargetCountry(e.target.value);
-              setTargetCity('');
-            }}
-            style={selectStyle}
-          >
-            <option value="">-- Select country --</option>
-            {COUNTRIES.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Target City (optional)</label>
-          <select
-            value={targetCity}
-            onChange={(e) => setTargetCity(e.target.value)}
-            style={selectStyle}
-            disabled={!targetCountry}
-          >
-            <option value="">-- Select city (optional) --</option>
-            {(CITIES[targetCountry] || []).map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {currentStep === 4 && (
-        <div>
-          <h3>Review</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
-            <tbody>
-              <tr>
-                <td style={{ padding: '0.4rem', fontWeight: 'bold' }}>Current Country</td>
-                <td>{countryName(currentCountry)}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '0.4rem', fontWeight: 'bold' }}>Experience</td>
-                <td>{yearsExperience} years</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '0.4rem', fontWeight: 'bold' }}>Desired Role</td>
-                <td>{desiredRole}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '0.4rem', fontWeight: 'bold' }}>Target</td>
-                <td>
-                  {countryName(targetCountry)}
-                  {targetCity ? `, ${targetCity}` : ''}
-                </td>
-              </tr>
-              <tr>
-                <td style={{ padding: '0.4rem', fontWeight: 'bold' }}>Competencies</td>
-                <td>{selected.length} selected</td>
-              </tr>
-            </tbody>
-          </table>
-
-          {selected.length > 0 && (
-            <div style={{ marginBottom: '1rem' }}>
-              {selected.map((s) => {
-                const comp = allCompetencies.find((c) => c.id === s.competencyId);
-                return (
-                  <span
-                    key={s.competencyId}
-                    style={{
-                      display: 'inline-block',
-                      background: '#f0f0f0',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      margin: '2px',
-                      fontSize: '0.85rem',
-                    }}
-                  >
-                    {comp?.name ?? s.competencyId}: {s.level}
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.5rem' }}>
         {currentStep > 1 ? (
-          <button onClick={() => setCurrentStep((s) => s - 1)} style={{ ...btnStyle, background: '#888' }}>
+          <button onClick={prevStep} style={{ ...btnStyle, background: '#888' }}>
             Back
           </button>
         ) : (
           <div />
         )}
-        {currentStep < 4 ? (
-          <button onClick={() => setCurrentStep((s) => s + 1)} style={btnStyle}>
+        {currentStep < 3 ? (
+          <button onClick={nextStep} style={btnStyle}>
             Next
           </button>
         ) : (
