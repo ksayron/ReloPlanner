@@ -10,9 +10,14 @@ interface SyncResult {
 }
 
 interface SnapshotInfo {
-  date: string;
-  source: string;
+  date: string | null;
+  source: string | null;
   skills: number;
+  status?: 'synced' | 'skipped' | 'error' | 'unknown';
+  totalVacancies?: number | null;
+  skillsImported?: number | null;
+  message?: string | null;
+  updatedAt?: string | null;
 }
 
 interface CacheStatus {
@@ -117,7 +122,7 @@ export default function SyncManager() {
           </button>
         </div>
         <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: '1rem' }}>
-          DE, NL, CA, GB via Adzuna API &nbsp;|&nbsp; PL via Arbeitnow API &nbsp;|&nbsp; Runs daily at 02:00 UTC
+          DE, NL, CA, GB, PL via Adzuna API &nbsp;|&nbsp; Runs daily at 02:00 UTC
         </p>
 
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -136,14 +141,15 @@ export default function SyncManager() {
               return (
                 <tr key={country}>
                   <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>{country}</td>
-                  <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', color: info ? '#333' : '#999' }}>
-                    {info ? new Date(info.date).toLocaleDateString() : 'No data'}
+                  <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', color: info?.date ? '#333' : '#999' }}>
+                    {info?.date ? new Date(info.date).toLocaleDateString() : 'No data'}
                   </td>
                   <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', textAlign: 'right' }}>
-                    {info?.skills ?? '—'}
+                    {info?.skills ?? 'N/A'}
                   </td>
                   <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', color: '#666', fontSize: '0.85rem' }}>
-                    {info?.source ?? '—'}
+                    {info?.source ?? 'N/A'}
+                    {info?.status ? ` (${info.status})` : ''}
                   </td>
                   <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', textAlign: 'right' }}>
                     <button
@@ -178,7 +184,7 @@ export default function SyncManager() {
                 >
                   {r.country}: {r.status}
                   {r.skillsImported != null && ` (${r.skillsImported} skills)`}
-                  {r.message && ` — ${r.message}`}
+                  {r.message && ` - ${r.message}`}
                 </span>
               ))}
             </div>
@@ -238,3 +244,4 @@ export default function SyncManager() {
     </div>
   );
 }
+

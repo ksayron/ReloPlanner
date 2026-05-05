@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { ILiveMarketAdapter, LiveMarketResult, MarketDataRow } from './market-data.adapter.js';
 
 const BASE_URL = 'https://api.adzuna.com/v1/api/jobs';
+const HTTP_TIMEOUT_MS = 12000;
 
 /** Maps our ISO country codes to Adzuna country codes */
 const ADZUNA_COUNTRY_CODES: Record<string, string> = {
@@ -12,6 +13,7 @@ const ADZUNA_COUNTRY_CODES: Record<string, string> = {
   NL: 'nl',
   CA: 'ca',
   GB: 'gb',
+  PL: 'pl',
 };
 
 /**
@@ -94,11 +96,15 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
       const totalResp = await firstValueFrom(
         this.http.get(`${BASE_URL}/${countryCode}/search/1`, {
           params: { ...baseParams, what: 'developer' },
+          timeout: HTTP_TIMEOUT_MS,
         }),
       );
-      totalVacancies = totalResp.data?.count ?? 0;
+      totalVacancies = Number(totalResp.data?.count ?? 0);
+      if (!Number.isFinite(totalVacancies) || totalVacancies < 0) {
+        totalVacancies = 0;
+      }
     } catch (err: any) {
-      this.logger.error(`AdzunaAdapter [${countryIso}]: failed to fetch total count — ${err.message}`);
+      this.logger.error(`AdzunaAdapter [${countryIso}]: failed to fetch total count - ${err.message}`);
       return { totalVacancies: 0, skills: [] };
     }
 
@@ -119,9 +125,12 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
         const resp = await firstValueFrom(
           this.http.get(`${BASE_URL}/${countryCode}/search/1`, {
             params: { ...baseParams, what_or: whatOr },
+            timeout: HTTP_TIMEOUT_MS,
           }),
         );
-        const count: number = resp.data?.count ?? 0;
+        const count = Number(resp.data?.count ?? 0);
+        if (!Number.isFinite(count) || count <= 0) continue;
+
         const frequency = Math.min(count / totalVacancies, 1.0);
 
         if (frequency > 0.005) {
@@ -132,7 +141,7 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
           });
         }
       } catch (err: any) {
-        this.logger.warn(`AdzunaAdapter [${countryIso}]: failed for "${skillName}" — ${err.message}`);
+        this.logger.warn(`AdzunaAdapter [${countryIso}]: failed for "${skillName}" - ${err.message}`);
       }
     }
 

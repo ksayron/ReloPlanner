@@ -3,7 +3,6 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SkillNormalizerService } from './skill-normalizer.js';
 import { AdzunaAdapter } from './adapters/adzuna.adapter.js';
-import { ArbeitnowAdapter } from './adapters/arbeitnow.adapter.js';
 import { ILiveMarketAdapter } from './adapters/market-data.adapter.js';
 
 /** Default avgRequiredLevel by SkillCategory */
@@ -14,6 +13,9 @@ const REQUIRED_LEVEL: Record<string, number> = {
   SOFT_SKILL: 0.60,
 };
 
+const MIN_VACANCIES_FOR_SNAPSHOT = 25;
+const MIN_RESOLVED_SKILLS_FOR_SNAPSHOT = 5;
+
 export interface SyncResult {
   country: string;
   status: 'synced' | 'skipped' | 'error';
@@ -22,23 +24,34 @@ export interface SyncResult {
   message?: string;
 }
 
+export interface CountrySyncStatus {
+  date: Date | null;
+  source: string | null;
+  skills: number;
+  status: SyncResult['status'] | 'unknown';
+  totalVacancies: number | null;
+  skillsImported: number | null;
+  message: string | null;
+  updatedAt: Date | null;
+}
+
 @Injectable()
 export class MarketSyncService implements OnApplicationBootstrap {
   private readonly logger = new Logger(MarketSyncService.name);
 
   private readonly adapterMap: Map<string, ILiveMarketAdapter> = new Map();
+  private readonly lastSyncOutcome: Map<string, SyncResult & { updatedAt: Date }> = new Map();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly normalizer: SkillNormalizerService,
     private readonly adzuna: AdzunaAdapter,
-    private readonly arbeitnow: ArbeitnowAdapter,
   ) {
     this.adapterMap.set('DE', adzuna);
     this.adapterMap.set('NL', adzuna);
     this.adapterMap.set('CA', adzuna);
     this.adapterMap.set('GB', adzuna);
-    this.adapterMap.set('PL', arbeitnow);
+    this.adapterMap.set('PL', adzuna);
   }
 
   onApplicationBootstrap() {
@@ -77,7 +90,9 @@ export class MarketSyncService implements OnApplicationBootstrap {
     const adapter = this.adapterMap.get(iso);
 
     if (!adapter) {
-      return { country: iso, status: 'error', message: `No adapter registered for "${iso}"` };
+      const outcome = { country: iso, status: 'error' as const, message: `No adapter registered for "${iso}"` };
+      this.rememberSyncOutcome(outcome);
+      return outcome;
     }
 
     // Deduplication: skip if a snapshot for today already exists
@@ -96,18 +111,36 @@ export class MarketSyncService implements OnApplicationBootstrap {
 
     if (existing) {
       this.logger.log(`MarketSync [${iso}]: snapshot for today already exists (id=${existing.id}), skipping`);
-      return { country: iso, status: 'skipped', message: 'Already synced today' };
+      const outcome = { country: iso, status: 'skipped' as const, message: 'Already synced today' };
+      this.rememberSyncOutcome(outcome);
+      return outcome;
     }
 
     try {
       const result = await adapter.fetchMarketData(iso);
 
-      if (result.totalVacancies === 0 || result.skills.length === 0) {
-        return {
+      if (result.totalVacancies <= 0 || result.skills.length === 0) {
+        const outcome = {
           country: iso,
-          status: 'error',
+          status: 'skipped' as const,
+          totalVacancies: result.totalVacancies,
+          skillsImported: 0,
           message: 'Adapter returned empty result (check API credentials or coverage)',
         };
+        this.rememberSyncOutcome(outcome);
+        return outcome;
+      }
+
+      if (result.totalVacancies < MIN_VACANCIES_FOR_SNAPSHOT) {
+        const outcome = {
+          country: iso,
+          status: 'skipped' as const,
+          totalVacancies: result.totalVacancies,
+          skillsImported: 0,
+          message: `Low vacancy volume (${result.totalVacancies} < ${MIN_VACANCIES_FOR_SNAPSHOT}), snapshot not created`,
+        };
+        this.rememberSyncOutcome(outcome);
+        return outcome;
       }
 
       // Resolve skill names to IDs and apply required-level defaults
@@ -124,7 +157,27 @@ export class MarketSyncService implements OnApplicationBootstrap {
       }
 
       if (resolvedSkills.length === 0) {
-        return { country: iso, status: 'error', message: 'No skills resolved after normalization' };
+        const outcome = {
+          country: iso,
+          status: 'skipped' as const,
+          totalVacancies: result.totalVacancies,
+          skillsImported: 0,
+          message: 'No skills resolved after normalization',
+        };
+        this.rememberSyncOutcome(outcome);
+        return outcome;
+      }
+
+      if (resolvedSkills.length < MIN_RESOLVED_SKILLS_FOR_SNAPSHOT) {
+        const outcome = {
+          country: iso,
+          status: 'skipped' as const,
+          totalVacancies: result.totalVacancies,
+          skillsImported: resolvedSkills.length,
+          message: `Too few resolved skills (${resolvedSkills.length} < ${MIN_RESOLVED_SKILLS_FOR_SNAPSHOT}), snapshot not created`,
+        };
+        this.rememberSyncOutcome(outcome);
+        return outcome;
       }
 
       const snapshot = await this.prisma.marketSnapshot.create({
@@ -144,24 +197,33 @@ export class MarketSyncService implements OnApplicationBootstrap {
       });
 
       this.logger.log(
-        `MarketSync [${iso}]: created snapshot ${snapshot.id} — ${resolvedSkills.length} skills, ${result.totalVacancies} vacancies`,
+        `MarketSync [${iso}]: created snapshot ${snapshot.id} - ${resolvedSkills.length} skills, ${result.totalVacancies} vacancies`,
       );
 
-      return {
+      const outcome = {
         country: iso,
-        status: 'synced',
+        status: 'synced' as const,
         totalVacancies: result.totalVacancies,
         skillsImported: resolvedSkills.length,
       };
+      this.rememberSyncOutcome(outcome);
+      return outcome;
     } catch (err: any) {
-      this.logger.error(`MarketSync [${iso}]: ${err.message}`);
-      return { country: iso, status: 'error', message: err.message };
+      const message = err?.message ?? 'Unknown sync error';
+      this.logger.error(`MarketSync [${iso}]: ${message}`);
+      const outcome = { country: iso, status: 'error' as const, message };
+      this.rememberSyncOutcome(outcome);
+      return outcome;
     }
   }
 
-  async getLastSnapshots(): Promise<Record<string, { date: Date; source: string; skills: number } | null>> {
+  private rememberSyncOutcome(result: SyncResult) {
+    this.lastSyncOutcome.set(result.country, { ...result, updatedAt: new Date() });
+  }
+
+  async getLastSnapshots(): Promise<Record<string, CountrySyncStatus>> {
     const countries = ['DE', 'NL', 'CA', 'GB', 'PL'];
-    const result: Record<string, any> = {};
+    const result: Record<string, CountrySyncStatus> = {};
 
     for (const country of countries) {
       const snapshot = await this.prisma.marketSnapshot.findFirst({
@@ -169,10 +231,18 @@ export class MarketSyncService implements OnApplicationBootstrap {
         orderBy: { snapshotDate: 'desc' },
         include: { _count: { select: { skillDemands: true } } },
       });
+      const syncOutcome = this.lastSyncOutcome.get(country);
 
-      result[country] = snapshot
-        ? { date: snapshot.snapshotDate, source: snapshot.source, skills: snapshot._count.skillDemands }
-        : null;
+      result[country] = {
+        date: snapshot?.snapshotDate ?? null,
+        source: snapshot?.source ?? null,
+        skills: snapshot?._count.skillDemands ?? 0,
+        status: syncOutcome?.status ?? 'unknown',
+        totalVacancies: syncOutcome?.totalVacancies ?? null,
+        skillsImported: syncOutcome?.skillsImported ?? null,
+        message: syncOutcome?.message ?? null,
+        updatedAt: syncOutcome?.updatedAt ?? null,
+      };
     }
 
     return result;

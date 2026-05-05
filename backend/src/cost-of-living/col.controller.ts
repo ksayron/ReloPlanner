@@ -20,6 +20,11 @@ export class ColController {
     return this.colService.compare(city1, city2);
   }
 
+  @Get('cities')
+  listCities() {
+    return this.colService.listCities();
+  }
+
   /** Returns the full WhereNext cost-of-living index (95 countries) */
   @Get('index')
   getIndex() {

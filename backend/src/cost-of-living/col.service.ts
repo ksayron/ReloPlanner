@@ -5,6 +5,16 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class ColService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async listCities() {
+    const rows = await this.prisma.costOfLivingData.findMany({
+      distinct: ['city'],
+      select: { city: true },
+      orderBy: { city: 'asc' },
+    });
+
+    return rows.map((r) => r.city);
+  }
+
   async compare(city1: string, city2: string) {
     const [data1, data2] = await Promise.all([
       this.prisma.costOfLivingData.findMany({ where: { city: city1 } }),
