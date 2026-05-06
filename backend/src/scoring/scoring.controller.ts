@@ -10,9 +10,12 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AnalysisWorkflowService } from './analysis-workflow.service.js';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @Controller('profiles')
 @UseGuards(AuthGuard('jwt'))
+@ApiTags('Analysis')
+@ApiBearerAuth()
 export class ScoringController {
   constructor(
     private readonly prisma: PrismaService,

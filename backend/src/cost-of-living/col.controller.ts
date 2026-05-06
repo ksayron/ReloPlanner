@@ -5,9 +5,12 @@ import { ColSyncService } from './col-sync.service.js';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles, RolesGuard } from '../auth/roles.guard.js';
 import { Role } from '@prisma/client';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @Controller('cost-of-living')
 @UseGuards(AuthGuard('jwt'))
+@ApiTags('Cost of Living')
+@ApiBearerAuth()
 export class ColController {
   constructor(
     private readonly colService: ColService,

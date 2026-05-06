@@ -10,9 +10,12 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ProfileService } from './profile.service';
 import { CreateProfileDto } from './dto/create-profile.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @Controller('profiles')
 @UseGuards(AuthGuard('jwt'))
+@ApiTags('Profiles')
+@ApiBearerAuth()
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
 

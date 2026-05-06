@@ -15,9 +15,12 @@ import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { JobsRunnerService } from './jobs-runner.service.js';
 import { JobsService } from './jobs.service.js';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @Controller('jobs')
 @UseGuards(AuthGuard('jwt'))
+@ApiTags('Jobs')
+@ApiBearerAuth()
 export class JobsController {
   constructor(
     private readonly jobsService: JobsService,

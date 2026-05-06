@@ -9,9 +9,12 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ReportsService } from './reports.service.js';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @Controller('reports')
 @UseGuards(AuthGuard('jwt'))
+@ApiTags('Reports')
+@ApiBearerAuth()
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
@@ -40,4 +43,3 @@ export class ReportsController {
     });
   }
 }
-

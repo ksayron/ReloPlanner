@@ -15,10 +15,13 @@ import { TaxonomyService } from './taxonomy.service';
 import { CreateSkillDto } from './dto/create-skill.dto';
 import { UpdateSkillDto } from './dto/update-skill.dto';
 import { CreateTransferabilityDto } from './dto/create-transferability.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @Controller('admin/taxonomy')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(Role.ADMIN)
+@ApiTags('Admin Taxonomy')
+@ApiBearerAuth()
 export class TaxonomyController {
   constructor(private readonly taxonomyService: TaxonomyService) {}
 
@@ -45,6 +48,8 @@ export class TaxonomyController {
 
 @Controller('skills')
 @UseGuards(AuthGuard('jwt'))
+@ApiTags('Skills')
+@ApiBearerAuth()
 export class SkillsController {
   constructor(private readonly taxonomyService: TaxonomyService) {}
 
@@ -71,6 +76,8 @@ export class SkillsController {
 
 @Controller('competencies')
 @UseGuards(AuthGuard('jwt'))
+@ApiTags('Competencies')
+@ApiBearerAuth()
 export class CompetenciesController {
   constructor(private readonly taxonomyService: TaxonomyService) {}
 

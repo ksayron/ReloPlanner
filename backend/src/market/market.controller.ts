@@ -5,10 +5,13 @@ import { ImportMarketDto } from './dto/import-market.dto.js';
 import { Roles, RolesGuard } from '../auth/roles.guard.js';
 import { Role } from '@prisma/client';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @Controller()
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(Role.ADMIN)
+@ApiTags('Admin Market')
+@ApiBearerAuth()
 export class MarketController {
   constructor(
     private readonly marketService: MarketService,
