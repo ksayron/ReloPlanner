@@ -10,6 +10,7 @@ import { MarketModule } from './market/market.module.js';
 import { ColModule } from './cost-of-living/col.module.js';
 import { ProgressModule } from './progress/progress.module.js';
 import { CountriesModule } from './countries/countries.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CountriesModule } from './countries/countries.module.js';
     ColModule,
     ProgressModule,
     CountriesModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}
