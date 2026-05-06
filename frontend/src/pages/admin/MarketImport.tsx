@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import client from '../../api/client';
+import { fetchCountriesCatalog } from '../../api/countries';
+import type { CountryOption } from '../../types';
 
 interface SkillRow {
   skillName: string;
@@ -17,6 +19,15 @@ export default function MarketImport() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [targetCountries, setTargetCountries] = useState<CountryOption[]>([]);
+
+  useEffect(() => {
+    const loadCountries = async () => {
+      const catalog = await fetchCountriesCatalog();
+      setTargetCountries(catalog.target);
+    };
+    void loadCountries();
+  }, []);
 
   const addRow = () => {
     setSkillRows(prev => [...prev, { skillName: '', frequency: 0, avgRequiredLevel: 0 }]);
@@ -75,7 +86,14 @@ export default function MarketImport() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
         <div>
           <label style={{ display: 'block', marginBottom: '0.25rem' }}>Country</label>
-          <input value={country} onChange={e => setCountry(e.target.value)} style={inputStyle} />
+          <select value={country} onChange={e => setCountry(e.target.value)} style={inputStyle}>
+            <option value="">-- Select country --</option>
+            {targetCountries.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.name} ({option.code})
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label style={{ display: 'block', marginBottom: '0.25rem' }}>City (optional)</label>

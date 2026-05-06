@@ -9,6 +9,7 @@ import { ScoringModule } from './scoring/scoring.module.js';
 import { MarketModule } from './market/market.module.js';
 import { ColModule } from './cost-of-living/col.module.js';
 import { ProgressModule } from './progress/progress.module.js';
+import { CountriesModule } from './countries/countries.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ProgressModule } from './progress/progress.module.js';
     MarketModule,
     ColModule,
     ProgressModule,
+    CountriesModule,
   ],
 })
 export class AppModule {}

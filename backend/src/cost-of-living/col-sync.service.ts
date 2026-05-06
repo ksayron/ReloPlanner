@@ -1,15 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { WhereNextService } from './wherenext.service.js';
+import { TARGET_CITY_BY_COUNTRY } from '../countries/countries.data.js';
 
 /** Maps ISO country code → primary target city name used in our DB */
-const COUNTRY_CITY_MAP: Record<string, string> = {
-  DE: 'Berlin',
-  NL: 'Amsterdam',
-  GB: 'London',
-  CA: 'Toronto',
-  PL: 'Warsaw',
-};
+const COUNTRY_CITY_MAP: Record<string, string> = TARGET_CITY_BY_COUNTRY;
 
 /** CostCategory values that align with our Prisma enum */
 const CATEGORIES = ['RENT', 'FOOD', 'UTILITIES', 'TRANSPORT'] as const;

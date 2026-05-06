@@ -158,3 +158,14 @@ export interface CostComparison {
   city2: string;
   comparison: { category: CostCategory; city1Amount: number; city2Amount: number }[];
 }
+
+export interface CountryOption {
+  code: string;
+  name: string;
+  suggestedCities?: string[];
+}
+
+export interface CountriesCatalog {
+  target: CountryOption[];
+  source: CountryOption[];
+}

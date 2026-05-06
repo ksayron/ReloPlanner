@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { SkillNormalizerService } from './skill-normalizer.js';
 import { AdzunaAdapter } from './adapters/adzuna.adapter.js';
 import { ILiveMarketAdapter } from './adapters/market-data.adapter.js';
+import { TARGET_COUNTRY_CODES } from '../countries/countries.data.js';
 
 /** Default avgRequiredLevel by SkillCategory */
 const REQUIRED_LEVEL: Record<string, number> = {
@@ -69,7 +70,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
   }
 
   async syncAll(): Promise<SyncResult[]> {
-    const countries = ['DE', 'NL', 'CA', 'GB', 'PL'];
+    const countries = TARGET_COUNTRY_CODES;
     const results: SyncResult[] = [];
 
     for (const country of countries) {
@@ -222,7 +223,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
   }
 
   async getLastSnapshots(): Promise<Record<string, CountrySyncStatus>> {
-    const countries = ['DE', 'NL', 'CA', 'GB', 'PL'];
+    const countries = TARGET_COUNTRY_CODES;
     const result: Record<string, CountrySyncStatus> = {};
 
     for (const country of countries) {

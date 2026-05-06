@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import client from '../../api/client';
+import { fetchCountriesCatalog } from '../../api/countries';
 
 interface SyncResult {
   country: string;
@@ -49,12 +50,17 @@ export default function SyncManager() {
   const [colSyncing, setColSyncing] = useState(false);
   const [colResult, setColResult] = useState<{ updated: string[]; skipped: ColSkippedItem[] } | null>(null);
   const [error, setError] = useState('');
-
-  const COUNTRIES = ['DE', 'NL', 'CA', 'GB', 'PL'];
+  const [countries, setCountries] = useState<string[]>([]);
 
   useEffect(() => {
     loadStatus();
+    void loadCountries();
   }, []);
+
+  const loadCountries = async () => {
+    const catalog = await fetchCountriesCatalog();
+    setCountries(catalog.target.map((country) => country.code));
+  };
 
   const loadStatus = async () => {
     try {
@@ -145,7 +151,7 @@ export default function SyncManager() {
             </tr>
           </thead>
           <tbody>
-            {COUNTRIES.map((country) => {
+            {countries.map((country) => {
               const info = marketStatus[country];
               return (
                 <tr key={country}>

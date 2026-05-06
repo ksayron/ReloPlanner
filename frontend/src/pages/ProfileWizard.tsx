@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
+import { fetchCountriesCatalog } from '../api/countries';
 import type {
   CertificationStatus,
   Competency,
+  CountriesCatalog,
   HardSkillLevel,
   LanguageLevel,
   UserCompetencyInput,
@@ -14,32 +16,6 @@ interface SelectedCompetency {
   type: Competency['type'];
   level: HardSkillLevel | LanguageLevel | CertificationStatus;
 }
-
-const COUNTRIES = [
-  { code: 'DE', name: 'Germany' },
-  { code: 'PL', name: 'Poland' },
-  { code: 'CA', name: 'Canada' },
-  { code: 'UA', name: 'Ukraine' },
-  { code: 'US', name: 'United States' },
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'NL', name: 'Netherlands' },
-  { code: 'FR', name: 'France' },
-  { code: 'ES', name: 'Spain' },
-  { code: 'CZ', name: 'Czech Republic' },
-];
-
-const CITIES: Record<string, string[]> = {
-  DE: ['Berlin', 'Munich', 'Hamburg', 'Frankfurt'],
-  PL: ['Warsaw', 'Krakow', 'Wroclaw', 'Gdansk'],
-  CA: ['Toronto', 'Vancouver', 'Montreal', 'Ottawa'],
-  UA: ['Kyiv', 'Lviv', 'Kharkiv', 'Odesa'],
-  US: ['New York', 'San Francisco', 'Austin', 'Seattle'],
-  GB: ['London', 'Manchester', 'Edinburgh', 'Bristol'],
-  NL: ['Amsterdam', 'Rotterdam', 'The Hague', 'Utrecht'],
-  FR: ['Paris', 'Lyon', 'Marseille', 'Toulouse'],
-  ES: ['Madrid', 'Barcelona', 'Valencia', 'Seville'],
-  CZ: ['Prague', 'Brno', 'Ostrava'],
-};
 
 const ROLES = [
   'Frontend Developer',
@@ -91,6 +67,18 @@ export default function ProfileWizard() {
   const [allCompetencies, setAllCompetencies] = useState<Competency[]>([]);
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState<SelectedCompetency[]>([]);
+  const [countriesCatalog, setCountriesCatalog] = useState<CountriesCatalog>({
+    target: [],
+    source: [],
+  });
+
+  useEffect(() => {
+    const loadCountries = async () => {
+      const data = await fetchCountriesCatalog();
+      setCountriesCatalog(data);
+    };
+    void loadCountries();
+  }, []);
 
   useEffect(() => {
     const loadCompetencies = async () => {
@@ -113,6 +101,14 @@ export default function ProfileWizard() {
         c.name.toLowerCase().includes(filter.toLowerCase().trim()),
       ),
     [allCompetencies, filter],
+  );
+
+  const suggestedCitiesByCountry = useMemo(
+    () =>
+      Object.fromEntries(
+        countriesCatalog.target.map((country) => [country.code, country.suggestedCities ?? []]),
+      ) as Record<string, string[]>,
+    [countriesCatalog.target],
   );
 
   const getDefaultLevel = (type: Competency['type']) => {
@@ -270,7 +266,7 @@ export default function ProfileWizard() {
             style={selectStyle}
           >
             <option value="">-- Select country --</option>
-            {COUNTRIES.map((c) => (
+            {countriesCatalog.target.map((c) => (
               <option key={c.code} value={c.code}>
                 {c.name}
               </option>
@@ -285,7 +281,7 @@ export default function ProfileWizard() {
             disabled={!targetCountry}
           >
             <option value="">-- Select city (optional) --</option>
-            {(CITIES[targetCountry] || []).map((city) => (
+            {(suggestedCitiesByCountry[targetCountry] || []).map((city) => (
               <option key={city} value={city}>
                 {city}
               </option>
@@ -328,7 +324,7 @@ export default function ProfileWizard() {
             style={selectStyle}
           >
             <option value="">-- Select country --</option>
-            {COUNTRIES.map((c) => (
+            {countriesCatalog.source.map((c) => (
               <option key={c.code} value={c.code}>
                 {c.name}
               </option>
