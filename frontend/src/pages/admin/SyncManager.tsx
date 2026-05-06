@@ -22,7 +22,16 @@ interface SnapshotInfo {
 
 interface CacheStatus {
   lastRefreshed: string | null;
+  ageMinutes: number | null;
+  staleThresholdMinutes: number;
+  isStale: boolean;
   endpoints: Record<string, boolean>;
+}
+
+interface ColSkippedItem {
+  countryIso: string;
+  city: string;
+  reason: string;
 }
 
 const STATUS_COLORS: Record<SyncResult['status'], string> = {
@@ -38,7 +47,7 @@ export default function SyncManager() {
   const [syncingAll, setSyncingAll] = useState(false);
   const [syncingCountry, setSyncingCountry] = useState<string | null>(null);
   const [colSyncing, setColSyncing] = useState(false);
-  const [colResult, setColResult] = useState<{ updated: string[]; skipped: string[] } | null>(null);
+  const [colResult, setColResult] = useState<{ updated: string[]; skipped: ColSkippedItem[] } | null>(null);
   const [error, setError] = useState('');
 
   const COUNTRIES = ['DE', 'NL', 'CA', 'GB', 'PL'];
@@ -212,6 +221,10 @@ export default function SyncManager() {
                 ? new Date(cacheStatus.lastRefreshed).toLocaleString()
                 : 'Not yet loaded'}
             </div>
+            <div style={{ color: cacheStatus.isStale ? '#f44336' : '#4caf50', fontSize: '0.82rem', marginBottom: '0.5rem' }}>
+              Cache status: {cacheStatus.isStale ? 'STALE' : 'FRESH'}
+              {cacheStatus.ageMinutes != null && ` (${cacheStatus.ageMinutes} min old)`}
+            </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               {Object.entries(cacheStatus.endpoints).map(([key, loaded]) => (
                 <span
@@ -236,7 +249,14 @@ export default function SyncManager() {
           <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
             <span style={{ color: '#4caf50' }}>Updated: {colResult.updated.join(', ') || 'none'}</span>
             {colResult.skipped.length > 0 && (
-              <span style={{ color: '#ff9800', marginLeft: '1rem' }}>Skipped: {colResult.skipped.join(', ')}</span>
+              <div style={{ color: '#ff9800', marginTop: '0.4rem' }}>
+                Skipped:
+                {colResult.skipped.map((item) => (
+                  <div key={`${item.countryIso}-${item.city}`}>
+                    {item.city} ({item.countryIso}) - {item.reason}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}

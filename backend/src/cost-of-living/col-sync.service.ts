@@ -14,6 +14,17 @@ const COUNTRY_CITY_MAP: Record<string, string> = {
 /** CostCategory values that align with our Prisma enum */
 const CATEGORIES = ['RENT', 'FOOD', 'UTILITIES', 'TRANSPORT'] as const;
 
+export interface ColSyncSkippedItem {
+  countryIso: string;
+  city: string;
+  reason: string;
+}
+
+export interface ColSyncResult {
+  updated: string[];
+  skipped: ColSyncSkippedItem[];
+}
+
 @Injectable()
 export class ColSyncService {
   private readonly logger = new Logger(ColSyncService.name);
@@ -23,16 +34,23 @@ export class ColSyncService {
     private readonly whereNext: WhereNextService,
   ) {}
 
-  async sync(): Promise<{ updated: string[]; skipped: string[] }> {
+  async sync(): Promise<ColSyncResult> {
     const colData = this.whereNext.get('costOfLiving');
 
     if (!colData?.data) {
       this.logger.warn('ColSync: WhereNext costOfLiving data not available in cache');
-      return { updated: [], skipped: Object.keys(COUNTRY_CITY_MAP) };
+      return {
+        updated: [],
+        skipped: Object.entries(COUNTRY_CITY_MAP).map(([countryIso, city]) => ({
+          countryIso,
+          city,
+          reason: 'Cache dataset "costOfLiving" is not loaded',
+        })),
+      };
     }
 
     const updated: string[] = [];
-    const skipped: string[] = [];
+    const skipped: ColSyncSkippedItem[] = [];
 
     for (const [countryIso, cityName] of Object.entries(COUNTRY_CITY_MAP)) {
       const countryData = (colData.data as any[]).find(
@@ -41,7 +59,11 @@ export class ColSyncService {
 
       if (!countryData) {
         this.logger.warn(`ColSync: no WhereNext data for country "${countryIso}"`);
-        skipped.push(cityName);
+        skipped.push({
+          countryIso,
+          city: cityName,
+          reason: `No source record for country "${countryIso}"`,
+        });
         continue;
       }
 

@@ -58,8 +58,16 @@ export class ColController {
   /** Returns cache status + last refresh time */
   @Get('cache-status')
   getCacheStatus() {
+    const lastRefreshed = this.whereNext.getLastRefreshed();
+    const ageMinutes = lastRefreshed
+      ? Math.floor((Date.now() - lastRefreshed.getTime()) / (60 * 1000))
+      : null;
+    const staleThresholdMinutes = 90;
     return {
-      lastRefreshed: this.whereNext.getLastRefreshed(),
+      lastRefreshed,
+      ageMinutes,
+      staleThresholdMinutes,
+      isStale: ageMinutes == null ? true : ageMinutes > staleThresholdMinutes,
       endpoints: this.whereNext.getStatus(),
     };
   }
