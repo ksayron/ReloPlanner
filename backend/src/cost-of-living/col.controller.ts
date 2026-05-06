@@ -83,4 +83,22 @@ export class ColController {
     const result = await this.colSync.sync();
     return { message: 'CoL sync completed', ...result };
   }
+
+  /** Admin: sync health summary */
+  @Get('sync/status')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  getSyncStatus() {
+    return this.colSync.getHealthStatus();
+  }
+
+  /** Admin: last N sync runs */
+  @Get('sync/runs')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  getSyncRuns(@Query('limit') limit?: string) {
+    const parsed = Number(limit);
+    const safeLimit = Number.isFinite(parsed) ? parsed : 20;
+    return this.colSync.getRunHistory(safeLimit);
+  }
 }

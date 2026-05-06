@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -32,6 +32,9 @@ interface SnapshotInfo {
   skillsImported?: number | null;
   message?: string | null;
   updatedAt?: string | null;
+  attempts?: number | null;
+  errorKind?: string | null;
+  failureStage?: string | null;
 }
 
 interface CacheStatus {
@@ -48,9 +51,49 @@ interface ColSkippedItem {
   reason: string;
 }
 
+interface MarketRun {
+  id: string;
+  trigger: 'manual' | 'scheduled' | 'startup';
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  status: 'success' | 'partial' | 'failed';
+  summary: { synced: number; skipped: number; error: number };
+}
+
+interface MarketHealth {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  staleThresholdMinutes: number;
+  staleCountries: string[];
+  lastRun: MarketRun | null;
+  summary: { synced: number; skipped: number; errors: number };
+}
+
+interface ColRun {
+  id: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  status: 'success' | 'partial' | 'failed';
+  updatedCount: number;
+  skippedCount: number;
+  message: string | null;
+}
+
+interface ColSyncHealth {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  lastRun: ColRun | null;
+}
+
 const statusColor = (status: SyncResult['status']) => {
   if (status === 'synced') return 'teal';
   if (status === 'skipped') return 'yellow';
+  return 'red';
+};
+
+const healthColor = (status: 'healthy' | 'degraded' | 'unhealthy') => {
+  if (status === 'healthy') return 'teal';
+  if (status === 'degraded') return 'yellow';
   return 'red';
 };
 
@@ -62,6 +105,10 @@ export default function SyncManager() {
   const [syncingCountry, setSyncingCountry] = useState<string | null>(null);
   const [colSyncing, setColSyncing] = useState(false);
   const [colResult, setColResult] = useState<{ updated: string[]; skipped: ColSkippedItem[] } | null>(null);
+  const [marketHealth, setMarketHealth] = useState<MarketHealth | null>(null);
+  const [marketRuns, setMarketRuns] = useState<MarketRun[]>([]);
+  const [colSyncHealth, setColSyncHealth] = useState<ColSyncHealth | null>(null);
+  const [colRuns, setColRuns] = useState<ColRun[]>([]);
   const [error, setError] = useState('');
   const [countries, setCountries] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +133,17 @@ export default function SyncManager() {
       ]);
       setMarketStatus(marketRes.data);
       setCacheStatus(cacheRes.data);
+
+      const [marketHealthRes, marketRunsRes, colHealthRes, colRunsRes] = await Promise.all([
+        client.get('/admin/sync/market/health'),
+        client.get('/admin/sync/market/runs?limit=5'),
+        client.get('/cost-of-living/sync/status'),
+        client.get('/cost-of-living/sync/runs?limit=5'),
+      ]);
+      setMarketHealth(marketHealthRes.data);
+      setMarketRuns(Array.isArray(marketRunsRes.data) ? marketRunsRes.data : []);
+      setColSyncHealth(colHealthRes.data);
+      setColRuns(Array.isArray(colRunsRes.data) ? colRunsRes.data : []);
     } catch {
       setError('Failed to load sync status');
     }
@@ -152,9 +210,13 @@ export default function SyncManager() {
         <Stack>
           <Group justify="space-between" align="center">
             <Title order={3}>Job Market Snapshots</Title>
-            <Button onClick={handleSyncAll} loading={syncingAll} color="brand.7">Sync All Countries</Button>
+            <Button onClick={handleSyncAll} loading={syncingAll} color="brand.7">
+              Sync All Countries
+            </Button>
           </Group>
-          <Text size="sm" c="dimmed">DE, NL, CA, GB, PL via Adzuna API | Runs daily at 02:00 UTC</Text>
+          <Text size="sm" c="dimmed">
+            DE, NL, CA, GB, PL via Adzuna API | Runs daily at 02:00 UTC
+          </Text>
 
           <Table withTableBorder withColumnBorders striped>
             <Table.Thead>
@@ -171,13 +233,22 @@ export default function SyncManager() {
                 const info = marketStatus[country];
                 return (
                   <Table.Tr key={country}>
-                    <Table.Td><Text fw={600}>{country}</Text></Table.Td>
+                    <Table.Td>
+                      <Text fw={600}>{country}</Text>
+                    </Table.Td>
                     <Table.Td>{info?.date ? new Date(info.date).toLocaleDateString() : 'No data'}</Table.Td>
                     <Table.Td className="text-right">{info?.skills ?? 'N/A'}</Table.Td>
                     <Table.Td>
                       <Text size="sm" c="dimmed">
                         {info?.source ?? 'N/A'} {info?.status ? `(${info.status})` : ''}
                       </Text>
+                      {info?.attempts ? (
+                        <Text size="xs" c="dimmed">
+                          attempts: {info.attempts}
+                          {info.errorKind ? ` | error: ${info.errorKind}` : ''}
+                          {info.failureStage ? ` | stage: ${info.failureStage}` : ''}
+                        </Text>
+                      ) : null}
                     </Table.Td>
                     <Table.Td>
                       <Button
@@ -204,9 +275,41 @@ export default function SyncManager() {
                   {result.country}: {result.status}
                   {result.skillsImported != null ? ` (${result.skillsImported} skills)` : ''}
                   {result.message ? ` - ${result.message}` : ''}
+                  {result.attempts != null ? ` [attempts: ${result.attempts}]` : ''}
                 </Badge>
               ))}
             </Group>
+          )}
+
+          {marketHealth && (
+            <Card withBorder radius="md" p="md" className="bg-[var(--app-bg)]/60">
+              <Stack gap="xs">
+                <Badge color={healthColor(marketHealth.status)} variant="light" w="fit-content">
+                  Market Sync Health: {marketHealth.status.toUpperCase()}
+                </Badge>
+                <Text size="sm" c="dimmed">
+                  Summary: {marketHealth.summary.synced} synced, {marketHealth.summary.skipped} skipped, {marketHealth.summary.errors} errors
+                </Text>
+                {marketHealth.staleCountries.length > 0 ? (
+                  <Text size="sm" c="yellow.8">
+                    Stale countries (&gt; {marketHealth.staleThresholdMinutes} min): {marketHealth.staleCountries.join(', ')}
+                  </Text>
+                ) : null}
+              </Stack>
+            </Card>
+          )}
+
+          {marketRuns.length > 0 && (
+            <Card withBorder radius="md" p="md">
+              <Stack gap="xs">
+                <Title order={5}>Recent market sync runs</Title>
+                {marketRuns.map((run) => (
+                  <Text key={run.id} size="sm" c="dimmed">
+                    {new Date(run.finishedAt).toLocaleString()} - {run.trigger} - {run.status} - {run.summary.synced}/{run.summary.skipped}/{run.summary.error}
+                  </Text>
+                ))}
+              </Stack>
+            </Card>
           )}
         </Stack>
       </Paper>
@@ -215,7 +318,9 @@ export default function SyncManager() {
         <Stack>
           <Group justify="space-between" align="center">
             <Title order={3}>Cost of Living Data</Title>
-            <Button onClick={handleColSync} loading={colSyncing} color="brand.7">Sync from WhereNext</Button>
+            <Button onClick={handleColSync} loading={colSyncing} color="brand.7">
+              Sync from WhereNext
+            </Button>
           </Group>
           <Text size="sm" c="dimmed">
             Source: getwherenext.com | Cities: Berlin, Amsterdam, London, Warsaw, Toronto | Cache refreshes hourly
@@ -248,7 +353,9 @@ export default function SyncManager() {
           {colResult && (
             <Card withBorder radius="md" p="md">
               <Stack gap="xs">
-                <Text size="sm" c="teal">Updated: {colResult.updated.join(', ') || 'none'}</Text>
+                <Text size="sm" c="teal">
+                  Updated: {colResult.updated.join(', ') || 'none'}
+                </Text>
                 {colResult.skipped.length > 0 && (
                   <Stack gap={4}>
                     <Text size="sm" c="yellow.8">Skipped:</Text>
@@ -259,6 +366,28 @@ export default function SyncManager() {
                     ))}
                   </Stack>
                 )}
+              </Stack>
+            </Card>
+          )}
+
+          {colSyncHealth && (
+            <Card withBorder radius="md" p="md" className="bg-[var(--app-bg)]/60">
+              <Badge color={healthColor(colSyncHealth.status)} variant="light" w="fit-content">
+                CoL Sync Health: {colSyncHealth.status.toUpperCase()}
+              </Badge>
+            </Card>
+          )}
+
+          {colRuns.length > 0 && (
+            <Card withBorder radius="md" p="md">
+              <Stack gap="xs">
+                <Title order={5}>Recent CoL sync runs</Title>
+                {colRuns.map((run) => (
+                  <Text key={run.id} size="sm" c="dimmed">
+                    {new Date(run.finishedAt).toLocaleString()} - {run.status} - updated {run.updatedCount}, skipped {run.skippedCount}
+                    {run.message ? ` - ${run.message}` : ''}
+                  </Text>
+                ))}
               </Stack>
             </Card>
           )}

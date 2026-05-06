@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { MarketService } from './market.service.js';
 import { MarketSyncService } from './market-sync.service.js';
 import { ImportMarketDto } from './dto/import-market.dto.js';
@@ -36,5 +44,17 @@ export class MarketController {
   @Get('admin/sync/market/status')
   getSyncStatus() {
     return this.marketSyncService.getLastSnapshots();
+  }
+
+  @Get('admin/sync/market/health')
+  getSyncHealth() {
+    return this.marketSyncService.getHealthStatus();
+  }
+
+  @Get('admin/sync/market/runs')
+  getSyncRuns(@Query('limit') limit?: string) {
+    const parsed = Number(limit);
+    const safeLimit = Number.isFinite(parsed) ? parsed : 20;
+    return this.marketSyncService.getRunHistory(safeLimit);
   }
 }
