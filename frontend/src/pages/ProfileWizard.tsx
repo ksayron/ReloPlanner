@@ -49,6 +49,8 @@ const formatEnumLabel = (value: string) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 
+const OTHER_CITY_VALUE = '__OTHER_CITY__';
+
 export default function ProfileWizard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
@@ -204,7 +206,7 @@ export default function ProfileWizard() {
         yearsExperience,
         desiredRole,
         targetCountry,
-        targetCity: targetCity || undefined,
+        targetCity: !targetCity || targetCity === OTHER_CITY_VALUE ? undefined : targetCity,
         competencies: toPayloadCompetencies(),
       });
       navigate(`/dashboard/${res.data.id}`);
@@ -286,6 +288,7 @@ export default function ProfileWizard() {
                 {city}
               </option>
             ))}
+            <option value={OTHER_CITY_VALUE}>Other / Not listed (use country average)</option>
           </select>
 
           <label style={{ display: 'block', marginBottom: '0.25rem' }}>Years of Experience (min 0)</label>
