@@ -122,6 +122,17 @@ enum CostCategory {
   OTHER
 }
 
+enum ProcessingJobType {
+  PROFILE_ANALYSIS
+}
+
+enum ProcessingJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -129,6 +140,7 @@ model User {
   role         Role     @default(USER)
   createdAt    DateTime @default(now()) @map("created_at")
   profiles     RelocationProfile[]
+  processingJobs ProcessingJob[]
   @@map("users")
 }
 
@@ -397,4 +409,23 @@ model GapItem {
   analysis        AnalysisResult @relation(fields: [analysisId], references: [id])
   skill           Skill          @relation(fields: [skillId], references: [id])
   @@map("gap_items")
+}
+
+model ProcessingJob {
+  id              String              @id @default(uuid())
+  userId          String              @map("user_id")
+  type            ProcessingJobType
+  status          ProcessingJobStatus @default(PENDING)
+  currentStep     String              @map("current_step")
+  progressPercent Int                 @default(0) @map("progress_percent")
+  errorMessage    String?             @map("error_message")
+  payload         Json?
+  result          Json?
+  startedAt       DateTime?           @map("started_at")
+  completedAt     DateTime?           @map("completed_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@map("processing_jobs")
 }

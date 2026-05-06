@@ -11,6 +11,7 @@ import { ColModule } from './cost-of-living/col.module.js';
 import { ProgressModule } from './progress/progress.module.js';
 import { CountriesModule } from './countries/countries.module.js';
 import { ReportsModule } from './reports/reports.module.js';
+import { JobsModule } from './jobs/jobs.module.js';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ReportsModule } from './reports/reports.module.js';
     ProgressModule,
     CountriesModule,
     ReportsModule,
+    JobsModule,
   ],
 })
 export class AppModule {}

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import client from '../api/client';
-import type { AnalysisResult } from '../types';
+import type { AnalysisResult, ProcessingJobSnapshot } from '../types';
 
 const formatEnumLabel = (value: string) =>
   value
@@ -16,6 +16,20 @@ const priorityLabel: Record<string, string> = {
   OPTIONAL: 'Nice to Have',
   CONTEXTUAL: 'Contextual',
 };
+
+const stepLabel: Record<string, string> = {
+  QUEUED: 'Queued',
+  STARTED: 'Started',
+  LOAD_PROFILE: 'Load profile',
+  LOAD_REQUIREMENTS: 'Load market requirements',
+  LOAD_MARKET_SNAPSHOT: 'Load market snapshot',
+  PREPARE_INPUTS: 'Prepare analysis inputs',
+  COMPUTE_ANALYSIS: 'Compute score and roadmap',
+  SAVE_RESULTS: 'Save analysis result',
+  COMPLETED: 'Completed',
+};
+
+const isTerminalJobStatus = (status: string) => status === 'COMPLETED' || status === 'FAILED';
 
 const getFitScoreMessage = (scorePct: number) => {
   if (scorePct >= 80) {
@@ -35,9 +49,12 @@ export default function Dashboard() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [job, setJob] = useState<ProcessingJobSnapshot | null>(null);
+  const [jobHistory, setJobHistory] = useState<ProcessingJobSnapshot[]>([]);
   const [exporting, setExporting] = useState<'pdf' | 'html' | null>(null);
   const [noResults, setNoResults] = useState(false);
   const [error, setError] = useState('');
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -54,17 +71,120 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, [profileId]);
 
-  const runAnalysis = async () => {
-    setAnalyzing(true);
-    setError('');
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, []);
+
+  const closeJobStream = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+  };
+
+  const parseSseSnapshot = (raw: string): ProcessingJobSnapshot | null => {
     try {
-      const res = await client.post(`/profiles/${profileId}/analyze`);
+      return JSON.parse(raw) as ProcessingJobSnapshot;
+    } catch {
+      return null;
+    }
+  };
+
+  const applyJobSnapshot = async (
+    snapshot: ProcessingJobSnapshot,
+    finishedRef: { done: boolean },
+  ) => {
+    setJob(snapshot);
+    setJobHistory((prev) => {
+      const last = prev[prev.length - 1];
+      if (
+        last &&
+        last.currentStep === snapshot.currentStep &&
+        last.status === snapshot.status &&
+        last.progressPercent === snapshot.progressPercent &&
+        last.errorMessage === snapshot.errorMessage
+      ) {
+        return prev;
+      }
+      return [...prev, snapshot];
+    });
+
+    if (!isTerminalJobStatus(snapshot.status) || finishedRef.done) {
+      return;
+    }
+
+    finishedRef.done = true;
+    closeJobStream();
+    setAnalyzing(false);
+
+    if (snapshot.status === 'COMPLETED') {
+      const res = await client.get(`/profiles/${profileId}/results`);
       setResult(res.data);
       setNoResults(false);
-    } catch {
-      setError('Analysis failed');
-    } finally {
+      return;
+    }
+
+    const failedStep = stepLabel[snapshot.currentStep] ?? formatEnumLabel(snapshot.currentStep);
+    setError(snapshot.errorMessage ?? `Analysis failed at step: ${failedStep}`);
+  };
+
+  const runAnalysis = async () => {
+    if (!profileId || analyzing) return;
+
+    closeJobStream();
+    setAnalyzing(true);
+    setError('');
+    setJob(null);
+    setJobHistory([]);
+
+    const finishedRef = { done: false };
+
+    try {
+      const startResponse = await client.post(`/jobs/profiles/${profileId}/analyze`);
+      const jobId = String(startResponse.data.jobId);
+
+      const statusResponse = await client.get(`/jobs/${jobId}`);
+      await applyJobSnapshot(statusResponse.data as ProcessingJobSnapshot, finishedRef);
+
+      if (finishedRef.done) return;
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Missing auth token for SSE connection');
+      }
+
+      const eventSource = new EventSource(
+        `/api/jobs/${jobId}/events?access_token=${encodeURIComponent(token)}`,
+      );
+      eventSourceRef.current = eventSource;
+
+      const onSnapshotEvent = (event: MessageEvent<string>) => {
+        const snapshot = parseSseSnapshot(event.data);
+        if (!snapshot) return;
+        void applyJobSnapshot(snapshot, finishedRef).catch(() => {
+          setError('Analysis failed while processing progress updates');
+        });
+      };
+
+      eventSource.onmessage = onSnapshotEvent;
+      eventSource.addEventListener('job.update', onSnapshotEvent as EventListener);
+
+      eventSource.onerror = () => {
+        if (finishedRef.done) return;
+        setError('Live progress stream disconnected');
+        setAnalyzing(false);
+        closeJobStream();
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Analysis failed';
+      setError(message);
       setAnalyzing(false);
+      closeJobStream();
     }
   };
 
@@ -127,10 +247,109 @@ export default function Dashboard() {
 
   return (
     <div style={{ maxWidth: '980px', margin: '2rem auto' }}>
-      <h2>Analysis Dashboard</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center' }}>
+        <h2 style={{ marginBottom: 0 }}>Analysis Dashboard</h2>
+        <button
+          onClick={runAnalysis}
+          disabled={analyzing}
+          style={{
+            padding: '0.55rem 1rem',
+            background: '#e94560',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: analyzing ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {analyzing ? 'Running Analysis...' : result ? 'Re-run Analysis' : 'Run Analysis'}
+        </button>
+      </div>
+
       {error && <p style={{ color: '#f44336' }}>{error}</p>}
 
-      {noResults && !result && (
+      {(analyzing || job) && (
+        <div
+          style={{
+            background: '#fff',
+            border: '1px solid #eee',
+            borderRadius: '8px',
+            padding: '1rem 1.25rem',
+            margin: '1rem 0 1.5rem',
+          }}
+        >
+          <h3 style={{ marginTop: 0 }}>Analysis Progress</h3>
+          <div style={{ marginBottom: '0.5rem' }}>
+            Status: <strong>{job ? formatEnumLabel(job.status) : 'Running'}</strong>
+          </div>
+          <div style={{ marginBottom: '0.75rem' }}>
+            Current step:{' '}
+            <strong>
+              {job ? stepLabel[job.currentStep] ?? formatEnumLabel(job.currentStep) : 'Queued'}
+            </strong>
+          </div>
+          <div style={{ background: '#eee', borderRadius: 6, height: 12, overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${Math.max(0, Math.min(100, job?.progressPercent ?? 0))}%`,
+                height: '100%',
+                background: job?.status === 'FAILED' ? '#f44336' : '#4caf50',
+                transition: 'width 180ms ease',
+              }}
+            />
+          </div>
+          <div style={{ marginTop: '0.45rem', color: '#666', fontSize: '0.9rem' }}>
+            {job?.progressPercent ?? 0}% complete
+          </div>
+
+          {jobHistory.length > 0 && (
+            <div style={{ marginTop: '0.9rem' }}>
+              {jobHistory.map((item, idx) => {
+                const isFailure = item.status === 'FAILED';
+                const isSuccess = item.status === 'COMPLETED';
+                return (
+                  <div
+                    key={`${item.currentStep}-${item.progressPercent}-${idx}`}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '0.35rem 0',
+                      borderBottom: '1px solid #f3f3f3',
+                      fontSize: '0.92rem',
+                    }}
+                  >
+                    <span style={{ color: isFailure ? '#f44336' : isSuccess ? '#4caf50' : '#222' }}>
+                      {stepLabel[item.currentStep] ?? formatEnumLabel(item.currentStep)}
+                    </span>
+                    <span style={{ color: '#666' }}>{item.progressPercent}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {job?.status === 'FAILED' && (
+            <div style={{ marginTop: '0.8rem' }}>
+              <button
+                onClick={runAnalysis}
+                disabled={analyzing}
+                style={{
+                  padding: '0.5rem 0.9rem',
+                  background: '#e94560',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: analyzing ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Retry Analysis
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {noResults && !result && !analyzing && (
         <div
           style={{
             textAlign: 'center',
@@ -152,7 +371,7 @@ export default function Dashboard() {
               cursor: 'pointer',
             }}
           >
-            {analyzing ? 'Analyzing...' : 'Run Analysis'}
+            Run Analysis
           </button>
         </div>
       )}

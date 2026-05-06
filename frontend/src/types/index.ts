@@ -169,3 +169,21 @@ export interface CountriesCatalog {
   target: CountryOption[];
   source: CountryOption[];
 }
+
+export type ProcessingJobType = 'PROFILE_ANALYSIS';
+export type ProcessingJobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+export interface ProcessingJobSnapshot {
+  id: string;
+  type: ProcessingJobType;
+  status: ProcessingJobStatus;
+  currentStep: string;
+  progressPercent: number;
+  errorMessage: string | null;
+  payload: Record<string, unknown> | null;
+  result: Record<string, unknown> | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
