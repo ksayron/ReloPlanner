@@ -57,6 +57,22 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## Critical Flow E2E Prerequisites
+
+The critical-flow e2e suite (`test/app.e2e-spec.ts`) requires a reachable PostgreSQL database and seeded market/taxonomy fixtures.
+
+```bash
+# ensure DATABASE_URL points to a running PostgreSQL instance
+# apply schema
+$ npx prisma migrate deploy
+
+# seed deterministic fixtures used by analysis flow
+$ npx ts-node prisma/seed.ts
+
+# run e2e in-band
+$ npm run test:e2e
+```
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
