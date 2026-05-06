@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [exporting, setExporting] = useState<'pdf' | 'html' | null>(null);
   const [noResults, setNoResults] = useState(false);
   const [error, setError] = useState('');
 
@@ -64,6 +65,41 @@ export default function Dashboard() {
       setError('Analysis failed');
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const parseFileName = (contentDisposition: string | undefined, fallback: string) => {
+    if (!contentDisposition) return fallback;
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      return decodeURIComponent(utf8Match[1]);
+    }
+    const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+    return plainMatch?.[1] ?? fallback;
+  };
+
+  const exportReport = async (format: 'pdf' | 'html') => {
+    if (!result) return;
+    setExporting(format);
+    setError('');
+    try {
+      const response = await client.get(`/reports/analyses/${result.id}/${format}`, {
+        responseType: 'blob',
+      });
+      const fallbackName = `relocation-readiness-${result.id}.${format}`;
+      const fileName = parseFileName(response.headers['content-disposition'], fallbackName);
+      const href = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(href);
+    } catch {
+      setError(`Failed to export ${format.toUpperCase()} report`);
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -147,6 +183,36 @@ export default function Dashboard() {
               {getFitScoreMessage(fitScorePct)}
             </p>
             <p style={{ color: '#666' }}>Critical-path estimate: {result.totalPrepMonths} months</p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginTop: '1rem' }}>
+              <button
+                onClick={() => exportReport('pdf')}
+                disabled={exporting !== null}
+                style={{
+                  padding: '0.55rem 1.1rem',
+                  background: '#e94560',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: exporting !== null ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {exporting === 'pdf' ? 'Preparing PDF...' : 'Save as PDF'}
+              </button>
+              <button
+                onClick={() => exportReport('html')}
+                disabled={exporting !== null}
+                style={{
+                  padding: '0.55rem 1.1rem',
+                  background: '#1a1a2e',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: exporting !== null ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {exporting === 'html' ? 'Preparing HTML...' : 'Save as HTML'}
+              </button>
+            </div>
             {result.timeEstimate && (
               <div
                 style={{
