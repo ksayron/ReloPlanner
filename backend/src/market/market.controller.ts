@@ -33,12 +33,12 @@ export class MarketController {
 
   @Post('admin/sync/market')
   syncAll() {
-    return this.marketSyncService.syncAll();
+    return this.marketSyncService.syncAll('manual', { force: true });
   }
 
   @Post('admin/sync/market/:country')
   syncCountry(@Param('country') country: string) {
-    return this.marketSyncService.syncCountry(country);
+    return this.marketSyncService.syncCountry(country, { force: true });
   }
 
   @Get('admin/sync/market/status')

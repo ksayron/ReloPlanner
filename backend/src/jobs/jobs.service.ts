@@ -77,6 +77,21 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     return this.getOrCreateStream(jobId).asObservable();
   }
 
+  async countRecentJobsForUser(params: {
+    userId: string;
+    type: ProcessingJobType;
+    since: Date;
+  }): Promise<number> {
+    const processingJobModel = (this.prisma as any).processingJob;
+    return processingJobModel.count({
+      where: {
+        userId: params.userId,
+        type: params.type as any,
+        createdAt: { gte: params.since },
+      },
+    });
+  }
+
   private enqueueEvent(event: ProcessingJobDomainEvent) {
     this.eventQueue = this.eventQueue
       .then(() => this.applyDomainEvent(event))

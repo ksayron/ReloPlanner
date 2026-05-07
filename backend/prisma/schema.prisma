@@ -124,6 +124,7 @@ enum CostCategory {
 
 enum ProcessingJobType {
   PROFILE_ANALYSIS
+  MARKET_SYNC
 }
 
 enum ProcessingJobStatus {

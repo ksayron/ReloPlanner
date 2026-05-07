@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -7,6 +7,7 @@ import {
   Group,
   Loader,
   Paper,
+  Progress,
   Stack,
   Table,
   Text,
@@ -14,6 +15,7 @@ import {
 } from '@mantine/core';
 import client from '../../api/client';
 import { fetchCountriesCatalog } from '../../api/countries';
+import { getJobStepLabel } from '../../utils/jobProgress';
 
 interface SyncResult {
   country: string;
@@ -21,6 +23,7 @@ interface SyncResult {
   totalVacancies?: number;
   skillsImported?: number;
   message?: string;
+  attempts?: number;
 }
 
 interface SnapshotInfo {
@@ -112,12 +115,26 @@ export default function SyncManager() {
   const [error, setError] = useState('');
   const [countries, setCountries] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [marketJob, setMarketJob] = useState<{ status: string; currentStep: string; progressPercent: number; errorMessage?: string | null } | null>(null);
+  const [marketJobHistory, setMarketJobHistory] = useState<
+    Array<{ step: string; progressPercent: number }>
+  >([]);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     void (async () => {
       await Promise.all([loadStatus(), loadCountries()]);
       setLoading(false);
     })();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
   }, []);
 
   const loadCountries = async () => {
@@ -150,17 +167,111 @@ export default function SyncManager() {
   };
 
   const handleSyncAll = async () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
     setSyncingAll(true);
     setSyncResults([]);
+    setMarketJob(null);
+    setMarketJobHistory([]);
     setError('');
+
     try {
-      const res = await client.post('/admin/sync/market');
-      setSyncResults(res.data);
-      await loadStatus();
-    } catch {
-      setError('Market sync failed');
-    } finally {
+      const startResponse = await client.post('/jobs/market/sync');
+      const jobId = String(startResponse.data.jobId);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Missing auth token for market sync progress stream');
+      }
+
+      const applySnapshot = async (snapshot: {
+        status: string;
+        currentStep: string;
+        progressPercent: number;
+        errorMessage?: string | null;
+        result?: { results?: SyncResult[] };
+      }) => {
+        setMarketJob(snapshot);
+        setMarketJobHistory((prev) => {
+          const key = `${snapshot.currentStep}-${snapshot.progressPercent}`;
+          const alreadyExists = prev.some(
+            (item) => `${item.step}-${item.progressPercent}` === key,
+          );
+          if (alreadyExists) return prev;
+          return [...prev, { step: snapshot.currentStep, progressPercent: snapshot.progressPercent }];
+        });
+
+        if (snapshot.status === 'COMPLETED') {
+          setSyncResults(Array.isArray(snapshot.result?.results) ? snapshot.result!.results! : []);
+          await loadStatus();
+          setSyncingAll(false);
+          if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+          }
+          return;
+        }
+
+        if (snapshot.status === 'FAILED') {
+          setError(snapshot.errorMessage || 'Market sync failed');
+          setSyncingAll(false);
+          if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+          }
+        }
+      };
+
+      const initialStatus = await client.get(`/jobs/${jobId}`);
+      await applySnapshot(initialStatus.data);
+
+      const eventSource = new EventSource(`/api/jobs/${jobId}/events?access_token=${encodeURIComponent(token)}`);
+      eventSourceRef.current = eventSource;
+
+      const onSnapshotEvent = (event: MessageEvent<string>) => {
+        try {
+          const snapshot = JSON.parse(event.data) as {
+            status: string;
+            currentStep: string;
+            progressPercent: number;
+            errorMessage?: string | null;
+            result?: { results?: SyncResult[] };
+          };
+          void applySnapshot(snapshot);
+        } catch {
+          // ignore malformed event payloads
+        }
+      };
+
+      eventSource.onmessage = onSnapshotEvent;
+      eventSource.addEventListener('job.update', onSnapshotEvent as EventListener);
+      eventSource.onerror = () => {
+        if (!eventSourceRef.current) return;
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+        setSyncingAll(false);
+        setError('Market sync progress stream disconnected');
+      };
+    } catch (err: unknown) {
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        'response' in err &&
+        typeof (err as any).response?.status === 'number' &&
+        (err as any).response.status === 429
+      ) {
+        setError('Manual market sync is limited to 5 runs per hour');
+      } else {
+        setError('Market sync failed');
+      }
       setSyncingAll(false);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
     }
   };
 
@@ -279,6 +390,32 @@ export default function SyncManager() {
                 </Badge>
               ))}
             </Group>
+          )}
+
+          {marketJob && (
+            <Card withBorder radius="md" p="md" className="bg-[var(--app-bg)]/60">
+              <Stack gap="xs">
+                <Title order={5}>Manual Sync Progress</Title>
+                <Text size="sm">
+                  Status: <strong>{marketJob.status}</strong>
+                </Text>
+                <Text size="sm">
+                  Current step: <strong>{getJobStepLabel(marketJob.currentStep)}</strong>
+                </Text>
+                <Progress
+                  value={Math.max(0, Math.min(100, marketJob.progressPercent))}
+                  color={marketJob.status === 'FAILED' ? 'red' : 'teal'}
+                />
+                <Text size="sm" c="dimmed">
+                  {marketJob.progressPercent}% complete
+                </Text>
+                {marketJobHistory.map((item, idx) => (
+                  <Text key={`${item.step}-${item.progressPercent}-${idx}`} size="xs" c="dimmed">
+                    {getJobStepLabel(item.step)} ({item.progressPercent}%)
+                  </Text>
+                ))}
+              </Stack>
+            </Card>
           )}
 
           {marketHealth && (

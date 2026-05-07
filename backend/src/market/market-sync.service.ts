@@ -29,6 +29,18 @@ export type SyncFailureStage =
   | 'persistence'
   | 'unknown';
 export type SyncTrigger = 'manual' | 'scheduled' | 'startup';
+export interface SyncCountryOptions {
+  force?: boolean;
+}
+
+export interface SyncAllOptions extends SyncCountryOptions {
+  onProgress?: (event: {
+    country: string;
+    index: number;
+    total: number;
+    result?: SyncResult;
+  }) => void | Promise<void>;
+}
 
 export interface SyncResult {
   country: string;
@@ -103,15 +115,32 @@ export class MarketSyncService implements OnApplicationBootstrap {
     await this.syncAll('scheduled');
   }
 
-  async syncAll(trigger: SyncTrigger = 'manual'): Promise<SyncResult[]> {
+  async syncAll(
+    trigger: SyncTrigger = 'manual',
+    options: SyncAllOptions = {},
+  ): Promise<SyncResult[]> {
     const startedAt = new Date();
     const runId = randomUUID();
     const countries = TARGET_COUNTRY_CODES;
     const results: SyncResult[] = [];
 
-    for (const country of countries) {
-      const result = await this.syncCountry(country);
+    for (let index = 0; index < countries.length; index++) {
+      const country = countries[index];
+      await options.onProgress?.({
+        country,
+        index,
+        total: countries.length,
+      });
+      const result = await this.syncCountry(country, {
+        force: options.force,
+      });
       results.push(result);
+      await options.onProgress?.({
+        country,
+        index: index + 1,
+        total: countries.length,
+        result,
+      });
     }
 
     const synced = results.filter((r) => r.status === 'synced').length;
@@ -143,7 +172,10 @@ export class MarketSyncService implements OnApplicationBootstrap {
     return results;
   }
 
-  async syncCountry(countryIso: string): Promise<SyncResult> {
+  async syncCountry(
+    countryIso: string,
+    options: SyncCountryOptions = {},
+  ): Promise<SyncResult> {
     const iso = countryIso.toUpperCase();
     let lastOutcome: SyncResult = {
       country: iso,
@@ -155,7 +187,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
     };
 
     for (let attempt = 1; attempt <= MAX_SYNC_RETRIES + 1; attempt++) {
-      const outcome = await this.syncCountryOnce(iso, attempt);
+      const outcome = await this.syncCountryOnce(iso, attempt, options);
       lastOutcome = outcome;
 
       if (outcome.status !== 'error') {
@@ -180,6 +212,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
   private async syncCountryOnce(
     iso: string,
     attempt: number,
+    options: SyncCountryOptions = {},
   ): Promise<SyncResult> {
     const adapter = this.adapterMap.get(iso);
     if (!adapter) {
@@ -205,7 +238,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
         source: 'api',
       },
     });
-    if (existing) {
+    if (existing && !options.force) {
       this.logger.log(
         `MarketSync [${iso}]: snapshot for today already exists (id=${existing.id}), skipping`,
       );
@@ -217,6 +250,12 @@ export class MarketSyncService implements OnApplicationBootstrap {
         errorKind: null,
         failureStage: null,
       };
+    }
+
+    if (existing && options.force) {
+      this.logger.log(
+        `MarketSync [${iso}]: force mode enabled, creating fresh snapshot despite existing ${existing.id}`,
+      );
     }
 
     let result: Awaited<ReturnType<ILiveMarketAdapter['fetchMarketData']>>;
@@ -309,7 +348,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
     try {
       const snapshot = await this.prisma.marketSnapshot.create({
         data: {
-          snapshotDate: todayStart,
+          snapshotDate: options.force ? new Date() : todayStart,
           source: 'api',
           country: iso,
           totalVacancies: result.totalVacancies,
