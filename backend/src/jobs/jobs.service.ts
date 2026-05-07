@@ -92,6 +92,53 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  async findActiveProfileAnalysisJobForUser(params: {
+    userId: string;
+    profileId: string;
+  }): Promise<ProcessingJobSnapshot | null> {
+    return this.findActiveJobForUser({
+      userId: params.userId,
+      type: 'PROFILE_ANALYSIS',
+      payloadKey: 'profileId',
+      payloadValue: params.profileId,
+    });
+  }
+
+  async findActiveJobForUser(params: {
+    userId: string;
+    type: ProcessingJobType;
+    payloadKey?: string;
+    payloadValue?: string;
+  }): Promise<ProcessingJobSnapshot | null> {
+    const processingJobModel = (this.prisma as any).processingJob;
+    const payloadFilter =
+      params.payloadKey && params.payloadValue
+        ? {
+            payload: {
+              path: [params.payloadKey],
+              equals: params.payloadValue,
+            },
+          }
+        : {};
+
+    const job = await processingJobModel.findFirst({
+      where: {
+        userId: params.userId,
+        type: params.type as any,
+        status: {
+          in: ['PENDING', 'RUNNING'],
+        },
+        ...payloadFilter,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!job) return null;
+    const snapshot = this.toSnapshot(job);
+    this.publishSnapshot(snapshot);
+    return snapshot;
+  }
+
   private enqueueEvent(event: ProcessingJobDomainEvent) {
     this.eventQueue = this.eventQueue
       .then(() => this.applyDomainEvent(event))

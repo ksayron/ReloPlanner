@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   HttpCode,
@@ -7,6 +8,7 @@ import {
   MessageEvent,
   Param,
   Post,
+  Query,
   Req,
   Sse,
   UseGuards,
@@ -93,6 +95,32 @@ export class JobsController {
         usedRuns: recentCount + 1,
       },
     };
+  }
+
+  @Get('profiles/:id/active-analysis')
+  async getActiveProfileAnalysisJob(@Param('id') profileId: string, @Req() req: any) {
+    return this.jobsService.findActiveProfileAnalysisJobForUser({
+      userId: req.user.id,
+      profileId,
+    });
+  }
+
+  @Get('active')
+  async getActiveJob(
+    @Req() req: any,
+    @Query('type') type: string,
+    @Query('payloadKey') payloadKey?: string,
+    @Query('payloadValue') payloadValue?: string,
+  ) {
+    if (type !== 'PROFILE_ANALYSIS' && type !== 'MARKET_SYNC') {
+      throw new BadRequestException('Invalid job type');
+    }
+    return this.jobsService.findActiveJobForUser({
+      userId: req.user.id,
+      type,
+      payloadKey,
+      payloadValue,
+    });
   }
 
   @Get(':jobId')
