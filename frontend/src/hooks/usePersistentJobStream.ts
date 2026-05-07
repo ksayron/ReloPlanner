@@ -7,6 +7,7 @@ interface UsePersistentJobStreamOptions {
   enabled?: boolean;
   storageKey: string;
   streamDisconnectedMessage: string;
+  hideCompletedAfterMs?: number;
   loadActiveJob: () => Promise<ProcessingJobSnapshot | null>;
   onCompleted?: (snapshot: ProcessingJobSnapshot) => Promise<void> | void;
   onFailed?: (snapshot: ProcessingJobSnapshot) => string | void;
@@ -23,6 +24,7 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
     enabled = true,
     storageKey,
     streamDisconnectedMessage,
+    hideCompletedAfterMs = 0,
     loadActiveJob,
     onCompleted,
     onFailed,
@@ -36,6 +38,18 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const finishedRef = useRef<{ done: boolean }>({ done: false });
+  const hideCompletedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadActiveJobRef = useRef(loadActiveJob);
+  const onCompletedRef = useRef(onCompleted);
+  const onFailedRef = useRef(onFailed);
+  const onActiveJobRestoredRef = useRef(onActiveJobRestored);
+
+  useEffect(() => {
+    loadActiveJobRef.current = loadActiveJob;
+    onCompletedRef.current = onCompleted;
+    onFailedRef.current = onFailed;
+    onActiveJobRestoredRef.current = onActiveJobRestored;
+  }, [loadActiveJob, onCompleted, onFailed, onActiveJobRestored]);
 
   const closeStream = () => {
     const source = eventSourceRef.current as { close: () => void } | null;
@@ -46,6 +60,12 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
 
   const clearPersistedState = () => {
     localStorage.removeItem(storageKey);
+  };
+
+  const clearHideCompletedTimer = () => {
+    if (!hideCompletedTimerRef.current) return;
+    clearTimeout(hideCompletedTimerRef.current);
+    hideCompletedTimerRef.current = null;
   };
 
   const persistState = (nextJob: ProcessingJobSnapshot, nextHistory: ProcessingJobSnapshot[]) => {
@@ -60,6 +80,7 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
   };
 
   const reset = () => {
+    clearHideCompletedTimer();
     closeStream();
     finishedRef.current.done = false;
     setRunning(false);
@@ -93,11 +114,18 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
     clearPersistedState();
 
     if (snapshot.status === 'COMPLETED') {
-      await onCompleted?.(snapshot);
+      await onCompletedRef.current?.(snapshot);
+      if (hideCompletedAfterMs > 0) {
+        clearHideCompletedTimer();
+        hideCompletedTimerRef.current = setTimeout(() => {
+          setJob((current) => (current?.status === 'COMPLETED' ? null : current));
+          setJobHistory([]);
+        }, hideCompletedAfterMs);
+      }
       return;
     }
 
-    const maybeMessage = onFailed?.(snapshot);
+    const maybeMessage = onFailedRef.current?.(snapshot);
     setError(maybeMessage ?? snapshot.errorMessage ?? 'Job failed');
   };
 
@@ -185,7 +213,7 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
 
     const restoreActiveJob = async () => {
       try {
-        const activeJob = await loadActiveJob();
+        const activeJob = await loadActiveJobRef.current();
         if (cancelled) return;
 
         if (!activeJob) {
@@ -199,7 +227,7 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
           return;
         }
 
-        onActiveJobRestored?.(activeJob);
+        onActiveJobRestoredRef.current?.(activeJob);
         setJobHistory((prev) => (prev.length > 0 ? prev : [activeJob]));
         await attachToJob(activeJob.id, activeJob);
       } catch {
@@ -212,9 +240,10 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
 
     return () => {
       cancelled = true;
+      clearHideCompletedTimer();
       closeStream();
     };
-  }, [enabled, loadActiveJob, onActiveJobRestored, storageKey]);
+  }, [enabled, hideCompletedAfterMs, storageKey]);
 
   return {
     job,

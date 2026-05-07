@@ -146,11 +146,34 @@ export interface AnalysisResult {
   totalPrepMonths: number;
   timeEstimate: TimeEstimate | null;
   createdAt: string;
+  snapshotMetadata: {
+    id: string;
+    country: string;
+    city: string | null;
+    snapshotDate: string;
+    source: string;
+    totalVacancies: number;
+  } | null;
   analysisItems: AnalysisItem[];
   fitScoreContributors: FitContributor[];
   actionableGaps: AnalysisItem[];
   marketContext: AnalysisItem[];
   roadmapSteps: RoadmapStep[];
+}
+
+export interface AnalysisHistoryItem {
+  id: string;
+  createdAt: string;
+  fitScore: number;
+  totalPrepMonths: number;
+  snapshotMetadata: {
+    id: string;
+    country: string;
+    city: string | null;
+    snapshotDate: string;
+    source: string;
+    totalVacancies: number;
+  } | null;
 }
 
 export interface CostComparison {

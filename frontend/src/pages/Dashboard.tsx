@@ -15,7 +15,7 @@ import {
   Title,
 } from '@mantine/core';
 import client from '../api/client';
-import type { AnalysisResult } from '../types';
+import type { AnalysisHistoryItem, AnalysisResult } from '../types';
 import { usePersistentJobStream } from '../hooks/usePersistentJobStream';
 import { formatEnumLabel, getJobStepLabel } from '../utils/jobProgress';
 
@@ -42,17 +42,36 @@ const scoreColor = (score: number) => {
 export default function Dashboard() {
   const { profileId } = useParams<{ profileId: string }>();
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
+  const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [exporting, setExporting] = useState<'pdf' | 'html' | null>(null);
   const [noResults, setNoResults] = useState(false);
   const [pageError, setPageError] = useState('');
+
+  const loadHistory = useCallback(async () => {
+    if (!profileId) return;
+    setHistoryLoading(true);
+    try {
+      const res = await client.get(`/profiles/${profileId}/results/history`, {
+        params: { limit: 20 },
+      });
+      const items = Array.isArray(res.data?.items) ? (res.data.items as AnalysisHistoryItem[]) : [];
+      setHistory(items);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [profileId]);
 
   const refreshLatestResult = useCallback(async () => {
     if (!profileId) return;
     const res = await client.get(`/profiles/${profileId}/results`);
     setResult(res.data);
+    setSelectedAnalysisId(res.data.id);
     setNoResults(false);
-  }, [profileId]);
+    await loadHistory();
+  }, [loadHistory, profileId]);
 
   const loadActiveAnalysisJob = useCallback(async () => {
     if (!profileId) return null;
@@ -77,9 +96,33 @@ export default function Dashboard() {
     enabled: Boolean(profileId),
     storageKey: `analysis-progress:${profileId ?? 'unknown'}`,
     streamDisconnectedMessage: 'Live progress stream disconnected',
+    hideCompletedAfterMs: 5000,
     loadActiveJob: loadActiveAnalysisJob,
-    onCompleted: async () => {
-      await refreshLatestResult();
+    onCompleted: async (snapshot) => {
+      // Apply optimistic UI update immediately from job result, then reconcile with backend.
+      const completedResult = (snapshot.result ?? null) as AnalysisResult | null;
+      if (completedResult?.id) {
+        setResult(completedResult);
+        setSelectedAnalysisId(completedResult.id);
+        setNoResults(false);
+        setHistory((prev) => {
+          const nextItem: AnalysisHistoryItem = {
+            id: completedResult.id,
+            createdAt: completedResult.createdAt,
+            fitScore: completedResult.fitScore,
+            totalPrepMonths: completedResult.totalPrepMonths,
+            snapshotMetadata: completedResult.snapshotMetadata,
+          };
+          const withoutCurrent = prev.filter((item) => item.id !== nextItem.id);
+          return [nextItem, ...withoutCurrent];
+        });
+      }
+
+      try {
+        await refreshLatestResult();
+      } catch {
+        // Keep optimistic state if immediate refetch is temporarily unavailable.
+      }
     },
     onFailed: (snapshot) => snapshot.errorMessage ?? `Analysis failed at step: ${getJobStepLabel(snapshot.currentStep)}`,
     onActiveJobRestored: () => {
@@ -90,18 +133,30 @@ export default function Dashboard() {
   useEffect(() => {
     setLoading(true);
     setPageError('');
-    client
-      .get(`/profiles/${profileId}/results`)
-      .then((res) => {
+    void (async () => {
+      try {
+        const res = await client.get(`/profiles/${profileId}/results`);
         setResult(res.data);
+        setSelectedAnalysisId(res.data.id);
         setNoResults(false);
-      })
-      .catch((err) => {
-        if (err.response?.status === 404) setNoResults(true);
-        else setPageError('Failed to load results');
-      })
-      .finally(() => setLoading(false));
-  }, [profileId]);
+      } catch (err: any) {
+        if (err.response?.status === 404) {
+          setNoResults(true);
+          setResult(null);
+          setSelectedAnalysisId(null);
+        } else {
+          setPageError('Failed to load results');
+        }
+      } finally {
+        setLoading(false);
+      }
+      try {
+        await loadHistory();
+      } catch {
+        setPageError((prev) => prev || 'Failed to load analysis history');
+      }
+    })();
+  }, [loadHistory, profileId]);
 
   const runAnalysis = async () => {
     if (!profileId || analyzing) return;
@@ -114,6 +169,19 @@ export default function Dashboard() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Analysis failed';
       setJobError(message);
+    }
+  };
+
+  const openHistoricalResult = async (analysisId: string) => {
+    if (!profileId) return;
+    setPageError('');
+    try {
+      const res = await client.get(`/profiles/${profileId}/results/${analysisId}`);
+      setResult(res.data);
+      setSelectedAnalysisId(analysisId);
+      setNoResults(false);
+    } catch {
+      setPageError('Failed to open selected analysis result');
     }
   };
 
@@ -150,9 +218,7 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) {
-    return <div className="mt-10 flex justify-center"><Loader color="brand.7" /></div>;
-  }
+  if (loading) return <div className="mt-10 flex justify-center"><Loader color="brand.7" /></div>;
 
   const error = pageError || jobError;
   const fitScorePct = result ? Math.round(result.fitScore * 100) : 0;
@@ -167,6 +233,11 @@ export default function Dashboard() {
       }, {} as Record<string, typeof result.fitScoreContributors>)
     : {};
   const groupOrder = ['CORE', 'IMPORTANT', 'OPTIONAL', 'CONTEXTUAL'];
+  const showProgressPanel =
+    analyzing ||
+    Boolean(job) ||
+    (jobHistory.length > 0 &&
+      jobHistory[jobHistory.length - 1]?.status === 'COMPLETED');
 
   return (
     <Stack className="mx-auto max-w-6xl" gap="lg">
@@ -176,11 +247,92 @@ export default function Dashboard() {
       </Group>
       {error && <Alert color="red">{error}</Alert>}
 
-      {(analyzing || job) && <Paper withBorder radius="lg" p="lg" className="bg-white"><Stack gap="sm"><Title order={3}>Analysis Progress</Title><Text>Status: <strong>{job ? formatEnumLabel(job.status) : 'Running'}</strong></Text><Text>Current step: <strong>{job ? getJobStepLabel(job.currentStep) : 'Queued'}</strong></Text><Progress value={Math.max(0, Math.min(100, job?.progressPercent ?? 0))} color={job?.status === 'FAILED' ? 'red' : 'teal'} /><Text size="sm" c="dimmed">{job?.progressPercent ?? 0}% complete</Text>{jobHistory.length > 0 && <Stack gap={4}>{jobHistory.map((item, idx) => <Group key={`${item.currentStep}-${item.progressPercent}-${idx}`} justify="space-between"><Text c={item.status === 'FAILED' ? 'red' : item.status === 'COMPLETED' ? 'teal' : 'dark'}>{getJobStepLabel(item.currentStep)}</Text><Text size="sm" c="dimmed">{item.progressPercent}%</Text></Group>)}</Stack>}{job?.status === 'FAILED' && <Button onClick={runAnalysis} color="brand.7" w="fit-content">Retry Analysis</Button>}</Stack></Paper>}
+      {showProgressPanel && (
+        <Paper withBorder radius="lg" p="lg" className="bg-white">
+          <Stack gap="sm">
+            <Title order={3}>Analysis Progress</Title>
+            <Text>Status: <strong>{job ? formatEnumLabel(job.status) : 'Running'}</strong></Text>
+            <Text>Current step: <strong>{job ? getJobStepLabel(job.currentStep) : 'Queued'}</strong></Text>
+            <Progress value={Math.max(0, Math.min(100, job?.progressPercent ?? 0))} color={job?.status === 'FAILED' ? 'red' : 'teal'} />
+            <Text size="sm" c="dimmed">{job?.progressPercent ?? 0}% complete</Text>
+            {jobHistory.length > 0 && (
+              <Stack gap={4}>
+                {jobHistory.map((item, idx) => (
+                  <Group key={`${item.currentStep}-${item.progressPercent}-${idx}`} justify="space-between">
+                    <Text c={item.status === 'FAILED' ? 'red' : item.status === 'COMPLETED' ? 'teal' : 'dark'}>{getJobStepLabel(item.currentStep)}</Text>
+                    <Text size="sm" c="dimmed">{item.progressPercent}%</Text>
+                  </Group>
+                ))}
+              </Stack>
+            )}
+            {job?.status === 'FAILED' && <Button onClick={runAnalysis} color="brand.7" w="fit-content">Retry Analysis</Button>}
+          </Stack>
+        </Paper>
+      )}
+
+      <Card withBorder radius="lg" p="lg" className="bg-white">
+        <Stack>
+          <Group justify="space-between" align="center" wrap="wrap">
+            <Title order={3}>Analysis History</Title>
+            {historyLoading ? <Loader size="sm" color="brand.7" /> : null}
+          </Group>
+          {history.length === 0 && <Text c="dimmed">No saved analyses yet.</Text>}
+          {history.map((item) => (
+            <Card key={item.id} withBorder radius="md" p="sm">
+              <Group justify="space-between" align="flex-start" wrap="wrap">
+                <Stack gap={2}>
+                  <Text fw={600}>{new Date(item.createdAt).toLocaleString()}</Text>
+                  <Text size="sm" c="dimmed">
+                    Fit: {Math.round(item.fitScore * 100)}%
+                  </Text>
+                </Stack>
+                <Button
+                  size="xs"
+                  variant={selectedAnalysisId === item.id ? 'light' : 'filled'}
+                  color={selectedAnalysisId === item.id ? 'brand.1' : 'brand.7'}
+                  onClick={() => openHistoricalResult(item.id)}
+                  disabled={selectedAnalysisId === item.id}
+                >
+                  {selectedAnalysisId === item.id ? 'Opened' : 'Open'}
+                </Button>
+              </Group>
+            </Card>
+          ))}
+        </Stack>
+      </Card>
 
       {noResults && !result && !analyzing && <Paper withBorder radius="lg" p="xl" className="bg-white text-center"><Stack align="center"><Text>No analysis results yet.</Text><Button onClick={runAnalysis} color="brand.7">Run Analysis</Button></Stack></Paper>}
 
-      {result && <><Card withBorder radius="lg" p="xl" className="bg-white"><Stack align="center" gap="sm"><Title order={3}>Fit Score</Title><Text fz="3rem" fw={700} c={`${scoreColor(fitScorePct)}.7`}>{fitScorePct}%</Text><Text ta="center" c="dimmed" maw={760}>{getFitScoreMessage(fitScorePct)}</Text><Text c="dimmed">Critical-path estimate: {result.totalPrepMonths} months</Text><Group><Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button><Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button></Group>{result.timeEstimate && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}><Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge></SimpleGrid>}</Stack></Card><Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Fit Score Contributors</Title><Text size="sm" c="dimmed">Top bar: your current level. Bottom bar: expected target level for this competency.</Text>{groupOrder.map((group) => { const contributors = groupedContributors[group] ?? []; if (contributors.length === 0) return null; return <Stack key={group} gap="xs"><Text fw={700}>{priorityLabel[group] ?? formatEnumLabel(group)}</Text>{contributors.map((contributor) => { const item = analysisByCompetency.get(contributor.competencyId); const currentPct = Math.round((Number(item?.normalizedCurrentScore ?? contributor.matchScore) || 0) * 100); const expectedPct = Math.round((Number(item?.normalizedRequiredScore ?? 1) || 0) * 100); return <Card key={contributor.competencyId} withBorder radius="md" p="sm"><Stack gap={6}><Group justify="space-between" wrap="wrap"><Text>{contributor.competencyName}</Text><Text size="sm" c="dimmed">{currentPct}/{expectedPct}%</Text></Group><Progress value={currentPct} color={scoreColor(currentPct)} /><Progress value={expectedPct} color="dark" /></Stack></Card>; })}</Stack>; })}</Stack></Card><Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Actionable Gaps</Title>{result.actionableGaps.length === 0 && <Text c="dimmed">No actionable gaps identified.</Text>}{result.actionableGaps.map((gap) => <Card key={gap.competency.id} withBorder radius="md" p="sm"><Stack gap={4}><Group justify="space-between" wrap="wrap"><Text fw={600}>{gap.competency.name}</Text><Badge variant="light" color="brand.1">{gap.currentLevel} to {gap.requiredLevel}</Badge></Group><Text size="sm" c="dimmed">{formatEnumLabel(gap.priority)} / {formatEnumLabel(gap.roleRelevance)} / {formatEnumLabel(gap.recommendationType)}</Text><Text size="sm">{gap.reason}</Text></Stack></Card>)}</Stack></Card><Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Market Context / Exclusions</Title>{result.marketContext.map((item) => <Card key={item.competency.id} withBorder radius="md" p="sm"><Stack gap={4}><Text fw={600}>{item.competency.name} - {formatEnumLabel(item.recommendationType)}</Text><Text size="sm" c="dimmed">{item.reason}</Text></Stack></Card>)}</Stack></Card><Button component={RouterLink} to={`/progress/${profileId}`} color="brand.7" w="fit-content">View Progress Tracker</Button></>}
+      {result && (
+        <>
+          <Card withBorder radius="lg" p="xl" className="bg-white">
+            <Stack align="center" gap="sm">
+              <Title order={3}>Fit Score</Title>
+              <Text fz="3rem" fw={700} c={`${scoreColor(fitScorePct)}.7`}>{fitScorePct}%</Text>
+              <Text ta="center" c="dimmed" maw={760}>{getFitScoreMessage(fitScorePct)}</Text>
+              <Text c="dimmed">Critical-path estimate: {result.totalPrepMonths} months</Text>
+              {result.snapshotMetadata ? (
+                <Text size="sm" c="dimmed">
+                  Snapshot: {result.snapshotMetadata.country} {result.snapshotMetadata.city ? `(${result.snapshotMetadata.city})` : ''} | {new Date(result.snapshotMetadata.snapshotDate).toLocaleDateString()} | {result.snapshotMetadata.source}
+                </Text>
+              ) : null}
+              <Group>
+                <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
+                <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
+              </Group>
+              {result.timeEstimate && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}><Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge></SimpleGrid>}
+            </Stack>
+          </Card>
+
+          <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Fit Score Contributors</Title><Text size="sm" c="dimmed">Top bar: your current level. Bottom bar: expected target level for this competency.</Text>{groupOrder.map((group) => { const contributors = groupedContributors[group] ?? []; if (contributors.length === 0) return null; return <Stack key={group} gap="xs"><Text fw={700}>{priorityLabel[group] ?? formatEnumLabel(group)}</Text>{contributors.map((contributor) => { const item = analysisByCompetency.get(contributor.competencyId); const currentPct = Math.round((Number(item?.normalizedCurrentScore ?? contributor.matchScore) || 0) * 100); const expectedPct = Math.round((Number(item?.normalizedRequiredScore ?? 1) || 0) * 100); return <Card key={contributor.competencyId} withBorder radius="md" p="sm"><Stack gap={6}><Group justify="space-between" wrap="wrap"><Text>{contributor.competencyName}</Text><Text size="sm" c="dimmed">{currentPct}/{expectedPct}%</Text></Group><Progress value={currentPct} color={scoreColor(currentPct)} /><Progress value={expectedPct} color="dark" /></Stack></Card>; })}</Stack>; })}</Stack></Card>
+
+          <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Actionable Gaps</Title>{result.actionableGaps.length === 0 && <Text c="dimmed">No actionable gaps identified.</Text>}{result.actionableGaps.map((gap) => <Card key={gap.competency.id} withBorder radius="md" p="sm"><Stack gap={4}><Group justify="space-between" wrap="wrap"><Text fw={600}>{gap.competency.name}</Text><Badge variant="light" color="brand.1">{gap.currentLevel} to {gap.requiredLevel}</Badge></Group><Text size="sm" c="dimmed">{formatEnumLabel(gap.priority)} / {formatEnumLabel(gap.roleRelevance)} / {formatEnumLabel(gap.recommendationType)}</Text><Text size="sm">{gap.reason}</Text></Stack></Card>)}</Stack></Card>
+
+          <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Market Context / Exclusions</Title>{result.marketContext.map((item) => <Card key={item.competency.id} withBorder radius="md" p="sm"><Stack gap={4}><Text fw={600}>{item.competency.name} - {formatEnumLabel(item.recommendationType)}</Text><Text size="sm" c="dimmed">{item.reason}</Text></Stack></Card>)}</Stack></Card>
+
+          <Button component={RouterLink} to={`/progress/${profileId}`} color="brand.7" w="fit-content">View Progress Tracker</Button>
+        </>
+      )}
     </Stack>
   );
 }

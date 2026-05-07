@@ -238,6 +238,16 @@ export class AnalysisWorkflowService {
       totalPrepMonths: Number(analysis.totalPrepMonths),
       timeEstimate: (analysis.timeEstimate as any) ?? null,
       createdAt: analysis.createdAt,
+      snapshotMetadata: analysis.snapshot
+        ? {
+            id: analysis.snapshot.id,
+            country: analysis.snapshot.country,
+            city: analysis.snapshot.city,
+            snapshotDate: analysis.snapshot.snapshotDate,
+            source: analysis.snapshot.source,
+            totalVacancies: analysis.snapshot.totalVacancies,
+          }
+        : null,
       analysisItems,
       fitScoreContributors,
       actionableGaps,
