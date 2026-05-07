@@ -16,13 +16,11 @@ import {
 } from '@mantine/core';
 import client from '../api/client';
 import type { AnalysisResult, ProcessingJobSnapshot } from '../types';
-
-const formatEnumLabel = (value: string) =>
-  value
-    .toLowerCase()
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
+import {
+  formatEnumLabel,
+  getJobStepLabel,
+  isTerminalJobStatus,
+} from '../utils/jobProgress';
 
 const priorityLabel: Record<string, string> = {
   CORE: 'Critical',
@@ -30,20 +28,6 @@ const priorityLabel: Record<string, string> = {
   OPTIONAL: 'Nice to Have',
   CONTEXTUAL: 'Contextual',
 };
-
-const stepLabel: Record<string, string> = {
-  QUEUED: 'Queued',
-  STARTED: 'Started',
-  LOAD_PROFILE: 'Load profile',
-  LOAD_REQUIREMENTS: 'Load market requirements',
-  LOAD_MARKET_SNAPSHOT: 'Load market snapshot',
-  PREPARE_INPUTS: 'Prepare analysis inputs',
-  COMPUTE_ANALYSIS: 'Compute score and roadmap',
-  SAVE_RESULTS: 'Save analysis result',
-  COMPLETED: 'Completed',
-};
-
-const isTerminalJobStatus = (status: string) => status === 'COMPLETED' || status === 'FAILED';
 
 const getFitScoreMessage = (scorePct: number) => {
   if (scorePct >= 80) {
@@ -144,7 +128,7 @@ export default function Dashboard() {
       return;
     }
 
-    const failedStep = stepLabel[snapshot.currentStep] ?? formatEnumLabel(snapshot.currentStep);
+    const failedStep = getJobStepLabel(snapshot.currentStep);
     setError(snapshot.errorMessage ?? `Analysis failed at step: ${failedStep}`);
   };
 
@@ -275,7 +259,7 @@ export default function Dashboard() {
             <Title order={3}>Analysis Progress</Title>
             <Text>Status: <strong>{job ? formatEnumLabel(job.status) : 'Running'}</strong></Text>
             <Text>
-              Current step: <strong>{job ? stepLabel[job.currentStep] ?? formatEnumLabel(job.currentStep) : 'Queued'}</strong>
+              Current step: <strong>{job ? getJobStepLabel(job.currentStep) : 'Queued'}</strong>
             </Text>
             <Progress value={Math.max(0, Math.min(100, job?.progressPercent ?? 0))} color={job?.status === 'FAILED' ? 'red' : 'teal'} />
             <Text size="sm" c="dimmed">{job?.progressPercent ?? 0}% complete</Text>
@@ -286,7 +270,7 @@ export default function Dashboard() {
                   const itemColor = item.status === 'FAILED' ? 'red' : item.status === 'COMPLETED' ? 'teal' : 'dark';
                   return (
                     <Group key={`${item.currentStep}-${item.progressPercent}-${idx}`} justify="space-between">
-                      <Text c={itemColor}>{stepLabel[item.currentStep] ?? formatEnumLabel(item.currentStep)}</Text>
+                      <Text c={itemColor}>{getJobStepLabel(item.currentStep)}</Text>
                       <Text size="sm" c="dimmed">{item.progressPercent}%</Text>
                     </Group>
                   );
