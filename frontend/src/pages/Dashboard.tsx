@@ -1,5 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+﻿import { useState, useEffect, useRef } from 'react';
+import { useParams, Link as RouterLink } from 'react-router-dom';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Loader,
+  Paper,
+  Progress,
+  SimpleGrid,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import client from '../api/client';
 import type { AnalysisResult, ProcessingJobSnapshot } from '../types';
 
@@ -42,6 +56,12 @@ const getFitScoreMessage = (scorePct: number) => {
     return 'Early-to-mid readiness. You need focused upskilling on core requirements before the profile is market-competitive.';
   }
   return 'Low readiness for current target settings. Start with core skills and critical prerequisites to build a viable path.';
+};
+
+const scoreColor = (score: number) => {
+  if (score >= 70) return 'teal';
+  if (score >= 40) return 'yellow';
+  return 'red';
 };
 
 export default function Dashboard() {
@@ -95,10 +115,7 @@ export default function Dashboard() {
     }
   };
 
-  const applyJobSnapshot = async (
-    snapshot: ProcessingJobSnapshot,
-    finishedRef: { done: boolean },
-  ) => {
+  const applyJobSnapshot = async (snapshot: ProcessingJobSnapshot, finishedRef: { done: boolean }) => {
     setJob(snapshot);
     setJobHistory((prev) => {
       const last = prev[prev.length - 1];
@@ -114,9 +131,7 @@ export default function Dashboard() {
       return [...prev, snapshot];
     });
 
-    if (!isTerminalJobStatus(snapshot.status) || finishedRef.done) {
-      return;
-    }
+    if (!isTerminalJobStatus(snapshot.status) || finishedRef.done) return;
 
     finishedRef.done = true;
     closeJobStream();
@@ -158,9 +173,7 @@ export default function Dashboard() {
         throw new Error('Missing auth token for SSE connection');
       }
 
-      const eventSource = new EventSource(
-        `/api/jobs/${jobId}/events?access_token=${encodeURIComponent(token)}`,
-      );
+      const eventSource = new EventSource(`/api/jobs/${jobId}/events?access_token=${encodeURIComponent(token)}`);
       eventSourceRef.current = eventSource;
 
       const onSnapshotEvent = (event: MessageEvent<string>) => {
@@ -191,9 +204,7 @@ export default function Dashboard() {
   const parseFileName = (contentDisposition: string | undefined, fallback: string) => {
     if (!contentDisposition) return fallback;
     const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-    if (utf8Match?.[1]) {
-      return decodeURIComponent(utf8Match[1]);
-    }
+    if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1]);
     const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
     return plainMatch?.[1] ?? fallback;
   };
@@ -223,14 +234,16 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) return <p style={{ textAlign: 'center', marginTop: '2rem' }}>Loading...</p>;
+  if (loading) {
+    return (
+      <div className="mt-10 flex justify-center">
+        <Loader color="brand.7" />
+      </div>
+    );
+  }
 
-  const scoreColor = (score: number) =>
-    score >= 70 ? '#4caf50' : score >= 40 ? '#ff9800' : '#f44336';
   const fitScorePct = result ? Math.round(result.fitScore * 100) : 0;
-  const analysisByCompetency = new Map(
-    result?.analysisItems.map((item) => [item.competency.id, item]),
-  );
+  const analysisByCompetency = new Map(result?.analysisItems.map((item) => [item.competency.id, item]));
   const groupedContributors = result
     ? result.fitScoreContributors.reduce(
         (acc, contributor) => {
@@ -246,352 +259,160 @@ export default function Dashboard() {
   const groupOrder = ['CORE', 'IMPORTANT', 'OPTIONAL', 'CONTEXTUAL'];
 
   return (
-    <div style={{ maxWidth: '980px', margin: '2rem auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center' }}>
-        <h2 style={{ marginBottom: 0 }}>Analysis Dashboard</h2>
-        <button
-          onClick={runAnalysis}
-          disabled={analyzing}
-          style={{
-            padding: '0.55rem 1rem',
-            background: '#e94560',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: analyzing ? 'not-allowed' : 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {analyzing ? 'Running Analysis...' : result ? 'Re-run Analysis' : 'Run Analysis'}
-        </button>
-      </div>
+    <Stack className="mx-auto max-w-6xl" gap="lg">
+      <Group justify="space-between" wrap="wrap">
+        <Title order={2}>Analysis Dashboard</Title>
+        <Button onClick={runAnalysis} loading={analyzing} color="brand.7">
+          {result ? 'Re-run Analysis' : 'Run Analysis'}
+        </Button>
+      </Group>
 
-      {error && <p style={{ color: '#f44336' }}>{error}</p>}
+      {error && <Alert color="red">{error}</Alert>}
 
       {(analyzing || job) && (
-        <div
-          style={{
-            background: '#fff',
-            border: '1px solid #eee',
-            borderRadius: '8px',
-            padding: '1rem 1.25rem',
-            margin: '1rem 0 1.5rem',
-          }}
-        >
-          <h3 style={{ marginTop: 0 }}>Analysis Progress</h3>
-          <div style={{ marginBottom: '0.5rem' }}>
-            Status: <strong>{job ? formatEnumLabel(job.status) : 'Running'}</strong>
-          </div>
-          <div style={{ marginBottom: '0.75rem' }}>
-            Current step:{' '}
-            <strong>
-              {job ? stepLabel[job.currentStep] ?? formatEnumLabel(job.currentStep) : 'Queued'}
-            </strong>
-          </div>
-          <div style={{ background: '#eee', borderRadius: 6, height: 12, overflow: 'hidden' }}>
-            <div
-              style={{
-                width: `${Math.max(0, Math.min(100, job?.progressPercent ?? 0))}%`,
-                height: '100%',
-                background: job?.status === 'FAILED' ? '#f44336' : '#4caf50',
-                transition: 'width 180ms ease',
-              }}
-            />
-          </div>
-          <div style={{ marginTop: '0.45rem', color: '#666', fontSize: '0.9rem' }}>
-            {job?.progressPercent ?? 0}% complete
-          </div>
+        <Paper withBorder radius="lg" p="lg" className="bg-white">
+          <Stack gap="sm">
+            <Title order={3}>Analysis Progress</Title>
+            <Text>Status: <strong>{job ? formatEnumLabel(job.status) : 'Running'}</strong></Text>
+            <Text>
+              Current step: <strong>{job ? stepLabel[job.currentStep] ?? formatEnumLabel(job.currentStep) : 'Queued'}</strong>
+            </Text>
+            <Progress value={Math.max(0, Math.min(100, job?.progressPercent ?? 0))} color={job?.status === 'FAILED' ? 'red' : 'teal'} />
+            <Text size="sm" c="dimmed">{job?.progressPercent ?? 0}% complete</Text>
 
-          {jobHistory.length > 0 && (
-            <div style={{ marginTop: '0.9rem' }}>
-              {jobHistory.map((item, idx) => {
-                const isFailure = item.status === 'FAILED';
-                const isSuccess = item.status === 'COMPLETED';
-                return (
-                  <div
-                    key={`${item.currentStep}-${item.progressPercent}-${idx}`}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      padding: '0.35rem 0',
-                      borderBottom: '1px solid #f3f3f3',
-                      fontSize: '0.92rem',
-                    }}
-                  >
-                    <span style={{ color: isFailure ? '#f44336' : isSuccess ? '#4caf50' : '#222' }}>
-                      {stepLabel[item.currentStep] ?? formatEnumLabel(item.currentStep)}
-                    </span>
-                    <span style={{ color: '#666' }}>{item.progressPercent}%</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+            {jobHistory.length > 0 && (
+              <Stack gap={4}>
+                {jobHistory.map((item, idx) => {
+                  const itemColor = item.status === 'FAILED' ? 'red' : item.status === 'COMPLETED' ? 'teal' : 'dark';
+                  return (
+                    <Group key={`${item.currentStep}-${item.progressPercent}-${idx}`} justify="space-between">
+                      <Text c={itemColor}>{stepLabel[item.currentStep] ?? formatEnumLabel(item.currentStep)}</Text>
+                      <Text size="sm" c="dimmed">{item.progressPercent}%</Text>
+                    </Group>
+                  );
+                })}
+              </Stack>
+            )}
 
-          {job?.status === 'FAILED' && (
-            <div style={{ marginTop: '0.8rem' }}>
-              <button
-                onClick={runAnalysis}
-                disabled={analyzing}
-                style={{
-                  padding: '0.5rem 0.9rem',
-                  background: '#e94560',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: analyzing ? 'not-allowed' : 'pointer',
-                }}
-              >
-                Retry Analysis
-              </button>
-            </div>
-          )}
-        </div>
+            {job?.status === 'FAILED' && (
+              <Button onClick={runAnalysis} color="brand.7" w="fit-content">Retry Analysis</Button>
+            )}
+          </Stack>
+        </Paper>
       )}
 
       {noResults && !result && !analyzing && (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '2rem',
-            background: '#f9f9f9',
-            borderRadius: '8px',
-          }}
-        >
-          <p style={{ marginBottom: '1rem' }}>No analysis results yet.</p>
-          <button
-            onClick={runAnalysis}
-            disabled={analyzing}
-            style={{
-              padding: '0.6rem 2rem',
-              background: '#e94560',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-            }}
-          >
-            Run Analysis
-          </button>
-        </div>
+        <Paper withBorder radius="lg" p="xl" className="bg-white text-center">
+          <Stack align="center">
+            <Text>No analysis results yet.</Text>
+            <Button onClick={runAnalysis} color="brand.7">Run Analysis</Button>
+          </Stack>
+        </Paper>
       )}
 
       {result && (
         <>
-          <div
-            style={{
-              background: '#fff',
-              border: '1px solid #eee',
-              borderRadius: '8px',
-              padding: '1.5rem',
-              marginBottom: '1.5rem',
-              textAlign: 'center',
-            }}
-          >
-            <h3 style={{ marginBottom: '0.5rem' }}>Fit Score</h3>
-            <div
-              style={{
-                fontSize: '3rem',
-                fontWeight: 'bold',
-                color: scoreColor(fitScorePct),
-              }}
-            >
-              {fitScorePct}%
-            </div>
-            <p style={{ color: '#444', maxWidth: '760px', margin: '0 auto 0.75rem' }}>
-              {getFitScoreMessage(fitScorePct)}
-            </p>
-            <p style={{ color: '#666' }}>Critical-path estimate: {result.totalPrepMonths} months</p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginTop: '1rem' }}>
-              <button
-                onClick={() => exportReport('pdf')}
-                disabled={exporting !== null}
-                style={{
-                  padding: '0.55rem 1.1rem',
-                  background: '#e94560',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: exporting !== null ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {exporting === 'pdf' ? 'Preparing PDF...' : 'Save as PDF'}
-              </button>
-              <button
-                onClick={() => exportReport('html')}
-                disabled={exporting !== null}
-                style={{
-                  padding: '0.55rem 1.1rem',
-                  background: '#1a1a2e',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: exporting !== null ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {exporting === 'html' ? 'Preparing HTML...' : 'Save as HTML'}
-              </button>
-            </div>
-            {result.timeEstimate && (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: '0.5rem',
-                  marginTop: '1rem',
-                }}
-              >
-                <div>Optimistic: {result.timeEstimate.optimisticHours}h</div>
-                <div>Realistic: {result.timeEstimate.realisticHours}h</div>
-                <div>Critical Path: {result.timeEstimate.criticalPathHours}h</div>
-              </div>
-            )}
-          </div>
+          <Card withBorder radius="lg" p="xl" className="bg-white">
+            <Stack align="center" gap="sm">
+              <Title order={3}>Fit Score</Title>
+              <Text fz="3rem" fw={700} c={`${scoreColor(fitScorePct)}.7`}>{fitScorePct}%</Text>
+              <Text ta="center" c="dimmed" maw={760}>{getFitScoreMessage(fitScorePct)}</Text>
+              <Text c="dimmed">Critical-path estimate: {result.totalPrepMonths} months</Text>
 
-          <div
-            style={{
-              background: '#fff',
-              border: '1px solid #eee',
-              borderRadius: '8px',
-              padding: '1.5rem',
-              marginBottom: '1.5rem',
-            }}
-          >
-            <h3 style={{ marginBottom: '1rem' }}>Fit Score Contributors</h3>
-            <p style={{ marginTop: 0, color: '#666', fontSize: '0.9rem' }}>
-              Top bar: your current level. Bottom bar: expected target level for this competency.
-            </p>
-            {groupOrder.map((group) => {
-              const contributors = groupedContributors[group] ?? [];
-              if (contributors.length === 0) return null;
-              return (
-                <div key={group} style={{ marginBottom: '1rem' }}>
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      marginBottom: '0.45rem',
-                      color: '#1a1a2e',
-                    }}
-                  >
-                    {priorityLabel[group] ?? formatEnumLabel(group)}
-                  </div>
-                  {contributors.map((c) => {
-                    const item = analysisByCompetency.get(c.competencyId);
-                    const currentPct = Math.round(
-                      (Number(item?.normalizedCurrentScore ?? c.matchScore) || 0) * 100,
-                    );
-                    const expectedPct = Math.round(
-                      (Number(item?.normalizedRequiredScore ?? 1) || 0) * 100,
-                    );
-                    return (
-                      <div
-                        key={c.competencyId}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '220px 1fr 80px',
-                          gap: '0.5rem',
-                          marginBottom: '0.5rem',
-                        }}
-                      >
-                        <span>{c.competencyName}</span>
-                        <div
-                          style={{
-                            background: '#eee',
-                            borderRadius: 4,
-                            overflow: 'hidden',
-                            padding: '4px 4px 3px',
-                            display: 'grid',
-                            gap: '3px',
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: `${currentPct}%`,
-                              background: scoreColor(currentPct),
-                              height: 8,
-                              borderRadius: 3,
-                            }}
-                          />
-                          <div
-                            style={{
-                              width: `${expectedPct}%`,
-                              background: 'rgb(26, 26, 46)',
-                              height: 8,
-                              borderRadius: 3,
-                            }}
-                          />
-                        </div>
-                        <span>{currentPct}/{expectedPct}%</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
+              <Group>
+                <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">
+                  Save as PDF
+                </Button>
+                <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">
+                  Save as HTML
+                </Button>
+              </Group>
 
-          <div
-            style={{
-              background: '#fff',
-              border: '1px solid #eee',
-              borderRadius: '8px',
-              padding: '1.5rem',
-              marginBottom: '1.5rem',
-            }}
-          >
-            <h3 style={{ marginBottom: '1rem' }}>Actionable Gaps</h3>
-            {result.actionableGaps.length === 0 && (
-              <p style={{ color: '#999' }}>No actionable gaps identified.</p>
-            )}
-            {result.actionableGaps.map((g) => (
-              <div key={g.competency.id} style={{ padding: '0.6rem 0', borderBottom: '1px solid #f0f0f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
-                  <strong>{g.competency.name}</strong>
-                  <span>
-                    {g.currentLevel} to {g.requiredLevel}
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.85rem', color: '#666' }}>
-                  {formatEnumLabel(g.priority)} / {formatEnumLabel(g.roleRelevance)} / {formatEnumLabel(g.recommendationType)}
-                </div>
-                <div style={{ fontSize: '0.85rem', color: '#444' }}>{g.reason}</div>
-              </div>
-            ))}
-          </div>
+              {result.timeEstimate && (
+                <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}>
+                  <Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge>
+                  <Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge>
+                  <Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge>
+                </SimpleGrid>
+              )}
+            </Stack>
+          </Card>
 
-          <div
-            style={{
-              background: '#fff',
-              border: '1px solid #eee',
-              borderRadius: '8px',
-              padding: '1.5rem',
-              marginBottom: '1.5rem',
-            }}
-          >
-            <h3 style={{ marginBottom: '1rem' }}>Market Context / Exclusions</h3>
-            {result.marketContext.map((g) => (
-              <div key={g.competency.id} style={{ padding: '0.45rem 0', borderBottom: '1px solid #f6f6f6' }}>
-                <strong>{g.competency.name}</strong> - {formatEnumLabel(g.recommendationType)}
-                <div style={{ fontSize: '0.82rem', color: '#555' }}>{g.reason}</div>
-              </div>
-            ))}
-          </div>
+          <Card withBorder radius="lg" p="lg" className="bg-white">
+            <Stack>
+              <Title order={3}>Fit Score Contributors</Title>
+              <Text size="sm" c="dimmed">
+                Top bar: your current level. Bottom bar: expected target level for this competency.
+              </Text>
+              {groupOrder.map((group) => {
+                const contributors = groupedContributors[group] ?? [];
+                if (contributors.length === 0) return null;
+                return (
+                  <Stack key={group} gap="xs">
+                    <Text fw={700}>{priorityLabel[group] ?? formatEnumLabel(group)}</Text>
+                    {contributors.map((contributor) => {
+                      const item = analysisByCompetency.get(contributor.competencyId);
+                      const currentPct = Math.round((Number(item?.normalizedCurrentScore ?? contributor.matchScore) || 0) * 100);
+                      const expectedPct = Math.round((Number(item?.normalizedRequiredScore ?? 1) || 0) * 100);
+                      return (
+                        <Card key={contributor.competencyId} withBorder radius="md" p="sm">
+                          <Stack gap={6}>
+                            <Group justify="space-between" wrap="wrap">
+                              <Text>{contributor.competencyName}</Text>
+                              <Text size="sm" c="dimmed">{currentPct}/{expectedPct}%</Text>
+                            </Group>
+                            <Progress value={currentPct} color={scoreColor(currentPct)} />
+                            <Progress value={expectedPct} color="dark" />
+                          </Stack>
+                        </Card>
+                      );
+                    })}
+                  </Stack>
+                );
+              })}
+            </Stack>
+          </Card>
 
-          <Link
-            to={`/progress/${profileId}`}
-            style={{
-              display: 'inline-block',
-              padding: '0.6rem 1.5rem',
-              background: '#e94560',
-              color: '#fff',
-              borderRadius: '4px',
-              textDecoration: 'none',
-            }}
-          >
+          <Card withBorder radius="lg" p="lg" className="bg-white">
+            <Stack>
+              <Title order={3}>Actionable Gaps</Title>
+              {result.actionableGaps.length === 0 && <Text c="dimmed">No actionable gaps identified.</Text>}
+              {result.actionableGaps.map((gap) => (
+                <Card key={gap.competency.id} withBorder radius="md" p="sm">
+                  <Stack gap={4}>
+                    <Group justify="space-between" wrap="wrap">
+                      <Text fw={600}>{gap.competency.name}</Text>
+                      <Badge variant="light" color="brand.1">{gap.currentLevel} to {gap.requiredLevel}</Badge>
+                    </Group>
+                    <Text size="sm" c="dimmed">
+                      {formatEnumLabel(gap.priority)} / {formatEnumLabel(gap.roleRelevance)} / {formatEnumLabel(gap.recommendationType)}
+                    </Text>
+                    <Text size="sm">{gap.reason}</Text>
+                  </Stack>
+                </Card>
+              ))}
+            </Stack>
+          </Card>
+
+          <Card withBorder radius="lg" p="lg" className="bg-white">
+            <Stack>
+              <Title order={3}>Market Context / Exclusions</Title>
+              {result.marketContext.map((item) => (
+                <Card key={item.competency.id} withBorder radius="md" p="sm">
+                  <Stack gap={4}>
+                    <Text fw={600}>{item.competency.name} - {formatEnumLabel(item.recommendationType)}</Text>
+                    <Text size="sm" c="dimmed">{item.reason}</Text>
+                  </Stack>
+                </Card>
+              ))}
+            </Stack>
+          </Card>
+
+          <Button component={RouterLink} to={`/progress/${profileId}`} color="brand.7" w="fit-content">
             View Progress Tracker
-          </Link>
+          </Button>
         </>
       )}
-    </div>
+    </Stack>
   );
 }

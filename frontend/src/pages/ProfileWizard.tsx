@@ -1,5 +1,21 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Group,
+  NumberInput,
+  ScrollArea,
+  Select,
+  Stack,
+  Stepper,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core';
 import client from '../api/client';
 import { fetchCountriesCatalog } from '../api/countries';
 import type {
@@ -61,7 +77,7 @@ const OTHER_CITY_VALUE = '__OTHER_CITY__';
 
 export default function ProfileWizard() {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -106,10 +122,7 @@ export default function ProfileWizard() {
   }, [desiredRole, targetCountry]);
 
   const filtered = useMemo(
-    () =>
-      allCompetencies.filter((c) =>
-        c.name.toLowerCase().includes(filter.toLowerCase().trim()),
-      ),
+    () => allCompetencies.filter((competency) => competency.name.toLowerCase().includes(filter.toLowerCase().trim())),
     [allCompetencies, filter],
   );
 
@@ -129,8 +142,8 @@ export default function ProfileWizard() {
 
   const toggle = (competency: Competency) => {
     setSelected((prev) => {
-      const exists = prev.find((x) => x.competencyId === competency.id);
-      if (exists) return prev.filter((x) => x.competencyId !== competency.id);
+      const exists = prev.find((item) => item.competencyId === competency.id);
+      if (exists) return prev.filter((item) => item.competencyId !== competency.id);
       return [
         ...prev,
         {
@@ -142,30 +155,24 @@ export default function ProfileWizard() {
     });
   };
 
-  const setLevel = (
-    competencyId: string,
-    level: HardSkillLevel | LanguageLevel | CertificationStatus,
-  ) => {
-    setSelected((prev) =>
-      prev.map((x) => (x.competencyId === competencyId ? { ...x, level } : x)),
-    );
+  const setLevel = (competencyId: string, level: HardSkillLevel | LanguageLevel | CertificationStatus) => {
+    setSelected((prev) => prev.map((item) => (item.competencyId === competencyId ? { ...item, level } : item)));
   };
 
-  const isSelected = (competencyId: string) =>
-    selected.some((x) => x.competencyId === competencyId);
+  const isSelected = (competencyId: string) => selected.some((item) => item.competencyId === competencyId);
 
   const toPayloadCompetencies = (): UserCompetencyInput[] =>
-    selected.map((x) => {
-      if (x.type === 'LANGUAGE') {
-        return { competencyId: x.competencyId, languageLevel: x.level as LanguageLevel };
+    selected.map((item) => {
+      if (item.type === 'LANGUAGE') {
+        return { competencyId: item.competencyId, languageLevel: item.level as LanguageLevel };
       }
-      if (x.type === 'CERTIFICATION') {
+      if (item.type === 'CERTIFICATION') {
         return {
-          competencyId: x.competencyId,
-          certificationStatus: x.level as CertificationStatus,
+          competencyId: item.competencyId,
+          certificationStatus: item.level as CertificationStatus,
         };
       }
-      return { competencyId: x.competencyId, hardSkillLevel: x.level as HardSkillLevel };
+      return { competencyId: item.competencyId, hardSkillLevel: item.level as HardSkillLevel };
     });
 
   const levelOptions = (type: Competency['type']) => {
@@ -175,7 +182,7 @@ export default function ProfileWizard() {
   };
 
   const validateStep = (step: number) => {
-    if (step === 1) {
+    if (step === 0) {
       if (!targetCountry || !desiredRole) {
         setError('Goal page: desired country and desired role are required.');
         return false;
@@ -185,26 +192,28 @@ export default function ProfileWizard() {
         return false;
       }
     }
-    if (step === 2 && !currentCountry) {
+
+    if (step === 1 && !currentCountry) {
       setError('Source page: current country is required.');
       return false;
     }
+
     setError('');
     return true;
   };
 
   const nextStep = () => {
     if (!validateStep(currentStep)) return;
-    setCurrentStep((s) => Math.min(3, s + 1));
+    setCurrentStep((step) => Math.min(2, step + 1));
   };
 
   const prevStep = () => {
     setError('');
-    setCurrentStep((s) => Math.max(1, s - 1));
+    setCurrentStep((step) => Math.max(0, step - 1));
   };
 
   const handleSubmit = async () => {
-    if (!validateStep(1) || !validateStep(2)) return;
+    if (!validateStep(0) || !validateStep(1)) return;
 
     setSubmitting(true);
     setError('');
@@ -227,262 +236,154 @@ export default function ProfileWizard() {
 
   const visaLikelyRequired = !!targetCountry && !!currentCountry && targetCountry !== currentCountry;
 
-  const selectStyle = {
-    width: '100%',
-    padding: '0.5rem',
-    borderRadius: '4px',
-    border: '1px solid #ccc',
-    marginBottom: '1rem',
-    background: '#fff',
-  } as const;
-  const inputStyle = selectStyle;
-  const btnStyle = {
-    padding: '0.6rem 1.5rem',
-    background: '#e94560',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-  } as const;
-
   return (
-    <div style={{ maxWidth: '760px', margin: '2rem auto' }}>
-      <h2>Create Relocation Profile</h2>
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        {[1, 2, 3].map((step) => (
-          <div
-            key={step}
-            style={{
-              flex: 1,
-              height: '4px',
-              borderRadius: '2px',
-              background: step <= currentStep ? '#e94560' : '#ddd',
-            }}
-          />
-        ))}
-      </div>
-      {error && <p style={{ color: '#f44336' }}>{error}</p>}
+    <Stack className="mx-auto max-w-5xl" gap="lg">
+      <Title order={2}>Create Relocation Profile</Title>
+      {error && <Alert color="red">{error}</Alert>}
 
-      {currentStep === 1 && (
-        <div>
-          <h3>Page 1: Goal</h3>
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Desired Country *</label>
-          <select
-            value={targetCountry}
-            onChange={(e) => {
-              setTargetCountry(e.target.value);
-              setTargetCity('');
-            }}
-            style={selectStyle}
-          >
-            <option value="">-- Select country --</option>
-            {countriesCatalog.target.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>City (optional)</label>
-          <select
-            value={targetCity}
-            onChange={(e) => setTargetCity(e.target.value)}
-            style={selectStyle}
-            disabled={!targetCountry}
-          >
-            <option value="">-- Select city (optional) --</option>
-            {(suggestedCitiesByCountry[targetCountry] || []).map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-            <option value={OTHER_CITY_VALUE}>Other / Not listed (use country average)</option>
-          </select>
-
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Years of Experience (min 0)</label>
-          <input
-            type="number"
-            value={yearsExperience}
-            onChange={(e) => setYearsExperience(Math.max(0, Number(e.target.value) || 0))}
-            min={0}
-            max={40}
-            style={inputStyle}
-          />
-
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Desired Role *</label>
-          <select
-            value={desiredRole}
-            onChange={(e) => setDesiredRole(e.target.value)}
-            style={selectStyle}
-          >
-            <option value="">-- Select role --</option>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {currentStep === 2 && (
-        <div>
-          <h3>Page 2: Source</h3>
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>Current Country *</label>
-          <select
-            value={currentCountry}
-            onChange={(e) => setCurrentCountry(e.target.value)}
-            style={selectStyle}
-          >
-            <option value="">-- Select country --</option>
-            {countriesCatalog.source.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>
-            Budget (inactive, planned)
-          </label>
-          <input
-            type="text"
-            value={budget}
-            disabled
-            placeholder="Will be activated in next iteration"
-            style={{ ...inputStyle, background: '#f5f5f5', color: '#888' }}
-          />
-
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>
-            Visa {visaLikelyRequired ? '(likely required)' : '(inactive, planned)'}
-          </label>
-          <input
-            type="text"
-            value={visa}
-            disabled
-            placeholder={
-              visaLikelyRequired
-                ? 'Visa field planned (route differs by source -> goal)'
-                : 'Will be activated in next iteration'
-            }
-            style={{ ...inputStyle, background: '#f5f5f5', color: '#888' }}
-          />
-        </div>
-      )}
-
-      {currentStep === 3 && (
-        <div>
-          <h3>Page 3: Skills / Competencies</h3>
-          <p style={{ marginTop: 0, color: '#666' }}>
-            List is filtered by role and country relevance priority, not full taxonomy.
-          </p>
-          <div
-            style={{
-              padding: '0.75rem',
-              border: '1px solid #eee',
-              borderRadius: '6px',
-              background: '#fafafa',
-              marginBottom: '1rem',
-            }}
-          >
-            <strong>Skill Levels</strong>
-              <div style={{ marginTop: '0.5rem', fontSize: '0.92rem', color: '#333' }}>
-                {HARD_LEVELS.map((lvl) => (
-                <div key={lvl} style={{ marginBottom: '0.25rem' }}>
-                  {HARD_LEVEL_LABELS[lvl]}
-                </div>
-                ))}
-              </div>
-          </div>
-
-          <input
-            placeholder="Search relevant competencies..."
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            style={inputStyle}
-          />
-          <div
-            style={{
-              maxHeight: '420px',
-              overflowY: 'auto',
-              border: '1px solid #eee',
-              borderRadius: '4px',
-              padding: '0.5rem',
-            }}
-          >
-            {filtered.map((c) => (
-              <div
-                key={c.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.45rem 0',
-                  borderBottom: '1px solid #f0f0f0',
+      <Stepper active={currentStep}>
+        <Stepper.Step label="Goal" description="Destination and role">
+          <Card withBorder radius="lg" p="lg" className="bg-white">
+            <Stack>
+              <Select
+                label="Desired Country *"
+                value={targetCountry}
+                onChange={(value) => {
+                  setTargetCountry(value || '');
+                  setTargetCity('');
                 }}
-              >
-                <input type="checkbox" checked={isSelected(c.id)} onChange={() => toggle(c)} />
-                <span style={{ flex: 1 }}>{c.name}</span>
-                <span
-                  style={{
-                    fontSize: '0.75rem',
-                    color: '#999',
-                    background: '#f5f5f5',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                  }}
-                >
-                  {formatEnumLabel(c.type)}
-                </span>
-                {isSelected(c.id) && (
-                  <select
-                    value={selected.find((x) => x.competencyId === c.id)?.level ?? getDefaultLevel(c.type)}
-                    onChange={(e) =>
-                      setLevel(
-                        c.id,
-                        e.target.value as HardSkillLevel | LanguageLevel | CertificationStatus,
-                      )
-                    }
-                    style={{ ...selectStyle, width: '240px', marginBottom: 0 }}
-                  >
-                    {levelOptions(c.type).map((lvl) => (
-                      <option key={lvl} value={lvl}>
-                        {getLevelLabel(c.type, lvl)}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            ))}
-            {filtered.length === 0 && (
-              <p style={{ color: '#999', margin: '0.75rem 0' }}>
-                No competencies found for current role/country filter.
-              </p>
-            )}
-          </div>
-          <p style={{ marginTop: '0.5rem', color: '#666' }}>{selected.length} competency(s) selected</p>
-        </div>
-      )}
+                placeholder="Select country"
+                data={countriesCatalog.target.map((country) => ({ value: country.code, label: country.name }))}
+              />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.5rem' }}>
-        {currentStep > 1 ? (
-          <button onClick={prevStep} style={{ ...btnStyle, background: '#888' }}>
-            Back
-          </button>
+              <Select
+                label="City (optional)"
+                value={targetCity}
+                onChange={(value) => setTargetCity(value || '')}
+                placeholder="Select city (optional)"
+                disabled={!targetCountry}
+                data={[{ value: '', label: '-- Select city (optional) --' }]
+                  .concat((suggestedCitiesByCountry[targetCountry] || []).map((city) => ({ value: city, label: city })))
+                  .concat([{ value: OTHER_CITY_VALUE, label: 'Other / Not listed (use country average)' }])}
+              />
+
+              <NumberInput
+                label="Years of Experience (min 0)"
+                min={0}
+                max={40}
+                value={yearsExperience}
+                onChange={(value) => setYearsExperience(Math.max(0, Number(value) || 0))}
+              />
+
+              <Select
+                label="Desired Role *"
+                value={desiredRole}
+                onChange={(value) => setDesiredRole(value || '')}
+                placeholder="Select role"
+                data={ROLES.map((role) => ({ value: role, label: role }))}
+              />
+            </Stack>
+          </Card>
+        </Stepper.Step>
+
+        <Stepper.Step label="Source" description="Current location">
+          <Card withBorder radius="lg" p="lg" className="bg-white">
+            <Stack>
+              <Select
+                label="Current Country *"
+                value={currentCountry}
+                onChange={(value) => setCurrentCountry(value || '')}
+                placeholder="Select country"
+                data={countriesCatalog.source.map((country) => ({ value: country.code, label: country.name }))}
+              />
+
+              <TextInput
+                label="Budget (inactive, planned)"
+                value={budget}
+                disabled
+                placeholder="Will be activated in next iteration"
+              />
+
+              <TextInput
+                label={`Visa ${visaLikelyRequired ? '(likely required)' : '(inactive, planned)'}`}
+                value={visa}
+                disabled
+                placeholder={
+                  visaLikelyRequired
+                    ? 'Visa field planned (route differs by source -> goal)'
+                    : 'Will be activated in next iteration'
+                }
+              />
+            </Stack>
+          </Card>
+        </Stepper.Step>
+
+        <Stepper.Step label="Skills" description="Competencies">
+          <Stack>
+            <Card withBorder radius="lg" p="lg" className="bg-white">
+              <Stack gap="xs">
+                <Title order={4}>Skill Levels</Title>
+                {HARD_LEVELS.map((level) => (
+                  <Text key={level} size="sm">{HARD_LEVEL_LABELS[level]}</Text>
+                ))}
+              </Stack>
+            </Card>
+
+            <TextInput
+              placeholder="Search relevant competencies..."
+              value={filter}
+              onChange={(e) => setFilter(e.currentTarget.value)}
+            />
+
+            <Card withBorder radius="lg" p="sm" className="bg-white">
+              <ScrollArea h={420}>
+                <Stack gap="xs">
+                  {filtered.map((competency) => (
+                    <Group key={competency.id} justify="space-between" align="center" wrap="nowrap" className="border-b border-slate-100 pb-2">
+                      <Group gap="sm" wrap="nowrap" className="min-w-0">
+                        <Checkbox checked={isSelected(competency.id)} onChange={() => toggle(competency)} />
+                        <Text className="truncate">{competency.name}</Text>
+                        <Badge variant="light" color="brand.1">{formatEnumLabel(competency.type)}</Badge>
+                      </Group>
+
+                      {isSelected(competency.id) && (
+                        <Select
+                          w={280}
+                          value={selected.find((item) => item.competencyId === competency.id)?.level ?? getDefaultLevel(competency.type)}
+                          onChange={(value) =>
+                            value && setLevel(competency.id, value as HardSkillLevel | LanguageLevel | CertificationStatus)
+                          }
+                          data={levelOptions(competency.type).map((level) => ({
+                            value: level,
+                            label: getLevelLabel(competency.type, level),
+                          }))}
+                        />
+                      )}
+                    </Group>
+                  ))}
+
+                  {filtered.length === 0 && <Text c="dimmed">No competencies found for current role/country filter.</Text>}
+                </Stack>
+              </ScrollArea>
+            </Card>
+
+            <Text size="sm" c="dimmed">{selected.length} competency(s) selected</Text>
+          </Stack>
+        </Stepper.Step>
+      </Stepper>
+
+      <Group justify="space-between">
+        <Button variant="light" color="gray" onClick={prevStep} disabled={currentStep === 0}>
+          Back
+        </Button>
+        {currentStep < 2 ? (
+          <Button color="brand.7" onClick={nextStep}>Next</Button>
         ) : (
-          <div />
+          <Button color="brand.7" onClick={handleSubmit} loading={submitting}>
+            Create Profile
+          </Button>
         )}
-        {currentStep < 3 ? (
-          <button onClick={nextStep} style={btnStyle}>
-            Next
-          </button>
-        ) : (
-          <button onClick={handleSubmit} disabled={submitting} style={btnStyle}>
-            {submitting ? 'Submitting...' : 'Create Profile'}
-          </button>
-        )}
-      </div>
-    </div>
+      </Group>
+    </Stack>
   );
 }
-

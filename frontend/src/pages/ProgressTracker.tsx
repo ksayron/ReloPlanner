@@ -1,5 +1,16 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import {
+  Alert,
+  Badge,
+  Card,
+  Group,
+  Loader,
+  Select,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import client from '../api/client';
 import type { GapStatus, RoadmapStep, TimeEstimate } from '../types';
 
@@ -31,7 +42,7 @@ export default function ProgressTracker() {
         if (!prev) return prev;
         return {
           ...prev,
-          steps: prev.steps.map((s) => (s.id === stepId ? { ...s, status } : s)),
+          steps: prev.steps.map((step) => (step.id === stepId ? { ...step, status } : step)),
         };
       });
     } catch {
@@ -39,75 +50,68 @@ export default function ProgressTracker() {
     }
   };
 
-  if (loading) return <p style={{ textAlign: 'center', marginTop: '2rem' }}>Loading...</p>;
+  if (loading) {
+    return (
+      <div className="mt-10 flex justify-center">
+        <Loader color="brand.7" />
+      </div>
+    );
+  }
 
-  const statusOptions: GapStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED'];
-  const statusColor = (s: GapStatus) =>
-    s === 'COMPLETED' ? '#4caf50' : s === 'IN_PROGRESS' ? '#ff9800' : '#999';
+  const statusColor = (status: GapStatus) =>
+    status === 'COMPLETED' ? 'teal' : status === 'IN_PROGRESS' ? 'yellow' : 'gray';
 
   return (
-    <div style={{ maxWidth: '900px', margin: '2rem auto' }}>
-      <h2>Progress Tracker</h2>
-      {error && <p style={{ color: '#f44336' }}>{error}</p>}
+    <Stack className="mx-auto max-w-5xl" gap="lg">
+      <Title order={2}>Progress Tracker</Title>
+      {error && <Alert color="red">{error}</Alert>}
 
       {roadmap && (
         <>
-          <div style={{ background: '#f9f9f9', padding: '1rem', borderRadius: '8px', marginBottom: '1.2rem' }}>
-            <strong>Total Estimated Preparation:</strong> {roadmap.totalPrepMonths} months
-          </div>
-          {roadmap.timeEstimate && (
-            <div style={{ background: '#f9f9f9', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
-              <div>Optimistic: {roadmap.timeEstimate.optimisticHours}h</div>
-              <div>Realistic: {roadmap.timeEstimate.realisticHours}h</div>
-              <div>Critical Path: {roadmap.timeEstimate.criticalPathHours}h</div>
-            </div>
-          )}
+          <Card withBorder radius="lg" padding="lg" className="bg-white">
+            <Text fw={600}>Total Estimated Preparation: {roadmap.totalPrepMonths} months</Text>
+            {roadmap.timeEstimate && (
+              <Group gap="md" mt="sm">
+                <Badge variant="light" color="brand.1">Optimistic: {roadmap.timeEstimate.optimisticHours}h</Badge>
+                <Badge variant="light" color="brand.1">Realistic: {roadmap.timeEstimate.realisticHours}h</Badge>
+                <Badge variant="light" color="brand.1">Critical Path: {roadmap.timeEstimate.criticalPathHours}h</Badge>
+              </Group>
+            )}
+          </Card>
 
-          <div>
+          <Stack gap="sm">
             {roadmap.steps
               .sort((a, b) => a.orderIndex - b.orderIndex)
-              .map((step, idx) => (
-                <div
-                  key={step.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '0.75rem',
-                    borderLeft: `4px solid ${statusColor(step.status)}`,
-                    background: '#fff',
-                    marginBottom: '0.5rem',
-                    borderRadius: '0 4px 4px 0',
-                    border: '1px solid #eee',
-                    borderLeftWidth: '4px',
-                    borderLeftColor: statusColor(step.status),
-                  }}
-                >
-                  <span style={{ width: '30px', color: '#999', fontSize: '0.85rem' }}>{idx + 1}</span>
-                  <span style={{ flex: 1, fontWeight: 500 }}>{step.competencyName}</span>
-                  <span style={{ fontSize: '0.82rem', color: '#666', marginRight: '0.75rem' }}>
-                    {step.currentDisplayLevel} to {step.requiredDisplayLevel}
-                  </span>
-                  <span style={{ fontSize: '0.85rem', color: '#666', marginRight: '0.75rem' }}>
-                    {step.estimatedHours}h
-                  </span>
-                  <select
-                    value={step.status}
-                    onChange={(e) => updateStatus(step.id, e.target.value as GapStatus)}
-                    style={{ padding: '0.3rem', borderRadius: '4px', border: '1px solid #ccc' }}
-                  >
-                    {statusOptions.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              .map((step, index) => (
+                <Card key={step.id} withBorder radius="md" padding="md" className="bg-white">
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Group gap="sm">
+                      <Badge color={statusColor(step.status)}>{index + 1}</Badge>
+                      <Text fw={600}>{step.competencyName}</Text>
+                    </Group>
+                    <Group gap="sm" wrap="wrap">
+                      <Text size="sm" c="dimmed">{step.currentDisplayLevel} to {step.requiredDisplayLevel}</Text>
+                      <Badge variant="outline" color="brand.7">{step.estimatedHours}h</Badge>
+                      <Select
+                        size="xs"
+                        w={140}
+                        value={step.status}
+                        data={[
+                          { value: 'PENDING', label: 'Pending' },
+                          { value: 'IN_PROGRESS', label: 'In Progress' },
+                          { value: 'COMPLETED', label: 'Completed' },
+                        ]}
+                        onChange={(value) => value && updateStatus(step.id, value as GapStatus)}
+                      />
+                    </Group>
+                  </Group>
+                </Card>
               ))}
-          </div>
+          </Stack>
 
-          {roadmap.steps.length === 0 && <p style={{ color: '#999' }}>No roadmap steps available.</p>}
+          {roadmap.steps.length === 0 && <Text c="dimmed">No roadmap steps available.</Text>}
         </>
       )}
-    </div>
+    </Stack>
   );
 }

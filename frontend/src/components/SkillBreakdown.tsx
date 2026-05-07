@@ -1,29 +1,30 @@
+﻿import { Progress, Stack, Text, Title, Group } from '@mantine/core';
 import type { SkillMatchResult } from '../types';
 
 interface Props {
   breakdown: SkillMatchResult[];
-  skills: Map<string, string>; // id -> name
+  skills: Map<string, string>;
 }
 
 export default function SkillBreakdown({ breakdown, skills }: Props) {
   return (
-    <div>
-      <h3>Skill Breakdown</h3>
+    <Stack gap="sm">
+      <Title order={3}>Skill Breakdown</Title>
       {breakdown.map((item) => {
         const pct = Math.round(item.matchScore * 100);
-        const color = pct >= 70 ? '#4caf50' : pct >= 40 ? '#ff9800' : '#f44336';
+        const color = pct >= 70 ? 'teal' : pct >= 40 ? 'yellow' : 'red';
         return (
-          <div key={item.skillId} style={{ marginBottom: '0.75rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-              <span>{skills.get(item.skillId) || item.skillId}</span>
-              <span style={{ color, fontWeight: 'bold' }}>{pct}%{item.source === 'transferability' ? ' (transfer)' : ''}</span>
-            </div>
-            <div style={{ height: '8px', background: '#eee', borderRadius: '4px', overflow: 'hidden' }}>
-              <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: '4px' }} />
-            </div>
-          </div>
+          <Stack key={item.skillId} gap={4}>
+            <Group justify="space-between">
+              <Text>{skills.get(item.skillId) || item.skillId}</Text>
+              <Text fw={700} c={`${color}.7`}>
+                {pct}%{item.source === 'transferability' ? ' (transfer)' : ''}
+              </Text>
+            </Group>
+            <Progress value={pct} color={color} />
+          </Stack>
         );
       })}
-    </div>
+    </Stack>
   );
 }

@@ -1,5 +1,18 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+﻿import { useState, useEffect } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Loader,
+  Paper,
+  SimpleGrid,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import client from '../api/client';
 
 interface ProfileSummary {
@@ -13,9 +26,16 @@ interface ProfileSummary {
 }
 
 const COUNTRY_NAMES: Record<string, string> = {
-  DE: 'Germany', PL: 'Poland', CA: 'Canada', UA: 'Ukraine',
-  US: 'United States', GB: 'United Kingdom', NL: 'Netherlands',
-  FR: 'France', ES: 'Spain', CZ: 'Czech Republic',
+  DE: 'Germany',
+  PL: 'Poland',
+  CA: 'Canada',
+  UA: 'Ukraine',
+  US: 'United States',
+  GB: 'United Kingdom',
+  NL: 'Netherlands',
+  FR: 'France',
+  ES: 'Spain',
+  CZ: 'Czech Republic',
 };
 
 export default function Profiles() {
@@ -24,54 +44,70 @@ export default function Profiles() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    client.get('/profiles')
-      .then(res => setProfiles(res.data))
+    client
+      .get('/profiles')
+      .then((res) => setProfiles(res.data))
       .catch(() => setError('Failed to load profiles'))
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p style={{ textAlign: 'center', marginTop: '2rem' }}>Loading...</p>;
+  if (loading) {
+    return (
+      <div className="mt-10 flex justify-center">
+        <Loader color="brand.7" />
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: '800px', margin: '2rem auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ margin: 0 }}>My Profiles</h2>
-        <Link to="/wizard" style={{ padding: '0.5rem 1.2rem', background: '#e94560', color: '#fff', borderRadius: '4px', textDecoration: 'none' }}>
-          + New Profile
-        </Link>
-      </div>
+    <Stack className="mx-auto max-w-5xl" gap="lg">
+      <Group justify="space-between" align="center">
+        <Title order={2}>My Profiles</Title>
+        <Button component={RouterLink} to="/wizard" color="brand.7">+ New Profile</Button>
+      </Group>
 
-      {error && <p style={{ color: '#f44336' }}>{error}</p>}
+      {error && <Alert color="red">{error}</Alert>}
 
       {profiles.length === 0 && !error && (
-        <div style={{ textAlign: 'center', padding: '3rem', background: '#f9f9f9', borderRadius: '8px' }}>
-          <p style={{ marginBottom: '1rem', color: '#666' }}>You haven't created any profiles yet.</p>
-          <Link to="/wizard" style={{ padding: '0.6rem 1.5rem', background: '#e94560', color: '#fff', borderRadius: '4px', textDecoration: 'none' }}>
-            Create Your First Profile
-          </Link>
-        </div>
+        <Paper withBorder radius="lg" p="xl" className="bg-white text-center">
+          <Stack align="center">
+            <Text c="dimmed">You haven't created any profiles yet.</Text>
+            <Button component={RouterLink} to="/wizard" color="brand.7">
+              Create Your First Profile
+            </Button>
+          </Stack>
+        </Paper>
       )}
 
-      {profiles.map(p => (
-        <Link
-          key={p.id}
-          to={`/dashboard/${p.id}`}
-          style={{ display: 'block', textDecoration: 'none', color: 'inherit', background: '#fff', border: '1px solid #eee', borderRadius: '8px', padding: '1rem 1.5rem', marginBottom: '0.75rem' }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <strong style={{ fontSize: '1.1rem' }}>{p.desiredRole}</strong>
-              <p style={{ margin: '0.25rem 0 0', color: '#666', fontSize: '0.9rem' }}>
-                {COUNTRY_NAMES[p.currentCountry] || p.currentCountry} → {COUNTRY_NAMES[p.targetCountry] || p.targetCountry}{p.targetCity ? `, ${p.targetCity}` : ''}
-              </p>
-            </div>
-            <div style={{ textAlign: 'right', color: '#999', fontSize: '0.85rem' }}>
-              <div>{p.yearsExperience} yrs exp</div>
-              <div>{new Date(p.createdAt).toLocaleDateString()}</div>
-            </div>
-          </div>
-        </Link>
-      ))}
-    </div>
+      {profiles.length > 0 && (
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+          {profiles.map((profile) => (
+            <Card
+              key={profile.id}
+              component={RouterLink}
+              to={`/dashboard/${profile.id}`}
+              withBorder
+              radius="lg"
+              padding="lg"
+              className="bg-white no-underline transition-shadow hover:shadow-md"
+            >
+              <Stack gap="xs">
+                <Group justify="space-between" align="flex-start">
+                  <Text fw={700}>{profile.desiredRole}</Text>
+                  <Badge variant="light" color="brand.1">{profile.yearsExperience} yrs</Badge>
+                </Group>
+                <Text size="sm" c="dimmed">
+                  {(COUNTRY_NAMES[profile.currentCountry] || profile.currentCountry)}
+                  {' -> '}
+                  {(COUNTRY_NAMES[profile.targetCountry] || profile.targetCountry)}
+                  {profile.targetCity ? `, ${profile.targetCity}` : ''}
+                </Text>
+                <Text size="xs" c="dimmed">Created: {new Date(profile.createdAt).toLocaleDateString()}</Text>
+              </Stack>
+            </Card>
+          ))}
+        </SimpleGrid>
+      )}
+    </Stack>
   );
 }

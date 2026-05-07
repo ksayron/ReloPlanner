@@ -1,4 +1,17 @@
-import { useState, useEffect } from 'react';
+﻿import { useEffect, useState } from 'react';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Loader,
+  Paper,
+  Stack,
+  Table,
+  Text,
+  Title,
+} from '@mantine/core';
 import client from '../../api/client';
 import { fetchCountriesCatalog } from '../../api/countries';
 
@@ -35,10 +48,10 @@ interface ColSkippedItem {
   reason: string;
 }
 
-const STATUS_COLORS: Record<SyncResult['status'], string> = {
-  synced: '#4caf50',
-  skipped: '#ff9800',
-  error: '#f44336',
+const statusColor = (status: SyncResult['status']) => {
+  if (status === 'synced') return 'teal';
+  if (status === 'skipped') return 'yellow';
+  return 'red';
 };
 
 export default function SyncManager() {
@@ -51,10 +64,13 @@ export default function SyncManager() {
   const [colResult, setColResult] = useState<{ updated: string[]; skipped: ColSkippedItem[] } | null>(null);
   const [error, setError] = useState('');
   const [countries, setCountries] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadStatus();
-    void loadCountries();
+    void (async () => {
+      await Promise.all([loadStatus(), loadCountries()]);
+      setLoading(false);
+    })();
   }, []);
 
   const loadCountries = async () => {
@@ -119,155 +135,135 @@ export default function SyncManager() {
     }
   };
 
-  const sectionStyle = { background: '#fff', borderRadius: '8px', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' } as const;
-  const btnStyle = { padding: '0.5rem 1.2rem', background: '#e94560', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' } as const;
-  const smallBtnStyle = { ...btnStyle, padding: '0.3rem 0.8rem', fontSize: '0.8rem' } as const;
+  if (loading) {
+    return (
+      <div className="mt-10 flex justify-center">
+        <Loader color="brand.7" />
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: '900px', margin: '2rem auto' }}>
-      <h2>Data Sync Manager</h2>
-      {error && <p style={{ color: '#f44336', marginBottom: '1rem' }}>{error}</p>}
+    <Stack className="mx-auto max-w-6xl" gap="lg">
+      <Title order={2}>Data Sync Manager</Title>
+      {error && <Alert color="red">{error}</Alert>}
 
-      {/* Market sync */}
-      <div style={sectionStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ margin: 0 }}>Job Market Snapshots</h3>
-          <button onClick={handleSyncAll} disabled={syncingAll} style={btnStyle}>
-            {syncingAll ? 'Syncing...' : 'Sync All Countries'}
-          </button>
-        </div>
-        <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: '1rem' }}>
-          DE, NL, CA, GB, PL via Adzuna API &nbsp;|&nbsp; Runs daily at 02:00 UTC
-        </p>
+      <Paper withBorder radius="lg" p="lg" className="bg-white">
+        <Stack>
+          <Group justify="space-between" align="center">
+            <Title order={3}>Job Market Snapshots</Title>
+            <Button onClick={handleSyncAll} loading={syncingAll} color="brand.7">Sync All Countries</Button>
+          </Group>
+          <Text size="sm" c="dimmed">DE, NL, CA, GB, PL via Adzuna API | Runs daily at 02:00 UTC</Text>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f5f5f5' }}>
-              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Country</th>
-              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Last Snapshot</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '1px solid #ddd' }}>Skills</th>
-              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Source</th>
-              <th style={{ padding: '0.5rem', borderBottom: '1px solid #ddd' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {countries.map((country) => {
-              const info = marketStatus[country];
-              return (
-                <tr key={country}>
-                  <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>{country}</td>
-                  <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', color: info?.date ? '#333' : '#999' }}>
-                    {info?.date ? new Date(info.date).toLocaleDateString() : 'No data'}
-                  </td>
-                  <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', textAlign: 'right' }}>
-                    {info?.skills ?? 'N/A'}
-                  </td>
-                  <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', color: '#666', fontSize: '0.85rem' }}>
-                    {info?.source ?? 'N/A'}
-                    {info?.status ? ` (${info.status})` : ''}
-                  </td>
-                  <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee', textAlign: 'right' }}>
-                    <button
-                      onClick={() => handleSyncCountry(country)}
-                      disabled={syncingCountry === country || syncingAll}
-                      style={smallBtnStyle}
-                    >
-                      {syncingCountry === country ? '...' : 'Sync'}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+          <Table withTableBorder withColumnBorders striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Country</Table.Th>
+                <Table.Th>Last Snapshot</Table.Th>
+                <Table.Th className="text-right">Skills</Table.Th>
+                <Table.Th>Source</Table.Th>
+                <Table.Th className="w-24">Action</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {countries.map((country) => {
+                const info = marketStatus[country];
+                return (
+                  <Table.Tr key={country}>
+                    <Table.Td><Text fw={600}>{country}</Text></Table.Td>
+                    <Table.Td>{info?.date ? new Date(info.date).toLocaleDateString() : 'No data'}</Table.Td>
+                    <Table.Td className="text-right">{info?.skills ?? 'N/A'}</Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">
+                        {info?.source ?? 'N/A'} {info?.status ? `(${info.status})` : ''}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Button
+                        variant="light"
+                        color="brand.1"
+                        loading={syncingCountry === country}
+                        disabled={syncingAll}
+                        onClick={() => handleSyncCountry(country)}
+                        size="xs"
+                      >
+                        Sync
+                      </Button>
+                    </Table.Td>
+                  </Table.Tr>
+                );
+              })}
+            </Table.Tbody>
+          </Table>
 
-        {syncResults.length > 0 && (
-          <div style={{ marginTop: '1rem' }}>
-            <strong>Last sync results:</strong>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-              {syncResults.map((r) => (
-                <span
-                  key={r.country}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '12px',
-                    background: STATUS_COLORS[r.status] + '22',
-                    color: STATUS_COLORS[r.status],
-                    border: `1px solid ${STATUS_COLORS[r.status]}44`,
-                    fontSize: '0.82rem',
-                  }}
-                >
-                  {r.country}: {r.status}
-                  {r.skillsImported != null && ` (${r.skillsImported} skills)`}
-                  {r.message && ` - ${r.message}`}
-                </span>
+          {syncResults.length > 0 && (
+            <Group gap="xs">
+              {syncResults.map((result) => (
+                <Badge key={result.country} color={statusColor(result.status)} variant="light">
+                  {result.country}: {result.status}
+                  {result.skillsImported != null ? ` (${result.skillsImported} skills)` : ''}
+                  {result.message ? ` - ${result.message}` : ''}
+                </Badge>
               ))}
-            </div>
-          </div>
-        )}
-      </div>
+            </Group>
+          )}
+        </Stack>
+      </Paper>
 
-      {/* CoL sync */}
-      <div style={sectionStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ margin: 0 }}>Cost of Living Data</h3>
-          <button onClick={handleColSync} disabled={colSyncing} style={btnStyle}>
-            {colSyncing ? 'Syncing...' : 'Sync from WhereNext'}
-          </button>
-        </div>
-        <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: '1rem' }}>
-          Source: getwherenext.com &nbsp;|&nbsp; Cities: Berlin, Amsterdam, London, Warsaw, Toronto &nbsp;|&nbsp; Cache refreshes hourly
-        </p>
+      <Paper withBorder radius="lg" p="lg" className="bg-white">
+        <Stack>
+          <Group justify="space-between" align="center">
+            <Title order={3}>Cost of Living Data</Title>
+            <Button onClick={handleColSync} loading={colSyncing} color="brand.7">Sync from WhereNext</Button>
+          </Group>
+          <Text size="sm" c="dimmed">
+            Source: getwherenext.com | Cities: Berlin, Amsterdam, London, Warsaw, Toronto | Cache refreshes hourly
+          </Text>
 
-        {cacheStatus && (
-          <div style={{ marginBottom: '1rem' }}>
-            <div style={{ color: '#666', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-              Cache last refreshed:{' '}
-              {cacheStatus.lastRefreshed
-                ? new Date(cacheStatus.lastRefreshed).toLocaleString()
-                : 'Not yet loaded'}
-            </div>
-            <div style={{ color: cacheStatus.isStale ? '#f44336' : '#4caf50', fontSize: '0.82rem', marginBottom: '0.5rem' }}>
-              Cache status: {cacheStatus.isStale ? 'STALE' : 'FRESH'}
-              {cacheStatus.ageMinutes != null && ` (${cacheStatus.ageMinutes} min old)`}
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {Object.entries(cacheStatus.endpoints).map(([key, loaded]) => (
-                <span
-                  key={key}
-                  style={{
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    background: loaded ? '#4caf5022' : '#f4433622',
-                    color: loaded ? '#4caf50' : '#f44336',
-                    border: `1px solid ${loaded ? '#4caf5044' : '#f4433644'}`,
-                    fontSize: '0.78rem',
-                  }}
-                >
-                  {key}: {loaded ? 'OK' : 'missing'}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+          {cacheStatus && (
+            <Card withBorder radius="md" p="md" className="bg-[var(--app-bg)]/60">
+              <Stack gap="xs">
+                <Text size="sm" c="dimmed">
+                  Cache last refreshed:{' '}
+                  {cacheStatus.lastRefreshed
+                    ? new Date(cacheStatus.lastRefreshed).toLocaleString()
+                    : 'Not yet loaded'}
+                </Text>
+                <Badge color={cacheStatus.isStale ? 'red' : 'teal'} variant="light" w="fit-content">
+                  Cache status: {cacheStatus.isStale ? 'STALE' : 'FRESH'}
+                  {cacheStatus.ageMinutes != null ? ` (${cacheStatus.ageMinutes} min old)` : ''}
+                </Badge>
+                <Group gap="xs">
+                  {Object.entries(cacheStatus.endpoints).map(([key, loaded]) => (
+                    <Badge key={key} color={loaded ? 'teal' : 'red'} variant="outline">
+                      {key}: {loaded ? 'OK' : 'missing'}
+                    </Badge>
+                  ))}
+                </Group>
+              </Stack>
+            </Card>
+          )}
 
-        {colResult && (
-          <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
-            <span style={{ color: '#4caf50' }}>Updated: {colResult.updated.join(', ') || 'none'}</span>
-            {colResult.skipped.length > 0 && (
-              <div style={{ color: '#ff9800', marginTop: '0.4rem' }}>
-                Skipped:
-                {colResult.skipped.map((item) => (
-                  <div key={`${item.countryIso}-${item.city}`}>
-                    {item.city} ({item.countryIso}) - {item.reason}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+          {colResult && (
+            <Card withBorder radius="md" p="md">
+              <Stack gap="xs">
+                <Text size="sm" c="teal">Updated: {colResult.updated.join(', ') || 'none'}</Text>
+                {colResult.skipped.length > 0 && (
+                  <Stack gap={4}>
+                    <Text size="sm" c="yellow.8">Skipped:</Text>
+                    {colResult.skipped.map((item) => (
+                      <Text key={`${item.countryIso}-${item.city}`} size="sm" c="dimmed">
+                        {item.city} ({item.countryIso}) - {item.reason}
+                      </Text>
+                    ))}
+                  </Stack>
+                )}
+              </Stack>
+            </Card>
+          )}
+        </Stack>
+      </Paper>
+    </Stack>
   );
 }
-

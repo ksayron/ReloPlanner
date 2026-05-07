@@ -1,8 +1,23 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
+import {
+  Accordion,
+  Alert,
+  Badge,
+  Button,
+  Group,
+  NumberInput,
+  Paper,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core';
 import client from '../../api/client';
 import type { Skill, SkillCategory } from '../../types';
 
 const CATEGORIES: SkillCategory[] = ['HARD_SKILL', 'LANGUAGE', 'CERTIFICATION', 'SOFT_SKILL'];
+
 const formatEnumLabel = (value: string) =>
   value
     .toLowerCase()
@@ -15,28 +30,33 @@ export default function TaxonomyManager() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Add skill form
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState<SkillCategory>('HARD_SKILL');
   const [newParentId, setNewParentId] = useState('');
 
-  // Inline edit
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState<SkillCategory>('HARD_SKILL');
 
-  // Transferability
   const [srcSkill, setSrcSkill] = useState('');
   const [tgtSkill, setTgtSkill] = useState('');
   const [coefficient, setCoefficient] = useState(0.5);
 
   const fetchSkills = () => {
-    client.get('/admin/taxonomy').then(res => setSkills(res.data)).catch(() => setError('Failed to load skills'));
+    client
+      .get('/admin/taxonomy')
+      .then((res) => setSkills(res.data))
+      .catch(() => setError('Failed to load skills'));
   };
 
-  useEffect(() => { fetchSkills(); }, []);
+  useEffect(() => {
+    fetchSkills();
+  }, []);
 
-  const flash = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); };
+  const flash = (msg: string) => {
+    setSuccess(msg);
+    setTimeout(() => setSuccess(''), 3000);
+  };
 
   const addSkill = async () => {
     if (!newName.trim()) return;
@@ -89,134 +109,120 @@ export default function TaxonomyManager() {
     }
   };
 
-  const inputStyle = { padding: '0.4rem', borderRadius: '4px', border: '1px solid #ccc' } as const;
-  const btnStyle = { padding: '0.4rem 1rem', background: '#e94560', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' } as const;
   const skillsById = new Map(skills.map((skill) => [skill.id, skill]));
 
   return (
-    <div style={{ maxWidth: '900px', margin: '2rem auto' }}>
-      <h2>Skill Taxonomy Manager</h2>
-      {error && <p style={{ color: '#f44336' }}>{error}</p>}
-      {success && <p style={{ color: '#4caf50' }}>{success}</p>}
+    <Stack className="mx-auto max-w-5xl" gap="lg">
+      <Title order={2}>Skill Taxonomy Manager</Title>
+      {error && <Alert color="red">{error}</Alert>}
+      {success && <Alert color="teal">{success}</Alert>}
 
-      {/* Add Skill */}
-      <div style={{ background: '#f9f9f9', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
-        <h3 style={{ marginTop: 0 }}>Add Skill</h3>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem' }}>Name</label>
-            <input value={newName} onChange={e => setNewName(e.target.value)} style={inputStyle} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem' }}>Category</label>
-            <select value={newCategory} onChange={e => setNewCategory(e.target.value as SkillCategory)} style={inputStyle}>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem' }}>Parent (optional)</label>
-            <select value={newParentId} onChange={e => setNewParentId(e.target.value)} style={inputStyle}>
-              <option value="">None</option>
-              {skills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-          <button onClick={addSkill} style={btnStyle}>Add</button>
-        </div>
-      </div>
-
-      {/* Skill List */}
-      <div style={{ marginBottom: '2rem' }}>
-        <h3>Skills ({skills.length})</h3>
-        {skills.map(skill => (
-          <details
-            key={skill.id}
-            style={{
-              border: '1px solid #eee',
-              borderRadius: '8px',
-              padding: '0.5rem 0.75rem',
-              marginBottom: '0.5rem',
-              background: '#fff',
-            }}
-          >
-            <summary
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                cursor: 'pointer',
-                listStyle: 'none',
-              }}
-            >
-              <span style={{ flex: 1, fontWeight: 500 }}>{skill.name}</span>
-              <span style={{ fontSize: '0.75rem', color: '#999', background: '#f0f0f0', padding: '2px 6px', borderRadius: '4px' }}>
-                {formatEnumLabel(skill.category)}
-              </span>
-            </summary>
-
-            <div style={{ marginTop: '0.75rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', rowGap: '0.35rem', columnGap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.92rem' }}>
-                <strong>ID</strong>
-                <span>{skill.id}</span>
-                <strong>Category</strong>
-                <span>{formatEnumLabel(skill.category)}</span>
-                <strong>Parent</strong>
-                <span>{skill.parentId ? (skillsById.get(skill.parentId)?.name ?? skill.parentId) : 'None'}</span>
-                <strong>Children</strong>
-                <span>
-                  {skill.children && skill.children.length > 0
-                    ? skill.children.map((child) => child.name).join(', ')
-                    : 'None'}
-                </span>
-                <strong>Aliases</strong>
-                <span>
-                  {skill.aliases && skill.aliases.length > 0
-                    ? skill.aliases.map((alias) => alias.alias).join(', ')
-                    : 'None'}
-                </span>
-              </div>
-
-              {editingId === skill.id ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <input value={editName} onChange={e => setEditName(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '240px' }} />
-                  <select value={editCategory} onChange={e => setEditCategory(e.target.value as SkillCategory)} style={inputStyle}>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{formatEnumLabel(c)}</option>)}
-                  </select>
-                  <button onClick={() => saveEdit(skill.id)} style={btnStyle}>Save</button>
-                  <button onClick={() => setEditingId(null)} style={{ ...btnStyle, background: '#888' }}>Cancel</button>
-                </div>
-              ) : (
-                <button onClick={() => startEdit(skill)} style={{ ...btnStyle, background: '#555', padding: '0.3rem 0.7rem', fontSize: '0.85rem' }}>Edit</button>
+      <Paper withBorder radius="lg" p="lg" className="bg-white">
+        <Stack>
+          <Title order={3}>Add Skill</Title>
+          <Group align="end" wrap="wrap">
+            <TextInput label="Name" value={newName} onChange={(e) => setNewName(e.currentTarget.value)} />
+            <Select
+              label="Category"
+              value={newCategory}
+              onChange={(value) => value && setNewCategory(value as SkillCategory)}
+              data={CATEGORIES.map((category) => ({ value: category, label: formatEnumLabel(category) }))}
+            />
+            <Select
+              label="Parent (optional)"
+              value={newParentId}
+              onChange={(value) => setNewParentId(value || '')}
+              data={[{ value: '', label: 'None' }].concat(
+                skills.map((skill) => ({ value: skill.id, label: skill.name })),
               )}
-            </div>
-          </details>
-        ))}
-      </div>
+            />
+            <Button onClick={addSkill} color="brand.7">Add</Button>
+          </Group>
+        </Stack>
+      </Paper>
 
-      {/* Transferability */}
-      <div style={{ background: '#f9f9f9', padding: '1rem', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0 }}>Skill Transferability</h3>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem' }}>Source Skill</label>
-            <select value={srcSkill} onChange={e => setSrcSkill(e.target.value)} style={inputStyle}>
-              <option value="">Select...</option>
-              {skills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem' }}>Target Skill</label>
-            <select value={tgtSkill} onChange={e => setTgtSkill(e.target.value)} style={inputStyle}>
-              <option value="">Select...</option>
-              {skills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem' }}>Coefficient (0-1)</label>
-            <input type="number" min={0} max={1} step={0.05} value={coefficient} onChange={e => setCoefficient(Number(e.target.value))} style={{ ...inputStyle, width: '80px' }} />
-          </div>
-          <button onClick={addTransferability} style={btnStyle}>Add</button>
-        </div>
-      </div>
-    </div>
+      <Paper withBorder radius="lg" p="lg" className="bg-white">
+        <Stack>
+          <Title order={3}>Skills ({skills.length})</Title>
+          <Accordion variant="contained" radius="md">
+            {skills.map((skill) => (
+              <Accordion.Item key={skill.id} value={skill.id}>
+                <Accordion.Control>
+                  <Group justify="space-between">
+                    <Text fw={600}>{skill.name}</Text>
+                    <Badge variant="light" color="brand.1">{formatEnumLabel(skill.category)}</Badge>
+                  </Group>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="xs">
+                    <Text size="sm"><strong>ID:</strong> {skill.id}</Text>
+                    <Text size="sm"><strong>Category:</strong> {formatEnumLabel(skill.category)}</Text>
+                    <Text size="sm"><strong>Parent:</strong> {skill.parentId ? (skillsById.get(skill.parentId)?.name ?? skill.parentId) : 'None'}</Text>
+                    <Text size="sm">
+                      <strong>Children:</strong>{' '}
+                      {skill.children && skill.children.length > 0
+                        ? skill.children.map((child) => child.name).join(', ')
+                        : 'None'}
+                    </Text>
+                    <Text size="sm">
+                      <strong>Aliases:</strong>{' '}
+                      {skill.aliases && skill.aliases.length > 0
+                        ? skill.aliases.map((alias) => alias.alias).join(', ')
+                        : 'None'}
+                    </Text>
+
+                    {editingId === skill.id ? (
+                      <Group align="end" wrap="wrap" mt="xs">
+                        <TextInput value={editName} onChange={(e) => setEditName(e.currentTarget.value)} label="Name" />
+                        <Select
+                          value={editCategory}
+                          onChange={(value) => value && setEditCategory(value as SkillCategory)}
+                          label="Category"
+                          data={CATEGORIES.map((category) => ({ value: category, label: formatEnumLabel(category) }))}
+                        />
+                        <Button color="brand.7" onClick={() => saveEdit(skill.id)}>Save</Button>
+                        <Button variant="light" color="gray" onClick={() => setEditingId(null)}>Cancel</Button>
+                      </Group>
+                    ) : (
+                      <Button mt="xs" color="brand.1" variant="light" onClick={() => startEdit(skill)}>Edit</Button>
+                    )}
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
+            ))}
+          </Accordion>
+        </Stack>
+      </Paper>
+
+      <Paper withBorder radius="lg" p="lg" className="bg-white">
+        <Stack>
+          <Title order={3}>Skill Transferability</Title>
+          <Group align="end" wrap="wrap">
+            <Select
+              label="Source Skill"
+              value={srcSkill}
+              onChange={(value) => setSrcSkill(value || '')}
+              data={skills.map((skill) => ({ value: skill.id, label: skill.name }))}
+            />
+            <Select
+              label="Target Skill"
+              value={tgtSkill}
+              onChange={(value) => setTgtSkill(value || '')}
+              data={skills.map((skill) => ({ value: skill.id, label: skill.name }))}
+            />
+            <NumberInput
+              label="Coefficient (0-1)"
+              min={0}
+              max={1}
+              step={0.05}
+              value={coefficient}
+              onChange={(value) => setCoefficient(Number(value) || 0)}
+              w={180}
+            />
+            <Button color="brand.7" onClick={addTransferability}>Add</Button>
+          </Group>
+        </Stack>
+      </Paper>
+    </Stack>
   );
 }

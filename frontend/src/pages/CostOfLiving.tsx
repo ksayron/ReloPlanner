@@ -1,4 +1,15 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
+import {
+  Alert,
+  Button,
+  Group,
+  Loader,
+  Paper,
+  Select,
+  Stack,
+  Table,
+  Title,
+} from '@mantine/core';
 import client from '../api/client';
 import type { CostComparison } from '../types';
 
@@ -28,7 +39,7 @@ export default function CostOfLiving() {
       }
     };
 
-    loadCities();
+    void loadCities();
   }, []);
 
   const handleCompare = async () => {
@@ -46,76 +57,94 @@ export default function CostOfLiving() {
     }
   };
 
-  const selectStyle = { padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc', width: '200px', background: '#fff' } as const;
+  if (loadingCities) {
+    return (
+      <div className="mt-10 flex justify-center">
+        <Loader color="brand.7" />
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: '700px', margin: '2rem auto' }}>
-      <h2>Cost of Living Comparison</h2>
+    <Stack className="mx-auto max-w-5xl" gap="lg">
+      <Title order={2}>Cost of Living Comparison</Title>
 
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>City 1</label>
-          <select value={city1} onChange={e => setCity1(e.target.value)} style={selectStyle} disabled={loadingCities || cities.length === 0}>
-            <option value="">-- Select city --</option>
-            {cities.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.25rem' }}>City 2</label>
-          <select value={city2} onChange={e => setCity2(e.target.value)} style={selectStyle} disabled={loadingCities || cities.length === 0}>
-            <option value="">-- Select city --</option>
-            {cities.filter(c => c !== city1).map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <button
-          onClick={handleCompare}
-          disabled={loading || loadingCities || cities.length === 0 || !city1 || !city2}
-          style={{ padding: '0.5rem 1.5rem', background: '#e94560', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '38px' }}
-        >
-          {loading ? 'Loading...' : 'Compare'}
-        </button>
-      </div>
+      <Paper withBorder radius="lg" p="lg" className="bg-white">
+        <Group align="end" wrap="wrap">
+          <Select
+            label="City 1"
+            placeholder="Select city"
+            data={cities}
+            value={city1}
+            onChange={(value) => setCity1(value || '')}
+            disabled={cities.length === 0}
+            w={220}
+          />
+          <Select
+            label="City 2"
+            placeholder="Select city"
+            data={cities.filter((city) => city !== city1)}
+            value={city2}
+            onChange={(value) => setCity2(value || '')}
+            disabled={cities.length === 0}
+            w={220}
+          />
+          <Button
+            onClick={handleCompare}
+            loading={loading}
+            disabled={cities.length === 0 || !city1 || !city2}
+            color="brand.7"
+          >
+            Compare
+          </Button>
+        </Group>
+      </Paper>
 
-      {!loadingCities && cities.length === 0 && (
-        <p style={{ color: '#666' }}>
+      {cities.length === 0 && (
+        <Alert color="yellow">
           No cost-of-living city data is synced yet. Ask an admin to run data sync in Admin - Sync.
-        </p>
+        </Alert>
       )}
 
-      {error && <p style={{ color: '#f44336' }}>{error}</p>}
+      {error && <Alert color="red">{error}</Alert>}
 
       {result && (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f5f5f5' }}>
-              <th style={{ padding: '0.6rem', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Category</th>
-              <th style={{ padding: '0.6rem', textAlign: 'right', borderBottom: '2px solid #ddd' }}>{result.city1} (USD)</th>
-              <th style={{ padding: '0.6rem', textAlign: 'right', borderBottom: '2px solid #ddd' }}>{result.city2} (USD)</th>
-              <th style={{ padding: '0.6rem', textAlign: 'right', borderBottom: '2px solid #ddd' }}>Diff</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.comparison.map(row => {
-              const diff = row.city1Amount != null && row.city2Amount != null
-                ? row.city1Amount - row.city2Amount : null;
-              return (
-                <tr key={row.category}>
-                  <td style={{ padding: '0.5rem', borderBottom: '1px solid #eee' }}>{row.category}</td>
-                  <td style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '1px solid #eee' }}>
-                    {row.city1Amount != null ? `$${Number(row.city1Amount).toFixed(0)}` : 'N/A'}
-                  </td>
-                  <td style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '1px solid #eee' }}>
-                    {row.city2Amount != null ? `$${Number(row.city2Amount).toFixed(0)}` : 'N/A'}
-                  </td>
-                  <td style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '1px solid #eee', color: diff && diff > 0 ? '#f44336' : '#4caf50' }}>
-                    {diff != null ? `${diff > 0 ? '+' : ''}$${diff.toFixed(0)}` : 'N/A'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <Paper withBorder radius="lg" p="md" className="bg-white">
+          <Table striped highlightOnHover withTableBorder withColumnBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Category</Table.Th>
+                <Table.Th className="text-right">{result.city1} (USD)</Table.Th>
+                <Table.Th className="text-right">{result.city2} (USD)</Table.Th>
+                <Table.Th className="text-right">Diff</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {result.comparison.map((row) => {
+                const diff =
+                  row.city1Amount != null && row.city2Amount != null
+                    ? row.city1Amount - row.city2Amount
+                    : null;
+                const diffColor = diff != null && diff > 0 ? 'text-red-600' : 'text-emerald-600';
+                return (
+                  <Table.Tr key={row.category}>
+                    <Table.Td>{row.category}</Table.Td>
+                    <Table.Td className="text-right">
+                      {row.city1Amount != null ? `$${Number(row.city1Amount).toFixed(0)}` : 'N/A'}
+                    </Table.Td>
+                    <Table.Td className="text-right">
+                      {row.city2Amount != null ? `$${Number(row.city2Amount).toFixed(0)}` : 'N/A'}
+                    </Table.Td>
+                    <Table.Td className={`text-right ${diffColor}`}>
+                      {diff != null ? `${diff > 0 ? '+' : ''}$${diff.toFixed(0)}` : 'N/A'}
+                    </Table.Td>
+                  </Table.Tr>
+                );
+              })}
+            </Table.Tbody>
+          </Table>
+        </Paper>
       )}
-    </div>
+    </Stack>
   );
 }
