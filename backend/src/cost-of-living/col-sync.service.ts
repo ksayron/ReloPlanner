@@ -205,10 +205,14 @@ export class ColSyncService {
     const endpoints = this.whereNext.getStatus();
     const loadedEndpoints = Object.values(endpoints).filter(Boolean).length;
     const totalEndpoints = Object.keys(endpoints).length;
+    const hasCacheData = loadedEndpoints > 0;
 
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-    if (!lastRun || lastRun.status === 'failed') status = 'unhealthy';
-    else if (
+    if (!lastRun) {
+      status = hasCacheData ? 'healthy' : 'unhealthy';
+    } else if (lastRun.status === 'failed') {
+      status = 'unhealthy';
+    } else if (
       lastRun.status === 'partial' ||
       loadedEndpoints < totalEndpoints
     ) {
@@ -217,6 +221,7 @@ export class ColSyncService {
 
     return {
       status,
+      state: !lastRun ? 'warmup_no_manual_run' : 'active',
       lastRun,
       cache: {
         lastRefreshed: this.whereNext.getLastRefreshed(),
