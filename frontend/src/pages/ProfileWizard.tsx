@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import { fetchCountriesCatalog } from '../api/countries';
@@ -35,11 +35,11 @@ const LANGUAGE_LEVELS: LanguageLevel[] = ['NONE', 'A1', 'A2', 'B1', 'B2', 'C1', 
 const CERT_LEVELS: CertificationStatus[] = ['NONE', 'PLANNED', 'IN_PROGRESS', 'OBTAINED', 'EXPIRED'];
 
 const HARD_LEVEL_LABELS: Record<HardSkillLevel, string> = {
-  NONE: 'None - не знаю',
-  BASIC: 'Basic - понимаю основы, могу читать код/конфиги',
-  PRACTICAL: 'Practical - могу использовать в простых задачах',
-  CONFIDENT: 'Confident - использую в рабочих задачах самостоятельно',
-  ADVANCED: 'Advanced - могу проектировать решения и помогать другим',
+  NONE: 'None - no practical knowledge yet',
+  BASIC: 'Basic - understand fundamentals and can read code/configuration',
+  PRACTICAL: 'Practical - can use it in simple tasks with some guidance',
+  CONFIDENT: 'Confident - can use it independently in day-to-day work',
+  ADVANCED: 'Advanced - can design solutions and mentor others',
 };
 
 const formatEnumLabel = (value: string) =>
@@ -48,6 +48,14 @@ const formatEnumLabel = (value: string) =>
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+
+const getLevelLabel = (
+  type: Competency['type'],
+  level: HardSkillLevel | LanguageLevel | CertificationStatus,
+) => {
+  if (type === 'HARD_SKILL') return HARD_LEVEL_LABELS[level as HardSkillLevel];
+  return formatEnumLabel(level);
+};
 
 const OTHER_CITY_VALUE = '__OTHER_CITY__';
 
@@ -378,13 +386,13 @@ export default function ProfileWizard() {
             }}
           >
             <strong>Skill Levels</strong>
-            <div style={{ marginTop: '0.5rem', fontSize: '0.92rem', color: '#333' }}>
-              {HARD_LEVELS.map((lvl) => (
+              <div style={{ marginTop: '0.5rem', fontSize: '0.92rem', color: '#333' }}>
+                {HARD_LEVELS.map((lvl) => (
                 <div key={lvl} style={{ marginBottom: '0.25rem' }}>
                   {HARD_LEVEL_LABELS[lvl]}
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
           </div>
 
           <input
@@ -439,7 +447,7 @@ export default function ProfileWizard() {
                   >
                     {levelOptions(c.type).map((lvl) => (
                       <option key={lvl} value={lvl}>
-                        {lvl}
+                        {getLevelLabel(c.type, lvl)}
                       </option>
                     ))}
                   </select>
@@ -477,3 +485,4 @@ export default function ProfileWizard() {
     </div>
   );
 }
+

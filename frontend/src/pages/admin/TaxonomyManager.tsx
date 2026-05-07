@@ -3,6 +3,12 @@ import client from '../../api/client';
 import type { Skill, SkillCategory } from '../../types';
 
 const CATEGORIES: SkillCategory[] = ['HARD_SKILL', 'LANGUAGE', 'CERTIFICATION', 'SOFT_SKILL'];
+const formatEnumLabel = (value: string) =>
+  value
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 
 export default function TaxonomyManager() {
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -85,6 +91,7 @@ export default function TaxonomyManager() {
 
   const inputStyle = { padding: '0.4rem', borderRadius: '4px', border: '1px solid #ccc' } as const;
   const btnStyle = { padding: '0.4rem 1rem', background: '#e94560', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' } as const;
+  const skillsById = new Map(skills.map((skill) => [skill.id, skill]));
 
   return (
     <div style={{ maxWidth: '900px', margin: '2rem auto' }}>
@@ -121,29 +128,67 @@ export default function TaxonomyManager() {
       <div style={{ marginBottom: '2rem' }}>
         <h3>Skills ({skills.length})</h3>
         {skills.map(skill => (
-          <div key={skill.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', borderBottom: '1px solid #eee' }}>
-            {editingId === skill.id ? (
-              <>
-                <input value={editName} onChange={e => setEditName(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-                <select value={editCategory} onChange={e => setEditCategory(e.target.value as SkillCategory)} style={inputStyle}>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <button onClick={() => saveEdit(skill.id)} style={btnStyle}>Save</button>
-                <button onClick={() => setEditingId(null)} style={{ ...btnStyle, background: '#888' }}>Cancel</button>
-              </>
-            ) : (
-              <>
-                <span style={{ flex: 1 }}>{skill.name}</span>
-                <span style={{ fontSize: '0.75rem', color: '#999', background: '#f0f0f0', padding: '2px 6px', borderRadius: '4px' }}>{skill.category}</span>
-                {skill.parentId && (
-                  <span style={{ fontSize: '0.75rem', color: '#666' }}>
-                    parent: {skills.find(s => s.id === skill.parentId)?.name ?? skill.parentId}
-                  </span>
-                )}
+          <details
+            key={skill.id}
+            style={{
+              border: '1px solid #eee',
+              borderRadius: '8px',
+              padding: '0.5rem 0.75rem',
+              marginBottom: '0.5rem',
+              background: '#fff',
+            }}
+          >
+            <summary
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                listStyle: 'none',
+              }}
+            >
+              <span style={{ flex: 1, fontWeight: 500 }}>{skill.name}</span>
+              <span style={{ fontSize: '0.75rem', color: '#999', background: '#f0f0f0', padding: '2px 6px', borderRadius: '4px' }}>
+                {formatEnumLabel(skill.category)}
+              </span>
+            </summary>
+
+            <div style={{ marginTop: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', rowGap: '0.35rem', columnGap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.92rem' }}>
+                <strong>ID</strong>
+                <span>{skill.id}</span>
+                <strong>Category</strong>
+                <span>{formatEnumLabel(skill.category)}</span>
+                <strong>Parent</strong>
+                <span>{skill.parentId ? (skillsById.get(skill.parentId)?.name ?? skill.parentId) : 'None'}</span>
+                <strong>Children</strong>
+                <span>
+                  {skill.children && skill.children.length > 0
+                    ? skill.children.map((child) => child.name).join(', ')
+                    : 'None'}
+                </span>
+                <strong>Aliases</strong>
+                <span>
+                  {skill.aliases && skill.aliases.length > 0
+                    ? skill.aliases.map((alias) => alias.alias).join(', ')
+                    : 'None'}
+                </span>
+              </div>
+
+              {editingId === skill.id ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <input value={editName} onChange={e => setEditName(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '240px' }} />
+                  <select value={editCategory} onChange={e => setEditCategory(e.target.value as SkillCategory)} style={inputStyle}>
+                    {CATEGORIES.map(c => <option key={c} value={c}>{formatEnumLabel(c)}</option>)}
+                  </select>
+                  <button onClick={() => saveEdit(skill.id)} style={btnStyle}>Save</button>
+                  <button onClick={() => setEditingId(null)} style={{ ...btnStyle, background: '#888' }}>Cancel</button>
+                </div>
+              ) : (
                 <button onClick={() => startEdit(skill)} style={{ ...btnStyle, background: '#555', padding: '0.3rem 0.7rem', fontSize: '0.85rem' }}>Edit</button>
-              </>
-            )}
-          </div>
+              )}
+            </div>
+          </details>
         ))}
       </div>
 
