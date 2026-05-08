@@ -13,6 +13,15 @@ export interface AnalysisProgressUpdate {
   progressPercent: number;
 }
 
+export interface MarketConfidence {
+  level: 'HIGH' | 'LOW' | 'CRITICAL';
+  lowVolumeDetected: boolean;
+  warning: string | null;
+  totalVacancies: number;
+  lowVolumeThreshold: number;
+  criticalVolumeThreshold: number;
+}
+
 @Injectable()
 export class AnalysisWorkflowService {
   constructor(
@@ -63,6 +72,16 @@ export class AnalysisWorkflowService {
           totalVacancies: 0,
         },
       });
+    }
+
+    const confidence = this.computeMarketConfidence(snapshot.totalVacancies);
+    const blockOnCriticalLowVolume =
+      String(this.config.get('ANALYSIS_BLOCK_ON_CRITICAL_LOW_VOLUME') ?? 'false').toLowerCase() ===
+      'true';
+    if (blockOnCriticalLowVolume && confidence.level === 'CRITICAL') {
+      throw new NotFoundException(
+        `Analysis blocked: market snapshot is critically sparse (${snapshot.totalVacancies} vacancies).`,
+      );
     }
 
     await this.reportProgress(onProgress, 'PREPARE_INPUTS', 50);
@@ -185,6 +204,7 @@ export class AnalysisWorkflowService {
         },
       },
       include: {
+        snapshot: true,
         analysisItems: { include: { competency: true } },
         roadmapSteps: { include: { competency: true }, orderBy: { orderIndex: 'asc' } },
       },
@@ -195,6 +215,9 @@ export class AnalysisWorkflowService {
   }
 
   formatAnalysisResponse(analysis: any) {
+    const confidence = this.computeMarketConfidence(
+      Number(analysis.snapshot?.totalVacancies ?? 0),
+    );
     const analysisItems = analysis.analysisItems.map((item: any) => ({
       competency: {
         id: item.competency.id,
@@ -248,6 +271,7 @@ export class AnalysisWorkflowService {
             totalVacancies: analysis.snapshot.totalVacancies,
           }
         : null,
+      marketConfidence: confidence,
       analysisItems,
       fitScoreContributors,
       actionableGaps,
@@ -281,5 +305,46 @@ export class AnalysisWorkflowService {
     if (Number.isFinite(delayMs) && delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
+  }
+
+  private computeMarketConfidence(totalVacanciesRaw: number): MarketConfidence {
+    const totalVacancies = Number.isFinite(totalVacanciesRaw) ? totalVacanciesRaw : 0;
+    const lowVolumeThreshold = Number(
+      this.config.get('ANALYSIS_LOW_VOLUME_THRESHOLD') ?? 100,
+    );
+    const criticalVolumeThreshold = Number(
+      this.config.get('ANALYSIS_CRITICAL_VOLUME_THRESHOLD') ?? 40,
+    );
+
+    if (totalVacancies < criticalVolumeThreshold) {
+      return {
+        level: 'CRITICAL',
+        lowVolumeDetected: true,
+        warning: `Critical confidence warning: only ${totalVacancies} vacancies in snapshot (threshold ${criticalVolumeThreshold}).`,
+        totalVacancies,
+        lowVolumeThreshold,
+        criticalVolumeThreshold,
+      };
+    }
+
+    if (totalVacancies < lowVolumeThreshold) {
+      return {
+        level: 'LOW',
+        lowVolumeDetected: true,
+        warning: `Low confidence warning: ${totalVacancies} vacancies in snapshot (threshold ${lowVolumeThreshold}).`,
+        totalVacancies,
+        lowVolumeThreshold,
+        criticalVolumeThreshold,
+      };
+    }
+
+    return {
+      level: 'HIGH',
+      lowVolumeDetected: false,
+      warning: null,
+      totalVacancies,
+      lowVolumeThreshold,
+      criticalVolumeThreshold,
+    };
   }
 }

@@ -265,6 +265,11 @@ export default function Dashboard() {
         <Button onClick={runAnalysis} loading={analyzing} color="brand.7">{result ? 'Re-run Analysis' : 'Run Analysis'}</Button>
       </Group>
       {error && <Alert color="red">{error}</Alert>}
+      {result?.marketConfidence?.lowVolumeDetected && result.marketConfidence.warning ? (
+        <Alert color={result.marketConfidence.level === 'CRITICAL' ? 'red' : 'yellow'}>
+          {result.marketConfidence.warning}
+        </Alert>
+      ) : null}
 
       {showProgressPanel && (
         <Paper withBorder radius="lg" p="lg" className="bg-white">

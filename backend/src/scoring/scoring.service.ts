@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   AnalysisComputationResult,
   AnalysisItemResult,
@@ -9,6 +10,8 @@ import {
   TimeEstimate,
   RecommendationType,
 } from './scoring.types.js';
+import { buildScoringTuningConfig, ScoringTuningConfig } from './scoring.config.js';
+import { ScoringTuningService } from './scoring-tuning.service.js';
 
 const HARD_SKILL_LEVEL_SCORE: Record<string, number> = {
   NONE: 0,
@@ -28,20 +31,6 @@ const LANGUAGE_LEVEL_SCORE: Record<string, number> = {
   C2: 1,
 };
 
-const PRIORITY_MULTIPLIER: Record<string, number> = {
-  CORE: 1.0,
-  IMPORTANT: 0.75,
-  OPTIONAL: 0.25,
-  CONTEXTUAL: 0.1,
-};
-
-const ROLE_RELEVANCE_MULTIPLIER: Record<string, number> = {
-  CORE: 1.0,
-  RELATED: 0.6,
-  WEAKLY_RELATED: 0.2,
-  IRRELEVANT: 0.0,
-};
-
 function round(value: number, digits = 3): number {
   const p = 10 ** digits;
   return Math.round(value * p) / p;
@@ -49,6 +38,15 @@ function round(value: number, digits = 3): number {
 
 @Injectable()
 export class ScoringService {
+  private readonly fallbackTuning: ScoringTuningConfig;
+
+  constructor(
+    @Optional() private readonly tuningService?: ScoringTuningService,
+    @Optional() configService?: ConfigService,
+  ) {
+    this.fallbackTuning = buildScoringTuningConfig(configService);
+  }
+
   computeAnalysis(params: {
     requirements: CompetencyRequirement[];
     userCompetencies: UserCompetencyState[];
@@ -65,6 +63,7 @@ export class ScoringService {
       effortProfiles,
       weeklyHours,
     } = params;
+    const tuning = this.getTuning();
 
     const userByCompetency = new Map<string, UserCompetencyState>();
     for (const item of userCompetencies) {
@@ -108,8 +107,8 @@ export class ScoringService {
       const weight =
         req.frequency *
         req.importance *
-        (PRIORITY_MULTIPLIER[req.priority] ?? 0) *
-        (ROLE_RELEVANCE_MULTIPLIER[req.roleRelevance] ?? 0);
+        (tuning.priorityMultiplier[req.priority as 'CORE'] ?? 0) *
+        (tuning.roleRelevanceMultiplier[req.roleRelevance as 'CORE'] ?? 0);
 
       if (!excluded && weight > 0) {
         weightedSum += matchScore * weight;
@@ -136,7 +135,7 @@ export class ScoringService {
       const estimatedHours = includedInRoadmap
         ? this.estimateHoursByTransition(req.competencyType, currentLevel, requiredLevel)
         : 0;
-      const estimatedMonths = estimatedHours > 0 ? round(estimatedHours / weeklyHours / 4.3, 1) : 0;
+      const estimatedMonths = estimatedHours > 0 ? round(estimatedHours / weeklyHours / tuning.timeEstimation.weeksPerMonth, 1) : 0;
 
       analysisItems.push({
         competency: {
@@ -190,7 +189,7 @@ export class ScoringService {
           x.recommendationType === 'EXCLUDED_AS_IRRELEVANT',
       ),
       roadmapSteps,
-      totalPrepMonths: round(timeEstimate.criticalPathHours / weeklyHours / 4.3, 1),
+      totalPrepMonths: round(timeEstimate.criticalPathHours / weeklyHours / tuning.timeEstimation.weeksPerMonth, 1),
       timeEstimate,
     };
   }
@@ -263,17 +262,18 @@ export class ScoringService {
     roleRelevance: string;
     recommendationType: RecommendationType;
   }): 'CRITICAL' | 'HIGH' | 'MODERATE' | 'MINOR' {
+    const tuning = this.getTuning();
     if (args.recommendationType !== 'ACTIONABLE_GAP') return 'MINOR';
     const impact =
       args.gap *
       args.frequency *
       args.importance *
-      (PRIORITY_MULTIPLIER[args.priority] ?? 0) *
-      (ROLE_RELEVANCE_MULTIPLIER[args.roleRelevance] ?? 0);
+      (tuning.priorityMultiplier[args.priority as 'CORE'] ?? 0) *
+      (tuning.roleRelevanceMultiplier[args.roleRelevance as 'CORE'] ?? 0);
 
-    if (impact >= 0.45) return 'CRITICAL';
-    if (impact >= 0.25) return 'HIGH';
-    if (impact >= 0.1) return 'MODERATE';
+    if (impact >= tuning.severityImpactThresholds.critical) return 'CRITICAL';
+    if (impact >= tuning.severityImpactThresholds.high) return 'HIGH';
+    if (impact >= tuning.severityImpactThresholds.moderate) return 'MODERATE';
     return 'MINOR';
   }
 
@@ -453,9 +453,10 @@ export class ScoringService {
   }
 
   private buildTimeEstimate(roadmapSteps: RoadmapStepResult[]): TimeEstimate {
+    const tuning = this.getTuning();
     const totalHours = roadmapSteps.reduce((acc, x) => acc + x.estimatedHours, 0);
     const realisticHours = totalHours;
-    const optimisticHours = totalHours > 0 ? round(totalHours * 0.7, 1) : 0;
+    const optimisticHours = totalHours > 0 ? round(totalHours * tuning.timeEstimation.optimisticFactor, 1) : 0;
     const criticalPathHours = this.computeCriticalPathHours(roadmapSteps);
 
     return {
@@ -463,6 +464,10 @@ export class ScoringService {
       realisticHours,
       criticalPathHours,
     };
+  }
+
+  private getTuning(): ScoringTuningConfig {
+    return this.tuningService?.getActiveConfig() ?? this.fallbackTuning;
   }
 
   private computeCriticalPathHours(steps: RoadmapStepResult[]): number {
@@ -495,3 +500,6 @@ export class ScoringService {
     return round(max, 1);
   }
 }
+
+
+

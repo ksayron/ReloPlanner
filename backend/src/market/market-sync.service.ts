@@ -82,6 +82,19 @@ export interface MarketSyncRun {
   results: SyncResult[];
 }
 
+export interface AdapterHealthItem {
+  adapter: string;
+  country: string;
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  stale: boolean;
+  staleThresholdMinutes: number;
+  lastSuccessAt: Date | null;
+  lastFailureAt: Date | null;
+  lastCheckedAt: Date | null;
+  lastErrorKind: SyncErrorKind | null;
+  lastErrorMessage: string | null;
+}
+
 @Injectable()
 export class MarketSyncService implements OnApplicationBootstrap {
   private readonly logger = new Logger(MarketSyncService.name);
@@ -493,7 +506,54 @@ export class MarketSyncService implements OnApplicationBootstrap {
         skipped,
         errors,
       },
+      adapters: this.buildAdapterHealth(),
     };
+  }
+
+  private buildAdapterHealth(): AdapterHealthItem[] {
+    const countries = Array.from(this.adapterMap.keys()).sort();
+    const adapterByCountry = new Map<string, string>(
+      countries.map((country) => [country, this.adapterMap.get(country)?.constructor?.name ?? 'UnknownAdapter']),
+    );
+
+    return countries.map((country) => {
+      const adapterName = adapterByCountry.get(country) ?? 'UnknownAdapter';
+      const outcomes = this.runHistory.flatMap((run) =>
+        run.results
+          .filter((result) => result.country === country)
+          .map((result) => ({ result, finishedAt: run.finishedAt })),
+      );
+      const latest = outcomes[0] ?? null;
+      const lastSuccess = outcomes.find((entry) => entry.result.status === 'synced') ?? null;
+      const lastFailure = outcomes.find((entry) => entry.result.status === 'error') ?? null;
+
+      const lastCheckedAt = latest?.finishedAt ?? null;
+      const ageMinutes =
+        lastCheckedAt != null
+          ? (Date.now() - lastCheckedAt.getTime()) / (60 * 1000)
+          : Number.POSITIVE_INFINITY;
+      const stale = ageMinutes > STALE_THRESHOLD_MINUTES;
+
+      let itemStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+      if (!lastCheckedAt) {
+        itemStatus = 'unhealthy';
+      } else if (latest?.result.status === 'error' || stale) {
+        itemStatus = latest?.result.status === 'error' && stale ? 'unhealthy' : 'degraded';
+      }
+
+      return {
+        adapter: adapterName,
+        country,
+        status: itemStatus,
+        stale,
+        staleThresholdMinutes: STALE_THRESHOLD_MINUTES,
+        lastSuccessAt: lastSuccess?.finishedAt ?? null,
+        lastFailureAt: lastFailure?.finishedAt ?? null,
+        lastCheckedAt,
+        lastErrorKind: lastFailure?.result.errorKind ?? null,
+        lastErrorMessage: lastFailure?.result.message ?? null,
+      };
+    });
   }
 
   private async sleep(ms: number) {

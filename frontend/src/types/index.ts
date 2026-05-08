@@ -154,6 +154,14 @@ export interface AnalysisResult {
     source: string;
     totalVacancies: number;
   } | null;
+  marketConfidence: {
+    level: 'HIGH' | 'LOW' | 'CRITICAL';
+    lowVolumeDetected: boolean;
+    warning: string | null;
+    totalVacancies: number;
+    lowVolumeThreshold: number;
+    criticalVolumeThreshold: number;
+  };
   analysisItems: AnalysisItem[];
   fitScoreContributors: FitContributor[];
   actionableGaps: AnalysisItem[];

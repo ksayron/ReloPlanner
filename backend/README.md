@@ -73,6 +73,39 @@ $ npx ts-node prisma/seed.ts
 $ npm run test:e2e
 ```
 
+## Scoring Tuning Config
+
+Scoring multipliers and thresholds are centrally configured and validated on startup. Defaults preserve current behavior; optional env overrides:
+
+- `SCORING_TUNING_PROFILE` (`CONSERVATIVE` | `STANDARD` | `AGGRESSIVE`, default `STANDARD`)
+- `SCORING_PRIORITY_CORE`, `SCORING_PRIORITY_IMPORTANT`, `SCORING_PRIORITY_OPTIONAL`, `SCORING_PRIORITY_CONTEXTUAL`
+- `SCORING_ROLE_RELEVANCE_CORE`, `SCORING_ROLE_RELEVANCE_RELATED`, `SCORING_ROLE_RELEVANCE_WEAKLY_RELATED`, `SCORING_ROLE_RELEVANCE_IRRELEVANT`
+- `SCORING_SEVERITY_CRITICAL_THRESHOLD`, `SCORING_SEVERITY_HIGH_THRESHOLD`, `SCORING_SEVERITY_MODERATE_THRESHOLD`
+- `SCORING_TIME_OPTIMISTIC_FACTOR`, `SCORING_TIME_WEEKS_PER_MONTH`
+
+Validation rules:
+- multipliers must be in `[0..2]`
+- severity thresholds must be `critical > high > moderate > 0`
+- optimistic factor must be `(0..1]`
+- weeks-per-month must be `> 0`
+
+Runtime switching (admin only):
+- `GET /api/admin/scoring/tuning-profiles`
+- `POST /api/admin/scoring/tuning-profile/:name`
+
+## Low-Volume Snapshot Guardrails
+
+Analysis responses expose market confidence markers derived from snapshot vacancy volume:
+
+- `ANALYSIS_LOW_VOLUME_THRESHOLD` (default `100`)
+- `ANALYSIS_CRITICAL_VOLUME_THRESHOLD` (default `40`)
+- `ANALYSIS_BLOCK_ON_CRITICAL_LOW_VOLUME` (default `false`)
+
+Behavior:
+- below low threshold: warning level `LOW`
+- below critical threshold: warning level `CRITICAL`
+- when block flag is `true` and confidence is critical, analysis creation is blocked.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
