@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   AnalysisComputationResult,
   AnalysisItemResult,
@@ -9,6 +10,7 @@ import {
   TimeEstimate,
   RecommendationType,
 } from './scoring.types.js';
+import { buildScoringTuningConfig, ScoringTuningConfig } from './scoring.config.js';
 
 const HARD_SKILL_LEVEL_SCORE: Record<string, number> = {
   NONE: 0,
@@ -28,20 +30,6 @@ const LANGUAGE_LEVEL_SCORE: Record<string, number> = {
   C2: 1,
 };
 
-const PRIORITY_MULTIPLIER: Record<string, number> = {
-  CORE: 1.0,
-  IMPORTANT: 0.75,
-  OPTIONAL: 0.25,
-  CONTEXTUAL: 0.1,
-};
-
-const ROLE_RELEVANCE_MULTIPLIER: Record<string, number> = {
-  CORE: 1.0,
-  RELATED: 0.6,
-  WEAKLY_RELATED: 0.2,
-  IRRELEVANT: 0.0,
-};
-
 function round(value: number, digits = 3): number {
   const p = 10 ** digits;
   return Math.round(value * p) / p;
@@ -49,6 +37,12 @@ function round(value: number, digits = 3): number {
 
 @Injectable()
 export class ScoringService {
+  private readonly tuning: ScoringTuningConfig;
+
+  constructor(configService?: ConfigService) {
+    this.tuning = buildScoringTuningConfig(configService);
+  }
+
   computeAnalysis(params: {
     requirements: CompetencyRequirement[];
     userCompetencies: UserCompetencyState[];
@@ -108,8 +102,8 @@ export class ScoringService {
       const weight =
         req.frequency *
         req.importance *
-        (PRIORITY_MULTIPLIER[req.priority] ?? 0) *
-        (ROLE_RELEVANCE_MULTIPLIER[req.roleRelevance] ?? 0);
+        (this.tuning.priorityMultiplier[req.priority as 'CORE'] ?? 0) *
+        (this.tuning.roleRelevanceMultiplier[req.roleRelevance as 'CORE'] ?? 0);
 
       if (!excluded && weight > 0) {
         weightedSum += matchScore * weight;
@@ -136,7 +130,7 @@ export class ScoringService {
       const estimatedHours = includedInRoadmap
         ? this.estimateHoursByTransition(req.competencyType, currentLevel, requiredLevel)
         : 0;
-      const estimatedMonths = estimatedHours > 0 ? round(estimatedHours / weeklyHours / 4.3, 1) : 0;
+      const estimatedMonths = estimatedHours > 0 ? round(estimatedHours / weeklyHours / this.tuning.timeEstimation.weeksPerMonth, 1) : 0;
 
       analysisItems.push({
         competency: {
@@ -190,7 +184,7 @@ export class ScoringService {
           x.recommendationType === 'EXCLUDED_AS_IRRELEVANT',
       ),
       roadmapSteps,
-      totalPrepMonths: round(timeEstimate.criticalPathHours / weeklyHours / 4.3, 1),
+      totalPrepMonths: round(timeEstimate.criticalPathHours / weeklyHours / this.tuning.timeEstimation.weeksPerMonth, 1),
       timeEstimate,
     };
   }
@@ -268,12 +262,12 @@ export class ScoringService {
       args.gap *
       args.frequency *
       args.importance *
-      (PRIORITY_MULTIPLIER[args.priority] ?? 0) *
-      (ROLE_RELEVANCE_MULTIPLIER[args.roleRelevance] ?? 0);
+      (this.tuning.priorityMultiplier[args.priority as 'CORE'] ?? 0) *
+      (this.tuning.roleRelevanceMultiplier[args.roleRelevance as 'CORE'] ?? 0);
 
-    if (impact >= 0.45) return 'CRITICAL';
-    if (impact >= 0.25) return 'HIGH';
-    if (impact >= 0.1) return 'MODERATE';
+    if (impact >= this.tuning.severityImpactThresholds.critical) return 'CRITICAL';
+    if (impact >= this.tuning.severityImpactThresholds.high) return 'HIGH';
+    if (impact >= this.tuning.severityImpactThresholds.moderate) return 'MODERATE';
     return 'MINOR';
   }
 
@@ -455,7 +449,7 @@ export class ScoringService {
   private buildTimeEstimate(roadmapSteps: RoadmapStepResult[]): TimeEstimate {
     const totalHours = roadmapSteps.reduce((acc, x) => acc + x.estimatedHours, 0);
     const realisticHours = totalHours;
-    const optimisticHours = totalHours > 0 ? round(totalHours * 0.7, 1) : 0;
+    const optimisticHours = totalHours > 0 ? round(totalHours * this.tuning.timeEstimation.optimisticFactor, 1) : 0;
     const criticalPathHours = this.computeCriticalPathHours(roadmapSteps);
 
     return {
@@ -495,3 +489,4 @@ export class ScoringService {
     return round(max, 1);
   }
 }
+
