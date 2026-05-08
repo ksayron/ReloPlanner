@@ -249,14 +249,17 @@ export class ReportsService {
 <body>
   <h1>Relocation Readiness Report</h1>
   <p class="muted">Generated ${snapshot.generatedAt.toISOString()} | Analysis ${snapshot.analysisId}</p>
-  <div class="grid">
-    <div class="card"><strong>Role:</strong> ${escapedRole}</div>
-    <div class="card"><strong>Target:</strong> ${escapedCountry}, ${escapedCity}</div>
-    <div class="card"><strong>Fit Score:</strong> ${snapshot.readiness.fitScore.toFixed(3)}</div>
-    <div class="card"><strong>Readiness:</strong> ${snapshot.readiness.readinessLevel}</div>
-    <div class="card"><strong>Prep (months):</strong> ${snapshot.readiness.totalPrepMonths.toFixed(1)}</div>
-    <div class="card"><strong>Market Source:</strong> ${this.escapeHtml(snapshot.marketContext.source)}</div>
-  </div>
+    <div class="grid">
+      <div class="card"><strong>Role:</strong> ${escapedRole}</div>
+      <div class="card"><strong>Target:</strong> ${escapedCountry}, ${escapedCity}</div>
+      <div class="card"><strong>Fit Score:</strong> ${snapshot.readiness.fitScore.toFixed(3)}</div>
+      <div class="card"><strong>Readiness:</strong> ${snapshot.readiness.readinessLevel}</div>
+      <div class="card"><strong>Prep (months):</strong> ${snapshot.readiness.totalPrepMonths.toFixed(1)}</div>
+      <div class="card"><strong>Market Source:</strong> ${this.escapeHtml(snapshot.marketContext.source)}</div>
+      <div class="card"><strong>Snapshot Date:</strong> ${this.escapeHtml(snapshot.marketContext.snapshotDate)}</div>
+      <div class="card"><strong>Market Country:</strong> ${this.escapeHtml(snapshot.marketContext.country)}${snapshot.marketContext.city ? `, ${this.escapeHtml(snapshot.marketContext.city)}` : ''}</div>
+      <div class="card"><strong>Total Vacancies:</strong> ${snapshot.marketContext.totalVacancies}</div>
+    </div>
 
   <h2>Detected Gaps</h2>
   <table>

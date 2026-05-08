@@ -39,6 +39,25 @@ const scoreColor = (score: number) => {
   return 'red';
 };
 
+const formatSnapshotContext = (snapshot: AnalysisHistoryItem['snapshotMetadata']) => {
+  if (!snapshot) {
+    return 'Based on unavailable market snapshot metadata.';
+  }
+
+  const vacancies = Number.isFinite(snapshot.totalVacancies)
+    ? snapshot.totalVacancies.toLocaleString()
+    : 'unknown';
+  const location = snapshot.city
+    ? `${snapshot.city}, ${snapshot.country}`
+    : snapshot.country;
+  const source = snapshot.source || 'unknown source';
+  const snapshotDate = snapshot.snapshotDate
+    ? new Date(snapshot.snapshotDate).toLocaleDateString()
+    : 'unknown date';
+
+  return `Based on ${vacancies} vacancies in ${location} (${source}, ${snapshotDate}).`;
+};
+
 export default function Dashboard() {
   const { profileId } = useParams<{ profileId: string }>();
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -285,6 +304,7 @@ export default function Dashboard() {
                   <Text size="sm" c="dimmed">
                     Fit: {Math.round(item.fitScore * 100)}%
                   </Text>
+                  <Text size="sm" c="dimmed">{formatSnapshotContext(item.snapshotMetadata)}</Text>
                 </Stack>
                 <Button
                   size="xs"
@@ -311,11 +331,7 @@ export default function Dashboard() {
               <Text fz="3rem" fw={700} c={`${scoreColor(fitScorePct)}.7`}>{fitScorePct}%</Text>
               <Text ta="center" c="dimmed" maw={760}>{getFitScoreMessage(fitScorePct)}</Text>
               <Text c="dimmed">Critical-path estimate: {result.totalPrepMonths} months</Text>
-              {result.snapshotMetadata ? (
-                <Text size="sm" c="dimmed">
-                  Snapshot: {result.snapshotMetadata.country} {result.snapshotMetadata.city ? `(${result.snapshotMetadata.city})` : ''} | {new Date(result.snapshotMetadata.snapshotDate).toLocaleDateString()} | {result.snapshotMetadata.source}
-                </Text>
-              ) : null}
+              <Text size="sm" c="dimmed">{formatSnapshotContext(result.snapshotMetadata)}</Text>
               <Group>
                 <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
                 <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
