@@ -6,6 +6,7 @@ import { ScoringController } from './scoring.controller.js';
 import { AnalysisWorkflowService } from './analysis-workflow.service.js';
 import { ScoringAdminController } from './scoring-admin.controller.js';
 import { ScoringTuningService } from './scoring-tuning.service.js';
+import { JobMatchingService } from './job-matching.service.js';
 
 @Module({
   controllers: [ScoringController, ScoringAdminController],
@@ -15,6 +16,7 @@ import { ScoringTuningService } from './scoring-tuning.service.js';
     GapAnalysisService,
     RoadmapService,
     AnalysisWorkflowService,
+    JobMatchingService,
   ],
   exports: [
     ScoringService,
@@ -22,6 +24,7 @@ import { ScoringTuningService } from './scoring-tuning.service.js';
     GapAnalysisService,
     RoadmapService,
     AnalysisWorkflowService,
+    JobMatchingService,
   ],
 })
 export class ScoringModule {}

@@ -15,7 +15,7 @@ import {
   Title,
 } from '@mantine/core';
 import client from '../api/client';
-import type { AnalysisHistoryItem, AnalysisResult } from '../types';
+import type { AnalysisHistoryItem, AnalysisResult, JobMatchResult } from '../types';
 import { usePersistentJobStream } from '../hooks/usePersistentJobStream';
 import { formatEnumLabel, getJobStepLabel } from '../utils/jobProgress';
 
@@ -68,6 +68,7 @@ export default function Dashboard() {
   const [exporting, setExporting] = useState<'pdf' | 'html' | null>(null);
   const [noResults, setNoResults] = useState(false);
   const [pageError, setPageError] = useState('');
+  const [topMatches, setTopMatches] = useState<JobMatchResult[]>([]);
 
   const loadHistory = useCallback(async () => {
     if (!profileId) return;
@@ -173,6 +174,14 @@ export default function Dashboard() {
         await loadHistory();
       } catch {
         setPageError((prev) => prev || 'Failed to load analysis history');
+      }
+      try {
+        const matchesResponse = await client.get(`/profiles/${profileId}/jobs/top-matches`, {
+          params: { limit: 3 },
+        });
+        setTopMatches(Array.isArray(matchesResponse.data?.items) ? matchesResponse.data.items : []);
+      } catch {
+        setTopMatches([]);
       }
     })();
   }, [loadHistory, profileId]);
@@ -352,6 +361,49 @@ export default function Dashboard() {
           <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Market Context / Exclusions</Title>{result.marketContext.map((item) => <Card key={item.competency.id} withBorder radius="md" p="sm"><Stack gap={4}><Text fw={600}>{item.competency.name} - {formatEnumLabel(item.recommendationType)}</Text><Text size="sm" c="dimmed">{item.reason}</Text></Stack></Card>)}</Stack></Card>
 
           <Button component={RouterLink} to={`/progress/${profileId}`} color="brand.7" w="fit-content">View Progress Tracker</Button>
+
+          <Card withBorder radius="lg" p="lg" className="bg-white">
+            <Stack>
+              <Title order={3}>Top Matching Jobs</Title>
+              {topMatches.length === 0 && (
+                <Text c="dimmed">No matching vacancies found yet for your current role/country profile.</Text>
+              )}
+              {topMatches.map((match) => (
+                <Card key={match.posting.id} withBorder radius="md" p="sm">
+                  <Stack gap={6}>
+                    <Group justify="space-between" wrap="wrap">
+                      <Text fw={700}>{match.posting.title}</Text>
+                      <Badge color="brand.1" variant="light">{Math.round(match.score * 100)}%</Badge>
+                    </Group>
+                    <Text size="sm">{match.posting.company} - {match.posting.location}</Text>
+                    <Text size="sm" c="dimmed">
+                      {match.posting.salaryMinUsd && match.posting.salaryMaxUsd
+                        ? `${match.posting.salaryMinUsd.toLocaleString()}-${match.posting.salaryMaxUsd.toLocaleString()} ${match.posting.salaryCurrency ?? 'USD'}`
+                        : 'Salary not specified'}
+                    </Text>
+                    <Text size="sm">{match.rationale}</Text>
+                    <Text size="xs" c="dimmed">
+                      Matched: {match.matchedSkills.slice(0, 3).join(', ') || 'none'} | Missing: {match.missingSkills.slice(0, 3).join(', ') || 'none'}
+                    </Text>
+                    {match.posting.sourceUrl ? (
+                      <Button
+                        component="a"
+                        href={match.posting.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        size="xs"
+                        variant="outline"
+                        color="brand.8"
+                        w="fit-content"
+                      >
+                        Open vacancy
+                      </Button>
+                    ) : null}
+                  </Stack>
+                </Card>
+              ))}
+            </Stack>
+          </Card>
         </>
       )}
     </Stack>

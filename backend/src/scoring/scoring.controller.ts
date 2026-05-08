@@ -11,6 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AnalysisWorkflowService } from './analysis-workflow.service.js';
+import { JobMatchingService } from './job-matching.service.js';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @Controller('profiles')
@@ -21,6 +22,7 @@ export class ScoringController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly analysisWorkflow: AnalysisWorkflowService,
+    private readonly jobMatching: JobMatchingService,
   ) {}
 
   @Post(':id/analyze')
@@ -154,5 +156,32 @@ export class ScoringController {
         status: step.status,
       })),
     };
+  }
+
+  @Get(':id/jobs')
+  async listJobs(
+    @Param('id') profileId: string,
+    @Request() req: any,
+    @Query('limit') limitRaw?: string,
+  ) {
+    return this.jobMatching.listPostingsForProfile(profileId, req.user.id, limitRaw);
+  }
+
+  @Get(':id/jobs/:postingId/match')
+  async matchJob(
+    @Param('id') profileId: string,
+    @Param('postingId') postingId: string,
+    @Request() req: any,
+  ) {
+    return this.jobMatching.matchPosting(profileId, postingId, req.user.id);
+  }
+
+  @Get(':id/jobs/top-matches')
+  async getTopMatches(
+    @Param('id') profileId: string,
+    @Request() req: any,
+    @Query('limit') limitRaw?: string,
+  ) {
+    return this.jobMatching.getTopMatches(profileId, req.user.id, limitRaw);
   }
 }

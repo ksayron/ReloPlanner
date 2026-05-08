@@ -218,3 +218,27 @@ export interface ProcessingJobSnapshot {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface JobPosting {
+  id: string;
+  countryCode: string;
+  roleName: string;
+  title: string;
+  company: string;
+  location: string;
+  source: string;
+  sourceUrl: string | null;
+  salaryMinUsd: number | null;
+  salaryMaxUsd: number | null;
+  salaryCurrency: string | null;
+  requirements: string[];
+  createdAt: string;
+}
+
+export interface JobMatchResult {
+  posting: JobPosting;
+  score: number;
+  matchedSkills: string[];
+  missingSkills: string[];
+  rationale: string;
+}

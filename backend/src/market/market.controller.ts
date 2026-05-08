@@ -10,6 +10,7 @@ import {
 import { MarketService } from './market.service.js';
 import { MarketSyncService } from './market-sync.service.js';
 import { ImportMarketDto } from './dto/import-market.dto.js';
+import { ImportJobPostingsDto } from './dto/import-job-postings.dto.js';
 import { Roles, RolesGuard } from '../auth/roles.guard.js';
 import { Role } from '@prisma/client';
 import { AuthGuard } from '@nestjs/passport';
@@ -29,6 +30,11 @@ export class MarketController {
   @Post('admin/import/market')
   importManual(@Body() dto: ImportMarketDto) {
     return this.marketService.importManual(dto);
+  }
+
+  @Post('admin/import/job-postings')
+  importJobPostings(@Body() dto: ImportJobPostingsDto) {
+    return this.marketService.importJobPostings(dto);
   }
 
   @Post('admin/sync/market')

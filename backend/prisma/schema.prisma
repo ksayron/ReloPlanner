@@ -430,3 +430,25 @@ model ProcessingJob {
   @@index([userId, createdAt])
   @@map("processing_jobs")
 }
+
+model JobPosting {
+  id                 String   @id @default(uuid())
+  countryCode        String   @map("country_code")
+  roleName           String   @map("role_name")
+  title              String
+  company            String
+  location           String
+  source             String
+  sourceUrl          String?  @map("source_url")
+  sourceExternalId   String?  @map("source_external_id")
+  salaryMinUsd       Int?     @map("salary_min_usd")
+  salaryMaxUsd       Int?     @map("salary_max_usd")
+  salaryCurrency     String?  @map("salary_currency")
+  requirements       Json
+  requirementCompetencyIds String[] @default([]) @map("requirement_competency_ids")
+  dedupKey           String   @unique @map("dedup_key")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  @@index([countryCode, roleName, createdAt])
+  @@map("job_postings")
+}

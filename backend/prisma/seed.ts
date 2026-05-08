@@ -688,6 +688,80 @@ async function main() {
     }
   }
 
+  const seedJobPostings = [
+    {
+      countryCode: 'DE',
+      roleName: 'Backend Developer',
+      title: 'Backend Developer (Node.js)',
+      company: 'Berlin Cloud Labs',
+      location: 'Berlin, DE',
+      source: 'seed',
+      sourceUrl: 'https://example.com/jobs/backend-node-berlin',
+      salaryMinUsd: 70000,
+      salaryMaxUsd: 90000,
+      salaryCurrency: 'USD',
+      requirements: ['Node.js', 'TypeScript', 'PostgreSQL', 'Docker', 'English'],
+    },
+    {
+      countryCode: 'DE',
+      roleName: 'Backend Developer',
+      title: 'Platform Engineer',
+      company: 'Nordic Data Systems',
+      location: 'Munich, DE',
+      source: 'seed',
+      sourceUrl: 'https://example.com/jobs/platform-engineer-munich',
+      salaryMinUsd: 76000,
+      salaryMaxUsd: 98000,
+      salaryCurrency: 'USD',
+      requirements: ['Node.js', 'Kubernetes', 'Terraform', 'Linux', 'AWS', 'English'],
+    },
+    {
+      countryCode: 'DE',
+      roleName: 'Backend Developer',
+      title: 'API Engineer',
+      company: 'Fintech Rail',
+      location: 'Hamburg, DE',
+      source: 'seed',
+      sourceUrl: 'https://example.com/jobs/api-engineer-hamburg',
+      salaryMinUsd: 68000,
+      salaryMaxUsd: 88000,
+      salaryCurrency: 'USD',
+      requirements: ['REST API', 'Node.js', 'PostgreSQL', 'CI/CD', 'Git'],
+    },
+  ];
+
+  for (const posting of seedJobPostings) {
+    const requirementCompetencyIds = posting.requirements
+      .map((name) => competencyMap.get(name))
+      .filter((x): x is string => Boolean(x));
+    const dedupKey = `seed|url:${posting.sourceUrl!.toLowerCase()}`;
+
+    const existing = await (prisma as any).jobPosting.findUnique({
+      where: { dedupKey },
+    });
+
+    if (existing) {
+      await (prisma as any).jobPosting.update({
+        where: { id: existing.id },
+        data: {
+          ...posting,
+          requirements: posting.requirements,
+          requirementCompetencyIds,
+          dedupKey,
+        },
+      });
+    } else {
+      await (prisma as any).jobPosting.create({
+        data: {
+          ...posting,
+          requirements: posting.requirements,
+          requirementCompetencyIds,
+          dedupKey,
+        },
+      });
+    }
+  }
+
   const colData: {
     country: string;
     city: string;

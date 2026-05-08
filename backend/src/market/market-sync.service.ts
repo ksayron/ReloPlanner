@@ -4,8 +4,9 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SkillNormalizerService } from './skill-normalizer.js';
 import { AdzunaAdapter } from './adapters/adzuna.adapter.js';
-import { ILiveMarketAdapter } from './adapters/market-data.adapter.js';
+import { ILiveMarketAdapter, LiveJobPosting } from './adapters/market-data.adapter.js';
 import { TARGET_COUNTRY_CODES } from '../countries/countries.data.js';
+import { MarketService } from './market.service.js';
 
 /** Default avgRequiredLevel by SkillCategory */
 const REQUIRED_LEVEL: Record<string, number> = {
@@ -47,6 +48,7 @@ export interface SyncResult {
   status: 'synced' | 'skipped' | 'error';
   totalVacancies?: number;
   skillsImported?: number;
+  postingsImported?: number;
   message?: string;
   attempts?: number;
   errorKind?: SyncErrorKind | null;
@@ -107,6 +109,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
     private readonly prisma: PrismaService,
     private readonly normalizer: SkillNormalizerService,
     private readonly adzuna: AdzunaAdapter,
+    private readonly marketService: MarketService,
   ) {
     this.adapterMap.set('DE', adzuna);
     this.adapterMap.set('NL', adzuna);
@@ -287,12 +290,15 @@ export class MarketSyncService implements OnApplicationBootstrap {
       };
     }
 
+    const postingsImported = await this.syncLivePostings(iso, adapter);
+
     if (result.totalVacancies <= 0 || result.skills.length === 0) {
       return {
         country: iso,
         status: 'skipped',
         totalVacancies: result.totalVacancies,
         skillsImported: 0,
+        postingsImported,
         message: 'Adapter returned empty result (check API credentials or coverage)',
         attempts: attempt,
         errorKind: null,
@@ -306,6 +312,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
         status: 'skipped',
         totalVacancies: result.totalVacancies,
         skillsImported: 0,
+        postingsImported,
         message: `Low vacancy volume (${result.totalVacancies} < ${MIN_VACANCIES_FOR_SNAPSHOT}), snapshot not created`,
         attempts: attempt,
         errorKind: null,
@@ -338,6 +345,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
         status: 'skipped',
         totalVacancies: result.totalVacancies,
         skillsImported: 0,
+        postingsImported,
         message: 'No skills resolved after normalization',
         attempts: attempt,
         errorKind: 'normalization',
@@ -351,6 +359,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
         status: 'skipped',
         totalVacancies: result.totalVacancies,
         skillsImported: resolvedSkills.length,
+        postingsImported,
         message: `Too few resolved skills (${resolvedSkills.length} < ${MIN_RESOLVED_SKILLS_FOR_SNAPSHOT}), snapshot not created`,
         attempts: attempt,
         errorKind: 'normalization',
@@ -384,6 +393,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
         status: 'synced',
         totalVacancies: result.totalVacancies,
         skillsImported: resolvedSkills.length,
+        postingsImported,
         attempts: attempt,
         errorKind: null,
         failureStage: null,
@@ -558,5 +568,73 @@ export class MarketSyncService implements OnApplicationBootstrap {
 
   private async sleep(ms: number) {
     await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async syncLivePostings(iso: string, adapter: ILiveMarketAdapter): Promise<number> {
+    if (!adapter.fetchJobPostings) return 0;
+
+    try {
+      const roleRows = await this.prisma.marketRequirement.findMany({
+        where: { countryCode: iso, isActive: true },
+        select: { roleName: true },
+        distinct: ['roleName'],
+      });
+      const roleNames = roleRows.map((x) => x.roleName).filter(Boolean).slice(0, 10);
+      if (roleNames.length === 0) return 0;
+
+      const liveRows = await adapter.fetchJobPostings(iso, roleNames, { maxPerRole: 8 });
+      if (liveRows.length === 0) return 0;
+
+      const competencyLookup = await this.buildCompetencyLookup();
+      const importItems = liveRows.map((row) => this.toPostingImportItem(row, competencyLookup));
+      const imported = await this.marketService.importJobPostings({ items: importItems });
+      return Number(imported.inserted ?? 0) + Number(imported.updated ?? 0);
+    } catch (err: any) {
+      this.logger.warn(
+        `MarketSync [${iso}]: failed to import live postings (${err?.message ?? err})`,
+      );
+      return 0;
+    }
+  }
+
+  private async buildCompetencyLookup() {
+    const [skills, aliases] = await Promise.all([
+      this.prisma.skill.findMany({ select: { name: true } }),
+      this.prisma.skillAlias.findMany({ select: { alias: true } }),
+    ]);
+    const canonical = skills.map((x) => x.name);
+    const variants = aliases.map((x) => x.alias);
+    return [...canonical, ...variants];
+  }
+
+  private toPostingImportItem(row: LiveJobPosting, skillVariants: string[]) {
+    const haystack = `${row.title} ${row.description ?? ''}`.toLowerCase();
+    const requirements = skillVariants
+      .filter((v) => this.hasTerm(haystack, v))
+      .slice(0, 15);
+
+    return {
+      countryCode: row.countryCode,
+      roleName: row.roleName,
+      title: row.title,
+      company: row.company,
+      location: row.location,
+      source: row.source,
+      sourceUrl: row.sourceUrl,
+      sourceExternalId: row.sourceExternalId,
+      salaryMinUsd: row.salaryMinUsd ?? undefined,
+      salaryMaxUsd: row.salaryMaxUsd ?? undefined,
+      salaryCurrency: row.salaryCurrency ?? undefined,
+      requirements,
+    };
+  }
+
+  private hasTerm(haystackLower: string, term: string) {
+    const normalized = term.trim().toLowerCase();
+    if (!normalized) return false;
+    if (normalized.length <= 2) return false;
+    const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i');
+    return pattern.test(haystackLower);
   }
 }
