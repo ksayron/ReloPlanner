@@ -88,6 +88,19 @@ Validation rules:
 - optimistic factor must be `(0..1]`
 - weeks-per-month must be `> 0`
 
+## Low-Volume Snapshot Guardrails
+
+Analysis responses expose market confidence markers derived from snapshot vacancy volume:
+
+- `ANALYSIS_LOW_VOLUME_THRESHOLD` (default `100`)
+- `ANALYSIS_CRITICAL_VOLUME_THRESHOLD` (default `40`)
+- `ANALYSIS_BLOCK_ON_CRITICAL_LOW_VOLUME` (default `false`)
+
+Behavior:
+- below low threshold: warning level `LOW`
+- below critical threshold: warning level `CRITICAL`
+- when block flag is `true` and confidence is critical, analysis creation is blocked.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
