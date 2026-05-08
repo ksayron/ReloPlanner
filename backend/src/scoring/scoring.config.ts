@@ -14,29 +14,123 @@ export interface ScoringTuningConfig {
   };
 }
 
-export const defaultScoringTuningConfig: ScoringTuningConfig = {
-  priorityMultiplier: {
-    CORE: 1.0,
-    IMPORTANT: 0.75,
-    OPTIONAL: 0.25,
-    CONTEXTUAL: 0.1,
+export type ScoringTuningProfileName = 'CONSERVATIVE' | 'STANDARD' | 'AGGRESSIVE';
+
+export const scoringTuningProfiles: Record<ScoringTuningProfileName, ScoringTuningConfig> = {
+  CONSERVATIVE: {
+    priorityMultiplier: {
+      CORE: 1.0,
+      IMPORTANT: 0.6,
+      OPTIONAL: 0.15,
+      CONTEXTUAL: 0.05,
+    },
+    roleRelevanceMultiplier: {
+      CORE: 1.0,
+      RELATED: 0.45,
+      WEAKLY_RELATED: 0.1,
+      IRRELEVANT: 0.0,
+    },
+    severityImpactThresholds: {
+      critical: 0.55,
+      high: 0.35,
+      moderate: 0.15,
+    },
+    timeEstimation: {
+      optimisticFactor: 0.75,
+      weeksPerMonth: 4.3,
+    },
   },
-  roleRelevanceMultiplier: {
-    CORE: 1.0,
-    RELATED: 0.6,
-    WEAKLY_RELATED: 0.2,
-    IRRELEVANT: 0.0,
+  STANDARD: {
+    priorityMultiplier: {
+      CORE: 1.0,
+      IMPORTANT: 0.75,
+      OPTIONAL: 0.25,
+      CONTEXTUAL: 0.1,
+    },
+    roleRelevanceMultiplier: {
+      CORE: 1.0,
+      RELATED: 0.6,
+      WEAKLY_RELATED: 0.2,
+      IRRELEVANT: 0.0,
+    },
+    severityImpactThresholds: {
+      critical: 0.45,
+      high: 0.25,
+      moderate: 0.1,
+    },
+    timeEstimation: {
+      optimisticFactor: 0.7,
+      weeksPerMonth: 4.3,
+    },
   },
-  severityImpactThresholds: {
-    critical: 0.45,
-    high: 0.25,
-    moderate: 0.1,
-  },
-  timeEstimation: {
-    optimisticFactor: 0.7,
-    weeksPerMonth: 4.3,
+  AGGRESSIVE: {
+    priorityMultiplier: {
+      CORE: 1.0,
+      IMPORTANT: 0.9,
+      OPTIONAL: 0.35,
+      CONTEXTUAL: 0.15,
+    },
+    roleRelevanceMultiplier: {
+      CORE: 1.0,
+      RELATED: 0.75,
+      WEAKLY_RELATED: 0.3,
+      IRRELEVANT: 0.0,
+    },
+    severityImpactThresholds: {
+      critical: 0.35,
+      high: 0.2,
+      moderate: 0.08,
+    },
+    timeEstimation: {
+      optimisticFactor: 0.65,
+      weeksPerMonth: 4.3,
+    },
   },
 };
+
+export const scoringTuningProfileDescriptions: Record<ScoringTuningProfileName, string> = {
+  CONSERVATIVE:
+    'Stricter severity thresholds and lower optional/context influence. Fewer items escalate to high severity.',
+  STANDARD:
+    'Current baseline behavior. Matches the previous hardcoded scoring constants.',
+  AGGRESSIVE:
+    'More sensitive severity and higher influence of non-core signals. Surfaces gaps earlier and estimates faster optimistic timeline.',
+};
+
+export const defaultScoringTuningConfig: ScoringTuningConfig =
+  scoringTuningProfiles.STANDARD;
+
+export const defaultScoringTuningProfileName: ScoringTuningProfileName = 'STANDARD';
+
+export const defaultScoringTuningProfile = {
+  name: defaultScoringTuningProfileName,
+  description: scoringTuningProfileDescriptions[defaultScoringTuningProfileName],
+  config: scoringTuningProfiles[defaultScoringTuningProfileName],
+};
+
+export const isScoringProfileName = (value: string): value is ScoringTuningProfileName =>
+  value === 'CONSERVATIVE' || value === 'STANDARD' || value === 'AGGRESSIVE';
+
+export const getScoringProfileConfig = (
+  name: ScoringTuningProfileName,
+): ScoringTuningConfig => scoringTuningProfiles[name];
+
+export const cloneScoringTuningConfig = (
+  config: ScoringTuningConfig,
+): ScoringTuningConfig => ({
+  priorityMultiplier: {
+    ...config.priorityMultiplier,
+  },
+  roleRelevanceMultiplier: {
+    ...config.roleRelevanceMultiplier,
+  },
+  severityImpactThresholds: {
+    ...config.severityImpactThresholds,
+  },
+  timeEstimation: {
+    ...config.timeEstimation,
+  },
+});
 
 export function buildScoringTuningConfig(
   configService?: ConfigService,

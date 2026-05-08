@@ -103,6 +103,13 @@ interface ColSyncHealth {
   lastRun: ColRun | null;
 }
 
+type ScoringTuningProfileName = 'CONSERVATIVE' | 'STANDARD' | 'AGGRESSIVE';
+
+interface ScoringTuningProfile {
+  name: ScoringTuningProfileName;
+  description: string;
+}
+
 const statusColor = (status: SyncResult['status']) =>
   status === 'synced' ? 'teal' : status === 'skipped' ? 'yellow' : 'red';
 
@@ -122,6 +129,9 @@ export default function SyncManager() {
   const [colRuns, setColRuns] = useState<ColRun[]>([]);
   const [pageError, setPageError] = useState('');
   const [countries, setCountries] = useState<string[]>([]);
+  const [scoringProfiles, setScoringProfiles] = useState<ScoringTuningProfile[]>([]);
+  const [activeScoringProfile, setActiveScoringProfile] = useState<ScoringTuningProfile | null>(null);
+  const [updatingScoringProfile, setUpdatingScoringProfile] = useState<ScoringTuningProfileName | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadCountries = async () => {
@@ -144,14 +154,35 @@ export default function SyncManager() {
         client.get('/cost-of-living/sync/status'),
         client.get('/cost-of-living/sync/runs?limit=5'),
       ]);
+      const scoringProfilesRes = await client.get('/admin/scoring/tuning-profiles');
       setMarketHealth(marketHealthRes.data);
       setMarketRuns(Array.isArray(marketRunsRes.data) ? marketRunsRes.data : []);
       setColSyncHealth(colHealthRes.data);
       setColRuns(Array.isArray(colRunsRes.data) ? colRunsRes.data : []);
+      setScoringProfiles(
+        Array.isArray(scoringProfilesRes.data?.profiles)
+          ? scoringProfilesRes.data.profiles
+          : [],
+      );
+      setActiveScoringProfile(scoringProfilesRes.data?.activeProfile ?? null);
     } catch {
       setPageError('Failed to load sync status');
     }
   }, []);
+
+  const handleSetScoringProfile = async (name: ScoringTuningProfileName) => {
+    setUpdatingScoringProfile(name);
+    setPageError('');
+    try {
+      const res = await client.post(`/admin/scoring/tuning-profile/${name}`);
+      setActiveScoringProfile(res.data);
+      await loadStatus();
+    } catch {
+      setPageError(`Failed to set scoring profile: ${name}`);
+    } finally {
+      setUpdatingScoringProfile(null);
+    }
+  };
 
   useEffect(() => {
     void (async () => {
@@ -255,6 +286,41 @@ export default function SyncManager() {
     <Stack className="mx-auto max-w-6xl" gap="lg">
       <Title order={2}>Data Sync Manager</Title>
       {error && <Alert color="red">{error}</Alert>}
+
+      <Paper withBorder radius="lg" p="lg" className="bg-white">
+        <Stack>
+          <Group justify="space-between" align="center">
+            <Title order={3}>Scoring Tuning Profile</Title>
+            {activeScoringProfile ? (
+              <Badge color="brand.7" variant="filled">
+                Active: {activeScoringProfile.name}
+              </Badge>
+            ) : null}
+          </Group>
+          {activeScoringProfile?.description ? (
+            <Text size="sm" c="dimmed">
+              {activeScoringProfile.description}
+            </Text>
+          ) : null}
+          <Group>
+            {scoringProfiles.map((profile) => (
+              <Button
+                key={profile.name}
+                size="xs"
+                variant='filled'
+                color={
+                  activeScoringProfile?.name === profile.name ? 'brand.3' : 'brand.7'
+                }
+                loading={updatingScoringProfile === profile.name}
+                disabled={updatingScoringProfile !== null}
+                onClick={() => handleSetScoringProfile(profile.name)}
+              >
+                {profile.name}
+              </Button>
+            ))}
+          </Group>
+        </Stack>
+      </Paper>
 
       <Paper withBorder radius="lg" p="lg" className="bg-white">
         <Stack>

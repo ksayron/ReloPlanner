@@ -77,6 +77,7 @@ $ npm run test:e2e
 
 Scoring multipliers and thresholds are centrally configured and validated on startup. Defaults preserve current behavior; optional env overrides:
 
+- `SCORING_TUNING_PROFILE` (`CONSERVATIVE` | `STANDARD` | `AGGRESSIVE`, default `STANDARD`)
 - `SCORING_PRIORITY_CORE`, `SCORING_PRIORITY_IMPORTANT`, `SCORING_PRIORITY_OPTIONAL`, `SCORING_PRIORITY_CONTEXTUAL`
 - `SCORING_ROLE_RELEVANCE_CORE`, `SCORING_ROLE_RELEVANCE_RELATED`, `SCORING_ROLE_RELEVANCE_WEAKLY_RELATED`, `SCORING_ROLE_RELEVANCE_IRRELEVANT`
 - `SCORING_SEVERITY_CRITICAL_THRESHOLD`, `SCORING_SEVERITY_HIGH_THRESHOLD`, `SCORING_SEVERITY_MODERATE_THRESHOLD`
@@ -87,6 +88,10 @@ Validation rules:
 - severity thresholds must be `critical > high > moderate > 0`
 - optimistic factor must be `(0..1]`
 - weeks-per-month must be `> 0`
+
+Runtime switching (admin only):
+- `GET /api/admin/scoring/tuning-profiles`
+- `POST /api/admin/scoring/tuning-profile/:name`
 
 ## Low-Volume Snapshot Guardrails
 

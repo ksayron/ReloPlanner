@@ -4,15 +4,24 @@ import { GapAnalysisService } from './gap-analysis.service.js';
 import { RoadmapService } from './roadmap.service.js';
 import { ScoringController } from './scoring.controller.js';
 import { AnalysisWorkflowService } from './analysis-workflow.service.js';
+import { ScoringAdminController } from './scoring-admin.controller.js';
+import { ScoringTuningService } from './scoring-tuning.service.js';
 
 @Module({
-  controllers: [ScoringController],
+  controllers: [ScoringController, ScoringAdminController],
   providers: [
     ScoringService,
+    ScoringTuningService,
     GapAnalysisService,
     RoadmapService,
     AnalysisWorkflowService,
   ],
-  exports: [ScoringService, GapAnalysisService, RoadmapService, AnalysisWorkflowService],
+  exports: [
+    ScoringService,
+    ScoringTuningService,
+    GapAnalysisService,
+    RoadmapService,
+    AnalysisWorkflowService,
+  ],
 })
 export class ScoringModule {}
