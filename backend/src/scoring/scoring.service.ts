@@ -154,7 +154,13 @@ export class ScoringService {
         weight: round(weight, 4),
         recommendationType,
         includedInRoadmap,
-        reason: this.buildReason(req, recommendationType, filteredByCountry, filteredByRole),
+        reason: this.buildReason(
+          req,
+          recommendationType,
+          filteredByCountry,
+          filteredByRole,
+          matchScore,
+        ),
         severity,
         estimatedHours,
         estimatedMonths,
@@ -246,15 +252,11 @@ export class ScoringService {
     const isPrimaryRoleSkill =
       (args.priority === 'CORE' || args.priority === 'IMPORTANT') &&
       (args.roleRelevance === 'CORE' || args.roleRelevance === 'RELATED');
-    if (args.matchScore >= 1) {
-      return isPrimaryRoleSkill ? 'OPTIONAL_IMPROVEMENT' : 'MARKET_CONTEXT';
-    }
-    if (
-      isPrimaryRoleSkill
-    ) {
+    if (isPrimaryRoleSkill && args.matchScore < 1) {
       return 'ACTIONABLE_GAP';
     }
-    if (args.priority === 'OPTIONAL') return 'OPTIONAL_IMPROVEMENT';
+    if (args.matchScore < 1) return 'OPTIONAL_IMPROVEMENT';
+    if (isPrimaryRoleSkill) return 'OPTIONAL_IMPROVEMENT';
     return 'MARKET_CONTEXT';
   }
 
@@ -347,6 +349,7 @@ export class ScoringService {
     recommendationType: RecommendationType,
     filteredByCountry: boolean,
     filteredByRole: boolean,
+    matchScore: number,
   ): string {
     if (filteredByCountry) {
       return `${req.competencyName} excluded: not relevant language for selected country context.`;
@@ -358,7 +361,10 @@ export class ScoringService {
       return `${req.competencyName} is ${req.priority.toLowerCase()} and role-relevant; added as actionable roadmap gap.`;
     }
     if (recommendationType === 'OPTIONAL_IMPROVEMENT') {
-      return `${req.competencyName} is optional for the selected role and shown as improvement context.`;
+      if (matchScore >= 1) {
+        return `${req.competencyName} already meets the current market requirement level for this role.`;
+      }
+      return `${req.competencyName} is a secondary improvement area and is not on the critical roadmap path right now.`;
     }
     return `${req.competencyName} contributes to market context but is not a primary roadmap driver.`;
   }
