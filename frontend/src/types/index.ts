@@ -201,7 +201,7 @@ export interface CountriesCatalog {
   source: CountryOption[];
 }
 
-export type ProcessingJobType = 'PROFILE_ANALYSIS' | 'MARKET_SYNC';
+export type ProcessingJobType = 'PROFILE_ANALYSIS' | 'MARKET_SYNC' | 'REPORT_GENERATION';
 export type ProcessingJobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
 export interface ProcessingJobSnapshot {
@@ -241,4 +241,62 @@ export interface JobMatchResult {
   matchedSkills: string[];
   missingSkills: string[];
   rationale: string;
+}
+
+export type ReportVariant = 'snapshot' | 'ai-summary';
+export type AiProviderName = 'OPENAI' | 'OPENROUTER' | 'MOCK';
+export type AiTaskGrade = 'EASY' | 'REASONING';
+
+export interface ReportAiSummary {
+  executiveSummary: string;
+  topStrengths: string[];
+  topRisks: string[];
+  recommendedStrategy: string;
+  advisoryDisclaimer: string;
+}
+
+export interface ReportAiSummaryMeta {
+  grade: AiTaskGrade;
+  requestedProvider: AiProviderName;
+  attemptedProviders: AiProviderName[];
+  providerUsed: AiProviderName;
+  fallbackUsed: boolean;
+  modelUsed: string;
+  failureReasons: Partial<Record<AiProviderName, string>>;
+}
+
+export interface ReportSnapshotResponse {
+  generation: {
+    status: 'PENDING' | 'GENERATING' | 'COMPLETED' | 'FAILED';
+    startedAt: string;
+    completedAt: string | null;
+    error: string | null;
+  };
+  snapshot: {
+    reportType: 'RELOCATION_READINESS_REPORT';
+    analysisId: string;
+    generatedAt: string;
+    profileSummary: {
+      profileId: string;
+      targetCountry: string;
+      targetCity: string | null;
+      currentCountry: string;
+      yearsExperience: number;
+      desiredRole: string;
+    };
+    readiness: {
+      fitScore: number;
+      readinessLevel: 'READY' | 'NEAR_READY' | 'PREPARATION_REQUIRED';
+      totalPrepMonths: number;
+    };
+  };
+  variant: ReportVariant;
+  aiSummary: ReportAiSummary | null;
+  aiSummaryMeta: ReportAiSummaryMeta | null;
+}
+
+export interface AiRoutingPolicyResponse {
+  defaults: Record<AiTaskGrade, AiProviderName>;
+  orders: Record<AiTaskGrade, AiProviderName[]>;
+  availableProviders: AiProviderName[];
 }

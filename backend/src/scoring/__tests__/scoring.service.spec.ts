@@ -110,6 +110,37 @@ describe('ScoringService v2', () => {
     expect(result.analysisItems[0].recommendationType).toBe('OPTIONAL_IMPROVEMENT');
   });
 
+  it('fully matched core role skill is not labeled as market context', () => {
+    const requirements: CompetencyRequirement[] = [
+      baseReq({
+        competencyId: 'nodejs',
+        competencyName: 'Node.js',
+        priority: 'CORE',
+        roleRelevance: 'CORE',
+      }),
+    ];
+
+    const user: UserCompetencyState[] = [
+      {
+        competencyId: 'nodejs',
+        competencyType: 'HARD_SKILL',
+        hardSkillLevel: 'ADVANCED',
+      },
+    ];
+
+    const result = service.computeAnalysis({
+      requirements,
+      userCompetencies: user,
+      transferEdges: [],
+      countryLanguageRelevance: new Map(),
+      effortProfiles: new Map(),
+      weeklyHours: 8,
+    });
+
+    expect(result.analysisItems[0].matchScore).toBe(1);
+    expect(result.analysisItems[0].recommendationType).toBe('OPTIONAL_IMPROVEMENT');
+  });
+
   it('returns dual time output with legacy totalPrepMonths', () => {
     const requirements: CompetencyRequirement[] = [
       baseReq({ competencyId: 'linux', competencyName: 'Linux' }),

@@ -125,6 +125,7 @@ enum CostCategory {
 enum ProcessingJobType {
   PROFILE_ANALYSIS
   MARKET_SYNC
+  REPORT_GENERATION
 }
 
 enum ProcessingJobStatus {
@@ -348,7 +349,19 @@ model AnalysisResult {
   gaps            GapItem[]
   analysisItems   AnalysisItem[]
   roadmapSteps    RoadmapStep[]
+  aiSummary       AnalysisAiSummary?
   @@map("analysis_results")
+}
+
+model AnalysisAiSummary {
+  id          String         @id @default(uuid())
+  analysisId  String         @unique @map("analysis_id")
+  summaryJson Json           @map("summary_json")
+  metaJson    Json           @map("meta_json")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  analysis    AnalysisResult @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  @@map("analysis_ai_summaries")
 }
 
 model AnalysisItem {

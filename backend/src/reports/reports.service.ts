@@ -1,21 +1,35 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   RelocationReadinessReportSnapshot,
+  ReportAiSummary,
+  ReportAiSummaryMeta,
   ReportGapItem,
   ReportGenerationMeta,
   ReportSkillBreakdownItem,
+  ReportVariant,
 } from './reports.types.js';
 import { JSDOM } from 'jsdom';
 import htmlToPdfmake from 'html-to-pdfmake';
+import { AiReportEnrichmentService } from '../ai/ai-report-enrichment.service.js';
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiEnrichment: AiReportEnrichmentService,
+  ) {}
 
-  async generateSnapshot(analysisId: string, userId: string): Promise<{
+  async generateSnapshot(
+    analysisId: string,
+    userId: string,
+    variant: ReportVariant = 'snapshot',
+  ): Promise<{
     generation: ReportGenerationMeta;
     snapshot: RelocationReadinessReportSnapshot;
+    variant: ReportVariant;
+    aiSummary: ReportAiSummary | null;
+    aiSummaryMeta: ReportAiSummaryMeta | null;
   }> {
     const generation = this.createGenerationMeta();
 
@@ -23,9 +37,19 @@ export class ReportsService {
       generation.status = 'GENERATING';
       const analysis = await this.loadAnalysis(analysisId, userId);
       const snapshot = this.buildSnapshot(analysis);
+
+      let aiSummary: ReportAiSummary | null = null;
+      let aiSummaryMeta: ReportAiSummaryMeta | null = null;
+
+      if (variant === 'ai-summary') {
+        const stored = await this.loadStoredAiSummary(analysis.id);
+        aiSummary = stored?.summary ?? null;
+        aiSummaryMeta = stored?.meta ?? null;
+      }
+
       generation.status = 'COMPLETED';
       generation.completedAt = new Date();
-      return { generation, snapshot };
+      return { generation, snapshot, variant, aiSummary, aiSummaryMeta };
     } catch (error: unknown) {
       generation.status = 'FAILED';
       generation.completedAt = new Date();
@@ -34,25 +58,86 @@ export class ReportsService {
     }
   }
 
-  async renderHtmlReport(analysisId: string, userId: string): Promise<{
+  async renderHtmlReport(
+    analysisId: string,
+    userId: string,
+    variant: ReportVariant = 'snapshot',
+  ): Promise<{
     generation: ReportGenerationMeta;
     snapshot: RelocationReadinessReportSnapshot;
+    variant: ReportVariant;
+    aiSummary: ReportAiSummary | null;
+    aiSummaryMeta: ReportAiSummaryMeta | null;
     html: string;
   }> {
-    const { generation, snapshot } = await this.generateSnapshot(analysisId, userId);
-    const html = this.renderHtml(snapshot);
-    return { generation, snapshot, html };
+    const report = await this.generateSnapshot(analysisId, userId, variant);
+    if (variant === 'ai-summary' && !report.aiSummary) {
+      throw new BadRequestException(
+        'AI summary has not been generated yet. Generate it first, then export.',
+      );
+    }
+    const html = this.renderHtml(report.snapshot, report.variant, report.aiSummary, report.aiSummaryMeta);
+    return { ...report, html };
   }
 
-  async renderPdfReport(analysisId: string, userId: string): Promise<{
+  async renderPdfReport(
+    analysisId: string,
+    userId: string,
+    variant: ReportVariant = 'snapshot',
+  ): Promise<{
     generation: ReportGenerationMeta;
     snapshot: RelocationReadinessReportSnapshot;
+    variant: ReportVariant;
+    aiSummary: ReportAiSummary | null;
+    aiSummaryMeta: ReportAiSummaryMeta | null;
     html: string;
     pdf: Buffer;
   }> {
-    const { generation, snapshot, html } = await this.renderHtmlReport(analysisId, userId);
-    const pdf = await this.renderPdfFromHtml(html);
-    return { generation, snapshot, html, pdf };
+    const report = await this.renderHtmlReport(analysisId, userId, variant);
+    const pdf = await this.renderPdfFromHtml(report.html);
+    return { ...report, pdf };
+  }
+
+  async generateAndPersistAiSummary(
+    analysisId: string,
+    userId: string,
+  ): Promise<{
+    generation: ReportGenerationMeta;
+    snapshot: RelocationReadinessReportSnapshot;
+    variant: ReportVariant;
+    aiSummary: ReportAiSummary;
+    aiSummaryMeta: ReportAiSummaryMeta;
+  }> {
+    const generation = this.createGenerationMeta();
+    generation.status = 'GENERATING';
+
+    const analysis = await this.loadAnalysis(analysisId, userId);
+    const snapshot = this.buildSnapshot(analysis);
+    const enriched = await this.aiEnrichment.summarizeSnapshot(snapshot, 'REASONING');
+
+    await (this.prisma as any).analysisAiSummary.upsert({
+      where: { analysisId: analysis.id },
+      update: {
+        summaryJson: enriched.summary,
+        metaJson: enriched.meta,
+      },
+      create: {
+        analysisId: analysis.id,
+        summaryJson: enriched.summary,
+        metaJson: enriched.meta,
+      },
+    });
+
+    generation.status = 'COMPLETED';
+    generation.completedAt = new Date();
+
+    return {
+      generation,
+      snapshot,
+      variant: 'ai-summary',
+      aiSummary: enriched.summary,
+      aiSummaryMeta: enriched.meta,
+    };
   }
 
   private createGenerationMeta(): ReportGenerationMeta {
@@ -90,6 +175,19 @@ export class ReportsService {
     }
 
     return analysis;
+  }
+
+  private async loadStoredAiSummary(
+    analysisId: string,
+  ): Promise<{ summary: ReportAiSummary; meta: ReportAiSummaryMeta } | null> {
+    const row = await (this.prisma as any).analysisAiSummary.findUnique({
+      where: { analysisId },
+    });
+    if (!row) return null;
+    return {
+      summary: row.summaryJson as ReportAiSummary,
+      meta: row.metaJson as ReportAiSummaryMeta,
+    };
   }
 
   private buildSnapshot(analysis: any): RelocationReadinessReportSnapshot {
@@ -199,7 +297,19 @@ export class ReportsService {
     return 'PREPARATION_REQUIRED';
   }
 
-  private renderHtml(snapshot: RelocationReadinessReportSnapshot): string {
+  private renderHtml(
+    snapshot: RelocationReadinessReportSnapshot,
+    variant: ReportVariant,
+    aiSummary: ReportAiSummary | null,
+    aiSummaryMeta: ReportAiSummaryMeta | null,
+  ): string {
+    if (variant === 'ai-summary') {
+      return this.renderAiSummaryHtml(snapshot, aiSummary, aiSummaryMeta);
+    }
+    return this.renderSnapshotHtml(snapshot);
+  }
+
+  private renderSnapshotHtml(snapshot: RelocationReadinessReportSnapshot): string {
     const escapedRole = this.escapeHtml(snapshot.profileSummary.desiredRole);
     const escapedCountry = this.escapeHtml(snapshot.profileSummary.targetCountry);
     const escapedCity = this.escapeHtml(snapshot.profileSummary.targetCity ?? 'N/A');
@@ -233,7 +343,7 @@ export class ReportsService {
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Relocation Readiness Report</title>
+  <title>Relocation Readiness Snapshot</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
     h1, h2 { margin: 0 0 12px 0; }
@@ -247,7 +357,7 @@ export class ReportsService {
   </style>
 </head>
 <body>
-  <h1>Relocation Readiness Report</h1>
+  <h1>Profile Snapshot (No AI)</h1>
   <p class="muted">Generated ${snapshot.generatedAt.toISOString()} | Analysis ${snapshot.analysisId}</p>
     <div class="grid">
       <div class="card"><strong>Role:</strong> ${escapedRole}</div>
@@ -280,6 +390,82 @@ export class ReportsService {
 
   <h2>Market Context</h2>
   <p>${this.escapeHtml(snapshot.marketContext.jobMarketNote)}</p>
+</body>
+</html>`;
+  }
+
+  private renderAiSummaryHtml(
+    snapshot: RelocationReadinessReportSnapshot,
+    aiSummary: ReportAiSummary | null,
+    aiSummaryMeta: ReportAiSummaryMeta | null,
+  ): string {
+    const summary = aiSummary ?? {
+      executiveSummary: 'AI summary is unavailable. Baseline snapshot data remains available.',
+      topStrengths: ['AI output unavailable for this run.'],
+      topRisks: ['AI output unavailable for this run.'],
+      recommendedStrategy:
+        'Use deterministic roadmap and gap sections from profile snapshot while provider access is restored.',
+      advisoryDisclaimer:
+        'AI-generated advisory text was unavailable for this export. Deterministic report values remain authoritative.',
+    };
+
+    const providerInfo = aiSummaryMeta
+      ? `${aiSummaryMeta.providerUsed} (${this.escapeHtml(aiSummaryMeta.modelUsed)})${
+          aiSummaryMeta.fallbackUsed ? ' via fallback' : ''
+        }`
+      : 'Unavailable';
+
+    const strengths = summary.topStrengths
+      .map((item) => `<li>${this.escapeHtml(item)}</li>`)
+      .join('');
+    const risks = summary.topRisks.map((item) => `<li>${this.escapeHtml(item)}</li>`).join('');
+
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Relocation Readiness AI Summary</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
+    h1, h2 { margin: 0 0 12px 0; }
+    .muted { color: #6b7280; margin-bottom: 16px; }
+    .card { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0; }
+    ul { padding-left: 18px; margin: 8px 0 0 0; }
+  </style>
+</head>
+<body>
+  <h1>AI Summary</h1>
+  <p class="muted">Generated ${snapshot.generatedAt.toISOString()} | Analysis ${snapshot.analysisId}</p>
+
+  <div class="grid">
+    <div class="card"><strong>Fit Score:</strong> ${snapshot.readiness.fitScore.toFixed(3)}</div>
+    <div class="card"><strong>Readiness:</strong> ${snapshot.readiness.readinessLevel}</div>
+    <div class="card"><strong>Target:</strong> ${this.escapeHtml(snapshot.profileSummary.targetCountry)}${snapshot.profileSummary.targetCity ? `, ${this.escapeHtml(snapshot.profileSummary.targetCity)}` : ''}</div>
+    <div class="card"><strong>AI Provider:</strong> ${providerInfo}</div>
+  </div>
+
+  <div class="card">
+    <h2>Executive Summary</h2>
+    <p>${this.escapeHtml(summary.executiveSummary)}</p>
+  </div>
+
+  <div class="card">
+    <h2>Top Strengths</h2>
+    <ul>${strengths}</ul>
+  </div>
+
+  <div class="card">
+    <h2>Top Risks</h2>
+    <ul>${risks}</ul>
+  </div>
+
+  <div class="card">
+    <h2>Recommended Strategy</h2>
+    <p>${this.escapeHtml(summary.recommendedStrategy)}</p>
+  </div>
+
+  <p class="muted">${this.escapeHtml(summary.advisoryDisclaimer)}</p>
 </body>
 </html>`;
   }

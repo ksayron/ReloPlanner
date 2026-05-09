@@ -196,10 +196,14 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
 
     try {
       const parsed = JSON.parse(raw) as StoredState;
-      if (parsed.job) setJob(parsed.job);
-      if (Array.isArray(parsed.history)) setJobHistory(parsed.history);
       if (parsed.job && !isTerminalJobStatus(parsed.job.status)) {
+        setJob(parsed.job);
+        if (Array.isArray(parsed.history)) setJobHistory(parsed.history);
         setRunning(true);
+      } else {
+        clearPersistedState();
+        setJob(null);
+        setJobHistory([]);
       }
     } catch {
       clearPersistedState();
@@ -219,7 +223,7 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
         if (!activeJob) {
           setRunning(false);
           setJob((current) => {
-            if (!current || isTerminalJobStatus(current.status)) return current;
+            if (current?.status === 'FAILED') return current;
             clearPersistedState();
             setJobHistory([]);
             return null;

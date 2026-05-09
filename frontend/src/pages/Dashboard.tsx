@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import {
+  Accordion,
   Alert,
   Badge,
   Button,
@@ -11,11 +12,20 @@ import {
   Progress,
   SimpleGrid,
   Stack,
+  Tabs,
   Text,
   Title,
 } from '@mantine/core';
 import client from '../api/client';
-import type { AnalysisHistoryItem, AnalysisResult, JobMatchResult } from '../types';
+import JobProgressPanel from '../components/JobProgressPanel';
+import type {
+  AnalysisHistoryItem,
+  AnalysisResult,
+  JobMatchResult,
+  ProcessingJobSnapshot,
+  ReportSnapshotResponse,
+  ReportVariant,
+} from '../types';
 import { usePersistentJobStream } from '../hooks/usePersistentJobStream';
 import { formatEnumLabel, getJobStepLabel } from '../utils/jobProgress';
 
@@ -66,6 +76,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [exporting, setExporting] = useState<'pdf' | 'html' | null>(null);
+  const [reportVariant, setReportVariant] = useState<ReportVariant>('snapshot');
+  const [aiReport, setAiReport] = useState<ReportSnapshotResponse | null>(null);
+  const [aiReportRequested, setAiReportRequested] = useState(false);
   const [noResults, setNoResults] = useState(false);
   const [pageError, setPageError] = useState('');
   const [topMatches, setTopMatches] = useState<JobMatchResult[]>([]);
@@ -104,6 +117,18 @@ export default function Dashboard() {
     });
     return res.data;
   }, [profileId]);
+
+  const loadActiveReportJob = useCallback(async () => {
+    if (!selectedAnalysisId) return null;
+    const res = await client.get('/jobs/active', {
+      params: {
+        type: 'REPORT_GENERATION',
+        payloadKey: 'analysisId',
+        payloadValue: selectedAnalysisId,
+      },
+    });
+    return res.data as ProcessingJobSnapshot | null;
+  }, [selectedAnalysisId]);
 
   const {
     job,
@@ -148,6 +173,32 @@ export default function Dashboard() {
     onActiveJobRestored: () => {
       setNoResults(false);
     },
+  });
+
+  const {
+    job: aiReportJob,
+    jobHistory: aiReportJobHistory,
+    running: aiReportLoading,
+    error: aiJobError,
+    setError: setAiJobError,
+    startJob: startAiReportJob,
+  } = usePersistentJobStream({
+    enabled: Boolean(selectedAnalysisId),
+    storageKey: `report-generation:${selectedAnalysisId ?? 'unknown'}`,
+    streamDisconnectedMessage: 'AI report generation stream disconnected',
+    hideCompletedAfterMs: 5000,
+    loadActiveJob: loadActiveReportJob,
+    onCompleted: async (snapshot) => {
+      const payload = snapshot.result as { analysisId?: string; variant?: ReportVariant } | null;
+      const analysisId = payload?.analysisId ?? selectedAnalysisId;
+      if (!analysisId) return;
+      const variant = payload?.variant === 'ai-summary' ? 'ai-summary' : 'snapshot';
+      const response = await client.get<ReportSnapshotResponse>(`/reports/analyses/${analysisId}`, {
+        params: { variant },
+      });
+      setAiReport(response.data);
+    },
+    onFailed: (snapshot) => snapshot.errorMessage ?? 'AI report generation failed',
   });
 
   useEffect(() => {
@@ -223,13 +274,19 @@ export default function Dashboard() {
 
   const exportReport = async (format: 'pdf' | 'html') => {
     if (!result) return;
+    if (reportVariant === 'ai-summary' && !aiReport?.aiSummary) {
+      setPageError('Generate AI summary first, then export.');
+      return;
+    }
     setExporting(format);
     setPageError('');
     try {
       const response = await client.get(`/reports/analyses/${result.id}/${format}`, {
+        params: { variant: reportVariant },
         responseType: 'blob',
       });
-      const fallbackName = `relocation-readiness-${result.id}.${format}`;
+      const suffix = reportVariant === 'ai-summary' ? 'ai-summary' : 'snapshot';
+      const fallbackName = `relocation-readiness-${result.id}-${suffix}.${format}`;
       const fileName = parseFileName(response.headers['content-disposition'], fallbackName);
       const href = window.URL.createObjectURL(response.data);
       const link = document.createElement('a');
@@ -239,16 +296,64 @@ export default function Dashboard() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(href);
-    } catch {
-      setPageError(`Failed to export ${format.toUpperCase()} report`);
+    } catch (err: any) {
+      const apiMessage = String(err?.response?.data?.message ?? '').trim();
+      setPageError(apiMessage || `Failed to export ${format.toUpperCase()} report`);
     } finally {
       setExporting(null);
     }
   };
 
+  const generateAiSummary = async () => {
+    if (!result || aiReportLoading) return;
+    setPageError('');
+    setAiJobError('');
+    setAiReportRequested(true);
+    try {
+      await startAiReportJob(async () => {
+        const startResponse = await client.post(
+          `/jobs/reports/analyses/${result.id}/generate`,
+          null,
+          { params: { variant: 'ai-summary', format: 'json' } },
+        );
+        return String(startResponse.data.jobId);
+      });
+    } catch {
+      setPageError((prev) => prev || 'Failed to generate AI summary report');
+    }
+  };
+
+  useEffect(() => {
+    setReportVariant('snapshot');
+    setAiReport(null);
+    setAiReportRequested(false);
+  }, [selectedAnalysisId]);
+
+  useEffect(() => {
+    if (!selectedAnalysisId) return;
+    void (async () => {
+      try {
+        const response = await client.get<ReportSnapshotResponse>(
+          `/reports/analyses/${selectedAnalysisId}`,
+          { params: { variant: 'ai-summary' } },
+        );
+        if (response.data?.aiSummary) {
+          setAiReport(response.data);
+          setAiReportRequested(true);
+        } else {
+          setAiReport(null);
+          setAiReportRequested(false);
+        }
+      } catch {
+        setAiReport(null);
+        setAiReportRequested(false);
+      }
+    })();
+  }, [selectedAnalysisId]);
+
   if (loading) return <div className="mt-10 flex justify-center"><Loader color="brand.7" /></div>;
 
-  const error = pageError || jobError;
+  const error = pageError || jobError || aiJobError;
   const fitScorePct = result ? Math.round(result.fitScore * 100) : 0;
   const analysisByCompetency = new Map(result?.analysisItems.map((item) => [item.competency.id, item]));
   const groupedContributors = result
@@ -261,11 +366,7 @@ export default function Dashboard() {
       }, {} as Record<string, typeof result.fitScoreContributors>)
     : {};
   const groupOrder = ['CORE', 'IMPORTANT', 'OPTIONAL', 'CONTEXTUAL'];
-  const showProgressPanel =
-    analyzing ||
-    Boolean(job) ||
-    (jobHistory.length > 0 &&
-      jobHistory[jobHistory.length - 1]?.status === 'COMPLETED');
+  const showProgressPanel = analyzing || Boolean(job);
 
   return (
     <Stack className="mx-auto max-w-6xl" gap="lg">
@@ -282,24 +383,28 @@ export default function Dashboard() {
 
       {showProgressPanel && (
         <Paper withBorder radius="lg" p="lg" className="bg-white">
-          <Stack gap="sm">
-            <Title order={3}>Analysis Progress</Title>
-            <Text>Status: <strong>{job ? formatEnumLabel(job.status) : 'Running'}</strong></Text>
-            <Text>Current step: <strong>{job ? getJobStepLabel(job.currentStep) : 'Queued'}</strong></Text>
-            <Progress value={Math.max(0, Math.min(100, job?.progressPercent ?? 0))} color={job?.status === 'FAILED' ? 'red' : 'teal'} />
-            <Text size="sm" c="dimmed">{job?.progressPercent ?? 0}% complete</Text>
-            {jobHistory.length > 0 && (
-              <Stack gap={4}>
-                {jobHistory.map((item, idx) => (
-                  <Group key={`${item.currentStep}-${item.progressPercent}-${idx}`} justify="space-between">
-                    <Text c={item.status === 'FAILED' ? 'red' : item.status === 'COMPLETED' ? 'teal' : 'dark'}>{getJobStepLabel(item.currentStep)}</Text>
-                    <Text size="sm" c="dimmed">{item.progressPercent}%</Text>
-                  </Group>
-                ))}
-              </Stack>
-            )}
-            {job?.status === 'FAILED' && <Button onClick={runAnalysis} color="brand.7" w="fit-content">Retry Analysis</Button>}
-          </Stack>
+          <JobProgressPanel
+            title="Analysis Progress"
+            job={
+              job ?? {
+                id: 'analysis-running',
+                type: 'PROFILE_ANALYSIS',
+                status: 'RUNNING',
+                currentStep: 'QUEUED',
+                progressPercent: 0,
+                errorMessage: null,
+                payload: null,
+                result: null,
+                startedAt: null,
+                completedAt: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }
+            }
+            jobHistory={jobHistory}
+            onRetry={runAnalysis}
+            retryLabel="Retry Analysis"
+          />
         </Paper>
       )}
 
@@ -310,28 +415,37 @@ export default function Dashboard() {
             {historyLoading ? <Loader size="sm" color="brand.7" /> : null}
           </Group>
           {history.length === 0 && <Text c="dimmed">No saved analyses yet.</Text>}
-          {history.map((item) => (
-            <Card key={item.id} withBorder radius="md" p="sm">
-              <Group justify="space-between" align="flex-start" wrap="wrap">
-                <Stack gap={2}>
-                  <Text fw={600}>{new Date(item.createdAt).toLocaleString()}</Text>
-                  <Text size="sm" c="dimmed">
-                    Fit: {Math.round(item.fitScore * 100)}%
-                  </Text>
-                  <Text size="sm" c="dimmed">{formatSnapshotContext(item.snapshotMetadata)}</Text>
-                </Stack>
-                <Button
-                  size="xs"
-                  variant={selectedAnalysisId === item.id ? 'light' : 'filled'}
-                  color={selectedAnalysisId === item.id ? 'brand.1' : 'brand.7'}
-                  onClick={() => openHistoricalResult(item.id)}
-                  disabled={selectedAnalysisId === item.id}
-                >
-                  {selectedAnalysisId === item.id ? 'Opened' : 'Open'}
-                </Button>
-              </Group>
-            </Card>
-          ))}
+          {history.length > 0 && (
+            <Accordion variant="separated" radius="md">
+              {history.map((item) => (
+                <Accordion.Item key={item.id} value={item.id}>
+                  <Accordion.Control>
+                    <Group justify="space-between" wrap="wrap">
+                      <Text fw={600}>{new Date(item.createdAt).toLocaleString()}</Text>
+                      <Badge color="brand.1" variant="light">
+                        Fit: {Math.round(item.fitScore * 100)}%
+                      </Badge>
+                    </Group>
+                  </Accordion.Control>
+                  <Accordion.Panel>
+                    <Stack gap="sm">
+                      <Text size="sm" c="dimmed">{formatSnapshotContext(item.snapshotMetadata)}</Text>
+                      <Button
+                        size="xs"
+                        variant={selectedAnalysisId === item.id ? 'light' : 'filled'}
+                        color={selectedAnalysisId === item.id ? 'brand.1' : 'brand.7'}
+                        onClick={() => openHistoricalResult(item.id)}
+                        disabled={selectedAnalysisId === item.id}
+                        w="fit-content"
+                      >
+                        {selectedAnalysisId === item.id ? 'Opened' : 'Open'}
+                      </Button>
+                    </Stack>
+                  </Accordion.Panel>
+                </Accordion.Item>
+              ))}
+            </Accordion>
+          )}
         </Stack>
       </Card>
 
@@ -340,25 +454,140 @@ export default function Dashboard() {
       {result && (
         <>
           <Card withBorder radius="lg" p="xl" className="bg-white">
-            <Stack align="center" gap="sm">
-              <Title order={3}>Fit Score</Title>
-              <Text fz="3rem" fw={700} c={`${scoreColor(fitScorePct)}.7`}>{fitScorePct}%</Text>
-              <Text ta="center" c="dimmed" maw={760}>{getFitScoreMessage(fitScorePct)}</Text>
-              <Text c="dimmed">Critical-path estimate: {result.totalPrepMonths} months</Text>
-              <Text size="sm" c="dimmed">{formatSnapshotContext(result.snapshotMetadata)}</Text>
-              <Group>
-                <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
-                <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
-              </Group>
-              {result.timeEstimate && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}><Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge></SimpleGrid>}
-            </Stack>
+            <Tabs value={reportVariant} onChange={(value) => setReportVariant((value as ReportVariant) ?? 'snapshot')}>
+              <Tabs.List>
+                <Tabs.Tab value="snapshot">Profile Snapshot (No AI)</Tabs.Tab>
+                <Tabs.Tab value="ai-summary">AI Summary</Tabs.Tab>
+              </Tabs.List>
+
+              <Tabs.Panel value="snapshot" pt="lg">
+                <Stack align="center" gap="sm">
+                  <Title order={3}>Fit Score</Title>
+                  <Text fz="3rem" fw={700} c={`${scoreColor(fitScorePct)}.7`}>{fitScorePct}%</Text>
+                  <Text ta="center" c="dimmed" maw={760}>{getFitScoreMessage(fitScorePct)}</Text>
+                  <Text c="dimmed">Critical-path estimate: {result.totalPrepMonths} months</Text>
+                  <Text size="sm" c="dimmed">{formatSnapshotContext(result.snapshotMetadata)}</Text>
+                  <Group>
+                    <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
+                    <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
+                  </Group>
+                  {result.timeEstimate && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}><Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge></SimpleGrid>}
+                </Stack>
+              </Tabs.Panel>
+
+              <Tabs.Panel value="ai-summary" pt="lg">
+                <Stack gap="sm">
+                  <Group justify="space-between" wrap="wrap">
+                    <Title order={3}>AI Summary Report</Title>
+                    <Group>
+                      <Button
+                        onClick={() => exportReport('pdf')}
+                        loading={exporting === 'pdf'}
+                        disabled={exporting !== null || aiReportLoading || !aiReport?.aiSummary}
+                        color="brand.7"
+                      >
+                        Save as PDF
+                      </Button>
+                      <Button
+                        onClick={() => exportReport('html')}
+                        loading={exporting === 'html'}
+                        disabled={exporting !== null || aiReportLoading || !aiReport?.aiSummary}
+                        variant="outline"
+                        color="brand.8"
+                      >
+                        Save as HTML
+                      </Button>
+                    </Group>
+                  </Group>
+                  <Button
+                    onClick={generateAiSummary}
+                    loading={aiReportLoading}
+                    disabled={aiReportLoading || !result}
+                    color="brand.7"
+                    w="fit-content"
+                  >
+                    {aiReport ? 'Regenerate AI Summary' : 'Generate AI Summary'}
+                  </Button>
+                  {aiReportLoading && <Loader color="brand.7" size="sm" />}
+                  {(aiReportLoading || aiReportJob) && (
+                    <JobProgressPanel
+                      title="AI Report Generation Progress"
+                      job={
+                        aiReportJob ?? {
+                          id: 'report-generation-running',
+                          type: 'REPORT_GENERATION',
+                          status: 'RUNNING',
+                          currentStep: 'QUEUED',
+                          progressPercent: 0,
+                          errorMessage: null,
+                          payload: null,
+                          result: null,
+                          startedAt: null,
+                          completedAt: null,
+                          createdAt: new Date().toISOString(),
+                          updatedAt: new Date().toISOString(),
+                        }
+                      }
+                      jobHistory={aiReportJobHistory}
+                      onRetry={generateAiSummary}
+                      retryLabel="Retry AI Summary"
+                    />
+                  )}
+                  {!aiReportLoading && !aiReportRequested && (
+                    <Text size="sm" c="dimmed">
+                      AI summary is generated only on explicit request.
+                    </Text>
+                  )}
+                  {!aiReportLoading && aiReport?.aiSummaryMeta && (
+                    <Text size="sm" c="dimmed">
+                      Provider: {aiReport.aiSummaryMeta.providerUsed} ({aiReport.aiSummaryMeta.modelUsed})
+                      {aiReport.aiSummaryMeta.fallbackUsed ? ' via fallback chain' : ''}
+                    </Text>
+                  )}
+                  {!aiReportLoading && !aiReport?.aiSummary && (
+                    <Alert color="yellow">
+                      AI summary is unavailable right now. Snapshot export remains available.
+                    </Alert>
+                  )}
+                  {!aiReportLoading && aiReport?.aiSummary && (
+                    <>
+                      <Card withBorder radius="md" p="sm">
+                        <Text fw={700}>Executive Summary</Text>
+                        <Text size="sm">{aiReport.aiSummary.executiveSummary}</Text>
+                      </Card>
+                      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+                        <Card withBorder radius="md" p="sm">
+                          <Text fw={700}>Top Strengths</Text>
+                          <Stack gap={4} mt={6}>
+                            {aiReport.aiSummary.topStrengths.map((item, idx) => (
+                              <Text key={`strength-${idx}`} size="sm">- {item}</Text>
+                            ))}
+                          </Stack>
+                        </Card>
+                        <Card withBorder radius="md" p="sm">
+                          <Text fw={700}>Top Risks</Text>
+                          <Stack gap={4} mt={6}>
+                            {aiReport.aiSummary.topRisks.map((item, idx) => (
+                              <Text key={`risk-${idx}`} size="sm">- {item}</Text>
+                            ))}
+                          </Stack>
+                        </Card>
+                      </SimpleGrid>
+                      <Card withBorder radius="md" p="sm">
+                        <Text fw={700}>Recommended Strategy</Text>
+                        <Text size="sm">{aiReport.aiSummary.recommendedStrategy}</Text>
+                      </Card>
+                      <Text size="xs" c="dimmed">{aiReport.aiSummary.advisoryDisclaimer}</Text>
+                    </>
+                  )}
+                </Stack>
+              </Tabs.Panel>
+            </Tabs>
           </Card>
 
-          <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Fit Score Contributors</Title><Text size="sm" c="dimmed">Top bar: your current level. Bottom bar: expected target level for this competency.</Text>{groupOrder.map((group) => { const contributors = groupedContributors[group] ?? []; if (contributors.length === 0) return null; return <Stack key={group} gap="xs"><Text fw={700}>{priorityLabel[group] ?? formatEnumLabel(group)}</Text>{contributors.map((contributor) => { const item = analysisByCompetency.get(contributor.competencyId); const currentPct = Math.round((Number(item?.normalizedCurrentScore ?? contributor.matchScore) || 0) * 100); const expectedPct = Math.round((Number(item?.normalizedRequiredScore ?? 1) || 0) * 100); return <Card key={contributor.competencyId} withBorder radius="md" p="sm"><Stack gap={6}><Group justify="space-between" wrap="wrap"><Text>{contributor.competencyName}</Text><Text size="sm" c="dimmed">{currentPct}/{expectedPct}%</Text></Group><Progress value={currentPct} color={scoreColor(currentPct)} /><Progress value={expectedPct} color="dark" /></Stack></Card>; })}</Stack>; })}</Stack></Card>
+          <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Fit Score Contributors</Title><Text size="sm" c="dimmed">Top bar: your current level. Bottom bar: expected target level for this competency.</Text>{groupOrder.map((group) => { const contributors = groupedContributors[group] ?? []; if (contributors.length === 0) return null; return <Stack key={group} gap="xs"><Text fw={700}>{priorityLabel[group] ?? formatEnumLabel(group)}</Text>{contributors.map((contributor) => { const item = analysisByCompetency.get(contributor.competencyId); const currentPct = Math.round((Number(item?.normalizedCurrentScore ?? contributor.matchScore) || 0) * 100); const expectedPct = Math.round((Number(item?.normalizedRequiredScore ?? 1) || 0) * 100); const matchPct = Math.round((Number(contributor.matchScore) || 0) * 100); return <Card key={contributor.competencyId} withBorder radius="md" p="sm"><Stack gap={6}><Group justify="space-between" wrap="wrap"><Text>{contributor.competencyName}</Text><Text size="sm" c="dimmed">{currentPct}/{expectedPct}%</Text></Group><Progress value={currentPct} color={scoreColor(matchPct)} /><Progress value={expectedPct} color="dark" /></Stack></Card>; })}</Stack>; })}</Stack></Card>
 
           <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Actionable Gaps</Title>{result.actionableGaps.length === 0 && <Text c="dimmed">No actionable gaps identified.</Text>}{result.actionableGaps.map((gap) => <Card key={gap.competency.id} withBorder radius="md" p="sm"><Stack gap={4}><Group justify="space-between" wrap="wrap"><Text fw={600}>{gap.competency.name}</Text><Badge variant="light" color="brand.1">{gap.currentLevel} to {gap.requiredLevel}</Badge></Group><Text size="sm" c="dimmed">{formatEnumLabel(gap.priority)} / {formatEnumLabel(gap.roleRelevance)} / {formatEnumLabel(gap.recommendationType)}</Text><Text size="sm">{gap.reason}</Text></Stack></Card>)}</Stack></Card>
-
-          <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Market Context / Exclusions</Title>{result.marketContext.map((item) => <Card key={item.competency.id} withBorder radius="md" p="sm"><Stack gap={4}><Text fw={600}>{item.competency.name} - {formatEnumLabel(item.recommendationType)}</Text><Text size="sm" c="dimmed">{item.reason}</Text></Stack></Card>)}</Stack></Card>
 
           <Button component={RouterLink} to={`/progress/${profileId}`} color="brand.7" w="fit-content">View Progress Tracker</Button>
 
@@ -409,3 +638,5 @@ export default function Dashboard() {
     </Stack>
   );
 }
+
+

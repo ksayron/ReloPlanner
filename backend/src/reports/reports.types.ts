@@ -1,4 +1,5 @@
 export type ReportGenerationStatus = 'PENDING' | 'GENERATING' | 'COMPLETED' | 'FAILED';
+export type ReportVariant = 'snapshot' | 'ai-summary';
 
 export type GapSeverity = 'CRITICAL' | 'HIGH' | 'MODERATE' | 'MINOR';
 
@@ -79,3 +80,20 @@ export interface RelocationReadinessReportSnapshot {
   };
 }
 
+export interface ReportAiSummary {
+  executiveSummary: string;
+  topStrengths: string[];
+  topRisks: string[];
+  recommendedStrategy: string;
+  advisoryDisclaimer: string;
+}
+
+export interface ReportAiSummaryMeta {
+  grade: 'EASY' | 'REASONING';
+  requestedProvider: 'OPENAI' | 'OPENROUTER' | 'MOCK';
+  attemptedProviders: Array<'OPENAI' | 'OPENROUTER' | 'MOCK'>;
+  providerUsed: 'OPENAI' | 'OPENROUTER' | 'MOCK';
+  fallbackUsed: boolean;
+  modelUsed: string;
+  failureReasons: Partial<Record<'OPENAI' | 'OPENROUTER' | 'MOCK', string>>;
+}

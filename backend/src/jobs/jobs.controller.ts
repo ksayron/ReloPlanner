@@ -21,6 +21,7 @@ import { JobsService } from './jobs.service.js';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles, RolesGuard } from '../auth/roles.guard.js';
 import { Role } from '@prisma/client';
+import { ReportVariant } from '../reports/reports.types.js';
 
 @Controller('jobs')
 @UseGuards(AuthGuard('jwt'))
@@ -105,6 +106,35 @@ export class JobsController {
     });
   }
 
+  @Post('reports/analyses/:analysisId/generate')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async createReportGenerationJob(
+    @Param('analysisId') analysisId: string,
+    @Req() req: any,
+    @Query('variant') variantRaw?: string,
+    @Query('format') formatRaw?: string,
+  ) {
+    const variant: ReportVariant = variantRaw === 'ai-summary' ? 'ai-summary' : 'snapshot';
+    const format = formatRaw === 'pdf' || formatRaw === 'html' ? formatRaw : 'json';
+    const job = await this.jobsService.createJob({
+      userId: req.user.id,
+      type: 'REPORT_GENERATION',
+      payload: { analysisId, variant, format },
+    });
+
+    this.jobsRunnerService.runReportGenerationJob(job.id, analysisId, req.user.id, variant, format);
+
+    return {
+      jobId: job.id,
+      type: job.type,
+      status: job.status,
+      currentStep: job.currentStep,
+      progressPercent: job.progressPercent,
+      eventsUrl: `/api/jobs/${job.id}/events`,
+      statusUrl: `/api/jobs/${job.id}`,
+    };
+  }
+
   @Get('active')
   async getActiveJob(
     @Req() req: any,
@@ -112,7 +142,7 @@ export class JobsController {
     @Query('payloadKey') payloadKey?: string,
     @Query('payloadValue') payloadValue?: string,
   ) {
-    if (type !== 'PROFILE_ANALYSIS' && type !== 'MARKET_SYNC') {
+    if (type !== 'PROFILE_ANALYSIS' && type !== 'MARKET_SYNC' && type !== 'REPORT_GENERATION') {
       throw new BadRequestException('Invalid job type');
     }
     return this.jobsService.findActiveJobForUser({
