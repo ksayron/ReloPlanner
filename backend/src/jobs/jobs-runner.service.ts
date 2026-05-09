@@ -171,7 +171,11 @@ export class JobsRunnerService {
       });
 
       if (format === 'json') {
-        await this.reportsService.generateSnapshot(analysisId, userId, variant);
+        if (variant === 'ai-summary') {
+          await this.reportsService.generateAndPersistAiSummary(analysisId, userId);
+        } else {
+          await this.reportsService.generateSnapshot(analysisId, userId, variant);
+        }
       } else if (format === 'html') {
         await this.reportsService.renderHtmlReport(analysisId, userId, variant);
       } else {

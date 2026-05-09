@@ -273,6 +273,10 @@ export default function Dashboard() {
 
   const exportReport = async (format: 'pdf' | 'html') => {
     if (!result) return;
+    if (reportVariant === 'ai-summary' && !aiReport?.aiSummary) {
+      setPageError('Generate AI summary first, then export.');
+      return;
+    }
     setExporting(format);
     setPageError('');
     try {
@@ -291,8 +295,9 @@ export default function Dashboard() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(href);
-    } catch {
-      setPageError(`Failed to export ${format.toUpperCase()} report`);
+    } catch (err: any) {
+      const apiMessage = String(err?.response?.data?.message ?? '').trim();
+      setPageError(apiMessage || `Failed to export ${format.toUpperCase()} report`);
     } finally {
       setExporting(null);
     }
@@ -321,6 +326,28 @@ export default function Dashboard() {
     setReportVariant('snapshot');
     setAiReport(null);
     setAiReportRequested(false);
+  }, [selectedAnalysisId]);
+
+  useEffect(() => {
+    if (!selectedAnalysisId) return;
+    void (async () => {
+      try {
+        const response = await client.get<ReportSnapshotResponse>(
+          `/reports/analyses/${selectedAnalysisId}`,
+          { params: { variant: 'ai-summary' } },
+        );
+        if (response.data?.aiSummary) {
+          setAiReport(response.data);
+          setAiReportRequested(true);
+        } else {
+          setAiReport(null);
+          setAiReportRequested(false);
+        }
+      } catch {
+        setAiReport(null);
+        setAiReportRequested(false);
+      }
+    })();
   }, [selectedAnalysisId]);
 
   if (loading) return <div className="mt-10 flex justify-center"><Loader color="brand.7" /></div>;
@@ -447,8 +474,23 @@ export default function Dashboard() {
                   <Group justify="space-between" wrap="wrap">
                     <Title order={3}>AI Summary Report</Title>
                     <Group>
-                      <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
-                      <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
+                      <Button
+                        onClick={() => exportReport('pdf')}
+                        loading={exporting === 'pdf'}
+                        disabled={exporting !== null || aiReportLoading || !aiReport?.aiSummary}
+                        color="brand.7"
+                      >
+                        Save as PDF
+                      </Button>
+                      <Button
+                        onClick={() => exportReport('html')}
+                        loading={exporting === 'html'}
+                        disabled={exporting !== null || aiReportLoading || !aiReport?.aiSummary}
+                        variant="outline"
+                        color="brand.8"
+                      >
+                        Save as HTML
+                      </Button>
                     </Group>
                   </Group>
                   <Button

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   RelocationReadinessReportSnapshot,
@@ -42,25 +42,9 @@ export class ReportsService {
       let aiSummaryMeta: ReportAiSummaryMeta | null = null;
 
       if (variant === 'ai-summary') {
-        try {
-          const enriched = await this.aiEnrichment.summarizeSnapshot(snapshot, 'REASONING');
-          aiSummary = enriched.summary;
-          aiSummaryMeta = enriched.meta;
-        } catch (error: unknown) {
-          aiSummary = null;
-          aiSummaryMeta = {
-            grade: 'REASONING',
-            requestedProvider: 'OPENAI',
-            attemptedProviders: ['OPENAI', 'OPENROUTER', 'MOCK'],
-            providerUsed: 'MOCK',
-            fallbackUsed: true,
-            modelUsed: 'unavailable',
-            failureReasons: {
-              OPENAI:
-                error instanceof Error ? error.message : 'AI summary generation failed unexpectedly',
-            },
-          };
-        }
+        const stored = await this.loadStoredAiSummary(analysis.id);
+        aiSummary = stored?.summary ?? null;
+        aiSummaryMeta = stored?.meta ?? null;
       }
 
       generation.status = 'COMPLETED';
@@ -87,6 +71,11 @@ export class ReportsService {
     html: string;
   }> {
     const report = await this.generateSnapshot(analysisId, userId, variant);
+    if (variant === 'ai-summary' && !report.aiSummary) {
+      throw new BadRequestException(
+        'AI summary has not been generated yet. Generate it first, then export.',
+      );
+    }
     const html = this.renderHtml(report.snapshot, report.variant, report.aiSummary, report.aiSummaryMeta);
     return { ...report, html };
   }
@@ -107,6 +96,48 @@ export class ReportsService {
     const report = await this.renderHtmlReport(analysisId, userId, variant);
     const pdf = await this.renderPdfFromHtml(report.html);
     return { ...report, pdf };
+  }
+
+  async generateAndPersistAiSummary(
+    analysisId: string,
+    userId: string,
+  ): Promise<{
+    generation: ReportGenerationMeta;
+    snapshot: RelocationReadinessReportSnapshot;
+    variant: ReportVariant;
+    aiSummary: ReportAiSummary;
+    aiSummaryMeta: ReportAiSummaryMeta;
+  }> {
+    const generation = this.createGenerationMeta();
+    generation.status = 'GENERATING';
+
+    const analysis = await this.loadAnalysis(analysisId, userId);
+    const snapshot = this.buildSnapshot(analysis);
+    const enriched = await this.aiEnrichment.summarizeSnapshot(snapshot, 'REASONING');
+
+    await (this.prisma as any).analysisAiSummary.upsert({
+      where: { analysisId: analysis.id },
+      update: {
+        summaryJson: enriched.summary,
+        metaJson: enriched.meta,
+      },
+      create: {
+        analysisId: analysis.id,
+        summaryJson: enriched.summary,
+        metaJson: enriched.meta,
+      },
+    });
+
+    generation.status = 'COMPLETED';
+    generation.completedAt = new Date();
+
+    return {
+      generation,
+      snapshot,
+      variant: 'ai-summary',
+      aiSummary: enriched.summary,
+      aiSummaryMeta: enriched.meta,
+    };
   }
 
   private createGenerationMeta(): ReportGenerationMeta {
@@ -144,6 +175,19 @@ export class ReportsService {
     }
 
     return analysis;
+  }
+
+  private async loadStoredAiSummary(
+    analysisId: string,
+  ): Promise<{ summary: ReportAiSummary; meta: ReportAiSummaryMeta } | null> {
+    const row = await (this.prisma as any).analysisAiSummary.findUnique({
+      where: { analysisId },
+    });
+    if (!row) return null;
+    return {
+      summary: row.summaryJson as ReportAiSummary,
+      meta: row.metaJson as ReportAiSummaryMeta,
+    };
   }
 
   private buildSnapshot(analysis: any): RelocationReadinessReportSnapshot {
