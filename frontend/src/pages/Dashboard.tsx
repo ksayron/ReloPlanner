@@ -16,10 +16,10 @@ import {
   Title,
 } from '@mantine/core';
 import client from '../api/client';
-import type { AnalysisHistoryItem, AnalysisResult, JobMatchResult } from '../types';
 import type {
   AnalysisHistoryItem,
   AnalysisResult,
+  JobMatchResult,
   ReportSnapshotResponse,
   ReportVariant,
 } from '../types';
