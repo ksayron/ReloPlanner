@@ -62,6 +62,7 @@ export interface CountrySyncStatus {
   status: SyncResult['status'] | 'unknown';
   totalVacancies: number | null;
   skillsImported: number | null;
+  postingsImported: number | null;
   message: string | null;
   updatedAt: Date | null;
   attempts: number | null;
@@ -469,6 +470,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
         status: syncOutcome?.status ?? 'unknown',
         totalVacancies: syncOutcome?.totalVacancies ?? null,
         skillsImported: syncOutcome?.skillsImported ?? null,
+        postingsImported: syncOutcome?.postingsImported ?? null,
         message: syncOutcome?.message ?? null,
         updatedAt: syncOutcome?.updatedAt ?? null,
         attempts: syncOutcome?.attempts ?? null,

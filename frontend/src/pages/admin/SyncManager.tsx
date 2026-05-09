@@ -23,6 +23,7 @@ interface SyncResult {
   status: 'synced' | 'skipped' | 'error';
   totalVacancies?: number;
   skillsImported?: number;
+  postingsImported?: number;
   message?: string;
   attempts?: number;
 }
@@ -34,6 +35,7 @@ interface SnapshotInfo {
   status?: 'synced' | 'skipped' | 'error' | 'unknown';
   totalVacancies?: number | null;
   skillsImported?: number | null;
+  postingsImported?: number | null;
   message?: string | null;
   updatedAt?: string | null;
   attempts?: number | null;
@@ -340,6 +342,7 @@ export default function SyncManager() {
                 <Table.Th>Country</Table.Th>
                 <Table.Th>Last Snapshot</Table.Th>
                 <Table.Th className="text-right">Skills</Table.Th>
+                <Table.Th className="text-right">Imported Vacancies</Table.Th>
                 <Table.Th>Source</Table.Th>
                 <Table.Th className="w-24">Action</Table.Th>
               </Table.Tr>
@@ -347,6 +350,11 @@ export default function SyncManager() {
             <Table.Tbody>
               {countries.map((country) => {
                 const info = marketStatus[country];
+                const hasFreshSnapshot = Boolean(
+                  info?.date && new Date(info.date).toDateString() === new Date().toDateString(),
+                );
+                const hasNoImportedVacancies =
+                  info?.postingsImported != null && info.postingsImported <= 0;
                 return (
                   <Table.Tr key={country}>
                     <Table.Td>
@@ -356,10 +364,18 @@ export default function SyncManager() {
                       {info?.date ? new Date(info.date).toLocaleDateString() : 'No data'}
                     </Table.Td>
                     <Table.Td className="text-right">{info?.skills ?? 'N/A'}</Table.Td>
+                    <Table.Td className="text-right">
+                      {info?.postingsImported != null ? info.postingsImported : 'N/A'}
+                    </Table.Td>
                     <Table.Td>
                       <Text size="sm" c="dimmed">
                         {info?.source ?? 'N/A'} {info?.status ? `(${info.status})` : ''}
                       </Text>
+                      {hasFreshSnapshot && hasNoImportedVacancies ? (
+                        <Text size="xs" c="yellow.8">
+                          Fresh snapshot is available, but 0 vacancies were imported for matching.
+                        </Text>
+                      ) : null}
                       {info?.attempts ? (
                         <Text size="xs" c="dimmed">
                           attempts: {info.attempts}
@@ -392,6 +408,9 @@ export default function SyncManager() {
                 <Badge key={result.country} color={statusColor(result.status)} variant="light">
                   {result.country}: {result.status}
                   {result.skillsImported != null ? ` (${result.skillsImported} skills)` : ''}
+                  {result.postingsImported != null
+                    ? ` (${result.postingsImported} vacancies imported)`
+                    : ''}
                   {result.message ? ` - ${result.message}` : ''}
                   {result.attempts != null ? ` [attempts: ${result.attempts}]` : ''}
                 </Badge>
