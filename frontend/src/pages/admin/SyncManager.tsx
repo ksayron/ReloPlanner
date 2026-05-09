@@ -7,7 +7,6 @@ import {
   Group,
   Loader,
   Paper,
-  Progress,
   Stack,
   Table,
   Text,
@@ -15,8 +14,8 @@ import {
 } from '@mantine/core';
 import client from '../../api/client';
 import { fetchCountriesCatalog } from '../../api/countries';
+import JobProgressPanel from '../../components/JobProgressPanel';
 import { usePersistentJobStream } from '../../hooks/usePersistentJobStream';
-import { formatEnumLabel, getJobStepLabel } from '../../utils/jobProgress';
 
 interface SyncResult {
   country: string;
@@ -490,33 +489,13 @@ export default function SyncManager() {
           )}
 
           {showProgressPanel && marketJob && (
-            <Card withBorder radius="md" p="md" className="bg-[var(--app-bg)]/60">
-              <Stack gap="xs">
-                <Title order={5}>Manual Sync Progress</Title>
-                <Text size="sm">
-                  Status: <strong>{formatEnumLabel(marketJob.status)}</strong>
-                </Text>
-                <Text size="sm">
-                  Current step: <strong>{getJobStepLabel(marketJob.currentStep)}</strong>
-                </Text>
-                <Progress
-                  value={Math.max(0, Math.min(100, marketJob.progressPercent))}
-                  color={marketJob.status === 'FAILED' ? 'red' : 'teal'}
-                />
-                <Text size="sm" c="dimmed">
-                  {marketJob.progressPercent}% complete
-                </Text>
-                {marketJobHistory.map((item, idx) => (
-                  <Text
-                    key={`${item.currentStep}-${item.progressPercent}-${idx}`}
-                    size="xs"
-                    c="dimmed"
-                  >
-                    {getJobStepLabel(item.currentStep)} ({item.progressPercent}%)
-                  </Text>
-                ))}
-              </Stack>
-            </Card>
+            <JobProgressPanel
+              title="Manual Sync Progress"
+              job={marketJob}
+              jobHistory={marketJobHistory}
+              onRetry={handleSyncAll}
+              retryLabel="Retry Sync"
+            />
           )}
 
           {marketHealth && (

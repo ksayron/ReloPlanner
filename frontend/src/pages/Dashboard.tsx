@@ -16,10 +16,12 @@ import {
   Title,
 } from '@mantine/core';
 import client from '../api/client';
+import JobProgressPanel from '../components/JobProgressPanel';
 import type {
   AnalysisHistoryItem,
   AnalysisResult,
   JobMatchResult,
+  ProcessingJobSnapshot,
   ReportSnapshotResponse,
   ReportVariant,
 } from '../types';
@@ -75,7 +77,6 @@ export default function Dashboard() {
   const [exporting, setExporting] = useState<'pdf' | 'html' | null>(null);
   const [reportVariant, setReportVariant] = useState<ReportVariant>('snapshot');
   const [aiReport, setAiReport] = useState<ReportSnapshotResponse | null>(null);
-  const [aiReportLoading, setAiReportLoading] = useState(false);
   const [aiReportRequested, setAiReportRequested] = useState(false);
   const [noResults, setNoResults] = useState(false);
   const [pageError, setPageError] = useState('');
@@ -115,6 +116,18 @@ export default function Dashboard() {
     });
     return res.data;
   }, [profileId]);
+
+  const loadActiveReportJob = useCallback(async () => {
+    if (!selectedAnalysisId) return null;
+    const res = await client.get('/jobs/active', {
+      params: {
+        type: 'REPORT_GENERATION',
+        payloadKey: 'analysisId',
+        payloadValue: selectedAnalysisId,
+      },
+    });
+    return res.data as ProcessingJobSnapshot | null;
+  }, [selectedAnalysisId]);
 
   const {
     job,
@@ -159,6 +172,32 @@ export default function Dashboard() {
     onActiveJobRestored: () => {
       setNoResults(false);
     },
+  });
+
+  const {
+    job: aiReportJob,
+    jobHistory: aiReportJobHistory,
+    running: aiReportLoading,
+    error: aiJobError,
+    setError: setAiJobError,
+    startJob: startAiReportJob,
+  } = usePersistentJobStream({
+    enabled: Boolean(selectedAnalysisId),
+    storageKey: `report-generation:${selectedAnalysisId ?? 'unknown'}`,
+    streamDisconnectedMessage: 'AI report generation stream disconnected',
+    hideCompletedAfterMs: 5000,
+    loadActiveJob: loadActiveReportJob,
+    onCompleted: async (snapshot) => {
+      const payload = snapshot.result as { analysisId?: string; variant?: ReportVariant } | null;
+      const analysisId = payload?.analysisId ?? selectedAnalysisId;
+      if (!analysisId) return;
+      const variant = payload?.variant === 'ai-summary' ? 'ai-summary' : 'snapshot';
+      const response = await client.get<ReportSnapshotResponse>(`/reports/analyses/${analysisId}`, {
+        params: { variant },
+      });
+      setAiReport(response.data);
+    },
+    onFailed: (snapshot) => snapshot.errorMessage ?? 'AI report generation failed',
   });
 
   useEffect(() => {
@@ -262,36 +301,21 @@ export default function Dashboard() {
   const generateAiSummary = async () => {
     if (!result || aiReportLoading) return;
     setPageError('');
+    setAiJobError('');
     setAiReportRequested(true);
-    setAiReportLoading(true);
     try {
-      const response = await client.get<ReportSnapshotResponse>(`/reports/analyses/${result.id}`, {
-        params: { variant: 'ai-summary' },
+      await startAiReportJob(async () => {
+        const startResponse = await client.post(
+          `/jobs/reports/analyses/${result.id}/generate`,
+          null,
+          { params: { variant: 'ai-summary', format: 'json' } },
+        );
+        return String(startResponse.data.jobId);
       });
-      setAiReport(response.data);
     } catch {
       setPageError((prev) => prev || 'Failed to generate AI summary report');
-    } finally {
-      setAiReportLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (!result || reportVariant !== 'ai-summary' || !aiReportRequested || aiReportLoading || aiReport) return;
-    void (async () => {
-      setAiReportLoading(true);
-      try {
-        const response = await client.get<ReportSnapshotResponse>(`/reports/analyses/${result.id}`, {
-          params: { variant: 'ai-summary' },
-        });
-        setAiReport(response.data);
-      } catch {
-        setPageError((prev) => prev || 'Failed to generate AI summary report');
-      } finally {
-        setAiReportLoading(false);
-      }
-    })();
-  }, [aiReport, aiReportLoading, aiReportRequested, reportVariant, result]);
 
   useEffect(() => {
     setReportVariant('snapshot');
@@ -301,7 +325,7 @@ export default function Dashboard() {
 
   if (loading) return <div className="mt-10 flex justify-center"><Loader color="brand.7" /></div>;
 
-  const error = pageError || jobError;
+  const error = pageError || jobError || aiJobError;
   const fitScorePct = result ? Math.round(result.fitScore * 100) : 0;
   const analysisByCompetency = new Map(result?.analysisItems.map((item) => [item.competency.id, item]));
   const groupedContributors = result
@@ -335,24 +359,28 @@ export default function Dashboard() {
 
       {showProgressPanel && (
         <Paper withBorder radius="lg" p="lg" className="bg-white">
-          <Stack gap="sm">
-            <Title order={3}>Analysis Progress</Title>
-            <Text>Status: <strong>{job ? formatEnumLabel(job.status) : 'Running'}</strong></Text>
-            <Text>Current step: <strong>{job ? getJobStepLabel(job.currentStep) : 'Queued'}</strong></Text>
-            <Progress value={Math.max(0, Math.min(100, job?.progressPercent ?? 0))} color={job?.status === 'FAILED' ? 'red' : 'teal'} />
-            <Text size="sm" c="dimmed">{job?.progressPercent ?? 0}% complete</Text>
-            {jobHistory.length > 0 && (
-              <Stack gap={4}>
-                {jobHistory.map((item, idx) => (
-                  <Group key={`${item.currentStep}-${item.progressPercent}-${idx}`} justify="space-between">
-                    <Text c={item.status === 'FAILED' ? 'red' : item.status === 'COMPLETED' ? 'teal' : 'dark'}>{getJobStepLabel(item.currentStep)}</Text>
-                    <Text size="sm" c="dimmed">{item.progressPercent}%</Text>
-                  </Group>
-                ))}
-              </Stack>
-            )}
-            {job?.status === 'FAILED' && <Button onClick={runAnalysis} color="brand.7" w="fit-content">Retry Analysis</Button>}
-          </Stack>
+          <JobProgressPanel
+            title="Analysis Progress"
+            job={
+              job ?? {
+                id: 'analysis-running',
+                type: 'PROFILE_ANALYSIS',
+                status: 'RUNNING',
+                currentStep: 'QUEUED',
+                progressPercent: 0,
+                errorMessage: null,
+                payload: null,
+                result: null,
+                startedAt: null,
+                completedAt: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }
+            }
+            jobHistory={jobHistory}
+            onRetry={runAnalysis}
+            retryLabel="Retry Analysis"
+          />
         </Paper>
       )}
 
@@ -433,6 +461,30 @@ export default function Dashboard() {
                     {aiReport ? 'Regenerate AI Summary' : 'Generate AI Summary'}
                   </Button>
                   {aiReportLoading && <Loader color="brand.7" size="sm" />}
+                  {(aiReportLoading || aiReportJob) && (
+                    <JobProgressPanel
+                      title="AI Report Generation Progress"
+                      job={
+                        aiReportJob ?? {
+                          id: 'report-generation-running',
+                          type: 'REPORT_GENERATION',
+                          status: 'RUNNING',
+                          currentStep: 'QUEUED',
+                          progressPercent: 0,
+                          errorMessage: null,
+                          payload: null,
+                          result: null,
+                          startedAt: null,
+                          completedAt: null,
+                          createdAt: new Date().toISOString(),
+                          updatedAt: new Date().toISOString(),
+                        }
+                      }
+                      jobHistory={aiReportJobHistory}
+                      onRetry={generateAiSummary}
+                      retryLabel="Retry AI Summary"
+                    />
+                  )}
                   {!aiReportLoading && !aiReportRequested && (
                     <Text size="sm" c="dimmed">
                       AI summary is generated only on explicit request.

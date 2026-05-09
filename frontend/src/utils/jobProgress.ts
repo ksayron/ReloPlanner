@@ -14,6 +14,8 @@ export const defaultJobStepLabel: Record<string, string> = {
   PREPARE_INPUTS: 'Prepare analysis inputs',
   COMPUTE_ANALYSIS: 'Compute score and roadmap',
   SAVE_RESULTS: 'Save analysis result',
+  BUILDING_SNAPSHOT: 'Build report snapshot',
+  ARTIFACT_READY: 'Prepare export artifact',
   COMPLETED: 'Completed',
 };
 
