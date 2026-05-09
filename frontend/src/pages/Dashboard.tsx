@@ -76,6 +76,7 @@ export default function Dashboard() {
   const [reportVariant, setReportVariant] = useState<ReportVariant>('snapshot');
   const [aiReport, setAiReport] = useState<ReportSnapshotResponse | null>(null);
   const [aiReportLoading, setAiReportLoading] = useState(false);
+  const [aiReportRequested, setAiReportRequested] = useState(false);
   const [noResults, setNoResults] = useState(false);
   const [pageError, setPageError] = useState('');
   const [topMatches, setTopMatches] = useState<JobMatchResult[]>([]);
@@ -258,8 +259,25 @@ export default function Dashboard() {
     }
   };
 
+  const generateAiSummary = async () => {
+    if (!result || aiReportLoading) return;
+    setPageError('');
+    setAiReportRequested(true);
+    setAiReportLoading(true);
+    try {
+      const response = await client.get<ReportSnapshotResponse>(`/reports/analyses/${result.id}`, {
+        params: { variant: 'ai-summary' },
+      });
+      setAiReport(response.data);
+    } catch {
+      setPageError((prev) => prev || 'Failed to generate AI summary report');
+    } finally {
+      setAiReportLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (!result || reportVariant !== 'ai-summary' || aiReportLoading || aiReport) return;
+    if (!result || reportVariant !== 'ai-summary' || !aiReportRequested || aiReportLoading || aiReport) return;
     void (async () => {
       setAiReportLoading(true);
       try {
@@ -273,11 +291,12 @@ export default function Dashboard() {
         setAiReportLoading(false);
       }
     })();
-  }, [aiReport, aiReportLoading, reportVariant, result]);
+  }, [aiReport, aiReportLoading, aiReportRequested, reportVariant, result]);
 
   useEffect(() => {
     setReportVariant('snapshot');
     setAiReport(null);
+    setAiReportRequested(false);
   }, [selectedAnalysisId]);
 
   if (loading) return <div className="mt-10 flex justify-center"><Loader color="brand.7" /></div>;
@@ -404,7 +423,21 @@ export default function Dashboard() {
                       <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
                     </Group>
                   </Group>
+                  <Button
+                    onClick={generateAiSummary}
+                    loading={aiReportLoading}
+                    disabled={aiReportLoading || !result}
+                    color="brand.7"
+                    w="fit-content"
+                  >
+                    {aiReport ? 'Regenerate AI Summary' : 'Generate AI Summary'}
+                  </Button>
                   {aiReportLoading && <Loader color="brand.7" size="sm" />}
+                  {!aiReportLoading && !aiReportRequested && (
+                    <Text size="sm" c="dimmed">
+                      AI summary is generated only on explicit request.
+                    </Text>
+                  )}
                   {!aiReportLoading && aiReport?.aiSummaryMeta && (
                     <Text size="sm" c="dimmed">
                       Provider: {aiReport.aiSummaryMeta.providerUsed} ({aiReport.aiSummaryMeta.modelUsed})

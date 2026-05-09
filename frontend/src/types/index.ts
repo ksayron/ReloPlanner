@@ -201,7 +201,7 @@ export interface CountriesCatalog {
   source: CountryOption[];
 }
 
-export type ProcessingJobType = 'PROFILE_ANALYSIS' | 'MARKET_SYNC';
+export type ProcessingJobType = 'PROFILE_ANALYSIS' | 'MARKET_SYNC' | 'REPORT_GENERATION';
 export type ProcessingJobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
 export interface ProcessingJobSnapshot {

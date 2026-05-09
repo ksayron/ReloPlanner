@@ -3,18 +3,30 @@ import { AiReportSummary } from './ai.types.js';
 
 export function buildAiSummaryPrompt(snapshot: RelocationReadinessReportSnapshot): string {
   const payload = JSON.stringify(snapshot);
+  const persona = [
+    `Target role: ${snapshot.profileSummary.desiredRole}`,
+    `Target location: ${snapshot.profileSummary.targetCountry}${snapshot.profileSummary.targetCity ? `, ${snapshot.profileSummary.targetCity}` : ''}`,
+    `Current country: ${snapshot.profileSummary.currentCountry}`,
+    `Experience: ${snapshot.profileSummary.yearsExperience} years`,
+    `Fit score: ${Math.round(snapshot.readiness.fitScore * 100)}%`,
+  ].join(' | ');
   return [
     'You are generating an advisory summary for a relocation readiness report.',
     'Use ONLY the snapshot JSON provided by the user. Do not invent facts.',
     'Keep deterministic metrics authoritative and unchanged.',
+    'Make the text personal to this candidate context and current readiness.',
+    'Do not restate generic profile fields unless needed for recommendations.',
+    'Extract signal from gaps, roadmap order, and market context to provide non-obvious prioritization.',
+    'Recommendations must be concrete and sequencing-aware (what to do first, what to defer).',
     'Return JSON with keys:',
     'executiveSummary (string, max 2 sentences),',
     'topStrengths (array of exactly 3 short strings),',
     'topRisks (array of exactly 3 short strings),',
-    'recommendedStrategy (string, max 3 sentences),',
+    'recommendedStrategy (string, max 4 sentences, include near-term and medium-term actions).',
     'advisoryDisclaimer (string, 1 sentence noting advisory AI text).',
     'If data is missing, state limitations clearly but still return all keys.',
     '',
+    `CANDIDATE_CONTEXT: ${persona}`,
     `SNAPSHOT_JSON: ${payload}`,
   ].join('\n');
 }
