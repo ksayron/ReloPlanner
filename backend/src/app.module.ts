@@ -12,6 +12,7 @@ import { ProgressModule } from './progress/progress.module.js';
 import { CountriesModule } from './countries/countries.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { AiModule } from './ai/ai.module.js';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { JobsModule } from './jobs/jobs.module.js';
     CountriesModule,
     ReportsModule,
     JobsModule,
+    AiModule,
   ],
 })
 export class AppModule {}

@@ -11,11 +11,18 @@ import {
   Progress,
   SimpleGrid,
   Stack,
+  Tabs,
   Text,
   Title,
 } from '@mantine/core';
 import client from '../api/client';
 import type { AnalysisHistoryItem, AnalysisResult, JobMatchResult } from '../types';
+import type {
+  AnalysisHistoryItem,
+  AnalysisResult,
+  ReportSnapshotResponse,
+  ReportVariant,
+} from '../types';
 import { usePersistentJobStream } from '../hooks/usePersistentJobStream';
 import { formatEnumLabel, getJobStepLabel } from '../utils/jobProgress';
 
@@ -66,6 +73,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [exporting, setExporting] = useState<'pdf' | 'html' | null>(null);
+  const [reportVariant, setReportVariant] = useState<ReportVariant>('snapshot');
+  const [aiReport, setAiReport] = useState<ReportSnapshotResponse | null>(null);
+  const [aiReportLoading, setAiReportLoading] = useState(false);
   const [noResults, setNoResults] = useState(false);
   const [pageError, setPageError] = useState('');
   const [topMatches, setTopMatches] = useState<JobMatchResult[]>([]);
@@ -227,9 +237,11 @@ export default function Dashboard() {
     setPageError('');
     try {
       const response = await client.get(`/reports/analyses/${result.id}/${format}`, {
+        params: { variant: reportVariant },
         responseType: 'blob',
       });
-      const fallbackName = `relocation-readiness-${result.id}.${format}`;
+      const suffix = reportVariant === 'ai-summary' ? 'ai-summary' : 'snapshot';
+      const fallbackName = `relocation-readiness-${result.id}-${suffix}.${format}`;
       const fileName = parseFileName(response.headers['content-disposition'], fallbackName);
       const href = window.URL.createObjectURL(response.data);
       const link = document.createElement('a');
@@ -245,6 +257,28 @@ export default function Dashboard() {
       setExporting(null);
     }
   };
+
+  useEffect(() => {
+    if (!result || reportVariant !== 'ai-summary' || aiReportLoading || aiReport) return;
+    void (async () => {
+      setAiReportLoading(true);
+      try {
+        const response = await client.get<ReportSnapshotResponse>(`/reports/analyses/${result.id}`, {
+          params: { variant: 'ai-summary' },
+        });
+        setAiReport(response.data);
+      } catch {
+        setPageError((prev) => prev || 'Failed to generate AI summary report');
+      } finally {
+        setAiReportLoading(false);
+      }
+    })();
+  }, [aiReport, aiReportLoading, reportVariant, result]);
+
+  useEffect(() => {
+    setReportVariant('snapshot');
+    setAiReport(null);
+  }, [selectedAnalysisId]);
 
   if (loading) return <div className="mt-10 flex justify-center"><Loader color="brand.7" /></div>;
 
@@ -340,18 +374,82 @@ export default function Dashboard() {
       {result && (
         <>
           <Card withBorder radius="lg" p="xl" className="bg-white">
-            <Stack align="center" gap="sm">
-              <Title order={3}>Fit Score</Title>
-              <Text fz="3rem" fw={700} c={`${scoreColor(fitScorePct)}.7`}>{fitScorePct}%</Text>
-              <Text ta="center" c="dimmed" maw={760}>{getFitScoreMessage(fitScorePct)}</Text>
-              <Text c="dimmed">Critical-path estimate: {result.totalPrepMonths} months</Text>
-              <Text size="sm" c="dimmed">{formatSnapshotContext(result.snapshotMetadata)}</Text>
-              <Group>
-                <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
-                <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
-              </Group>
-              {result.timeEstimate && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}><Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge></SimpleGrid>}
-            </Stack>
+            <Tabs value={reportVariant} onChange={(value) => setReportVariant((value as ReportVariant) ?? 'snapshot')}>
+              <Tabs.List>
+                <Tabs.Tab value="snapshot">Profile Snapshot (No AI)</Tabs.Tab>
+                <Tabs.Tab value="ai-summary">AI Summary</Tabs.Tab>
+              </Tabs.List>
+
+              <Tabs.Panel value="snapshot" pt="lg">
+                <Stack align="center" gap="sm">
+                  <Title order={3}>Fit Score</Title>
+                  <Text fz="3rem" fw={700} c={`${scoreColor(fitScorePct)}.7`}>{fitScorePct}%</Text>
+                  <Text ta="center" c="dimmed" maw={760}>{getFitScoreMessage(fitScorePct)}</Text>
+                  <Text c="dimmed">Critical-path estimate: {result.totalPrepMonths} months</Text>
+                  <Text size="sm" c="dimmed">{formatSnapshotContext(result.snapshotMetadata)}</Text>
+                  <Group>
+                    <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
+                    <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
+                  </Group>
+                  {result.timeEstimate && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}><Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge></SimpleGrid>}
+                </Stack>
+              </Tabs.Panel>
+
+              <Tabs.Panel value="ai-summary" pt="lg">
+                <Stack gap="sm">
+                  <Group justify="space-between" wrap="wrap">
+                    <Title order={3}>AI Summary Report</Title>
+                    <Group>
+                      <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
+                      <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
+                    </Group>
+                  </Group>
+                  {aiReportLoading && <Loader color="brand.7" size="sm" />}
+                  {!aiReportLoading && aiReport?.aiSummaryMeta && (
+                    <Text size="sm" c="dimmed">
+                      Provider: {aiReport.aiSummaryMeta.providerUsed} ({aiReport.aiSummaryMeta.modelUsed})
+                      {aiReport.aiSummaryMeta.fallbackUsed ? ' via fallback chain' : ''}
+                    </Text>
+                  )}
+                  {!aiReportLoading && !aiReport?.aiSummary && (
+                    <Alert color="yellow">
+                      AI summary is unavailable right now. Snapshot export remains available.
+                    </Alert>
+                  )}
+                  {!aiReportLoading && aiReport?.aiSummary && (
+                    <>
+                      <Card withBorder radius="md" p="sm">
+                        <Text fw={700}>Executive Summary</Text>
+                        <Text size="sm">{aiReport.aiSummary.executiveSummary}</Text>
+                      </Card>
+                      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+                        <Card withBorder radius="md" p="sm">
+                          <Text fw={700}>Top Strengths</Text>
+                          <Stack gap={4} mt={6}>
+                            {aiReport.aiSummary.topStrengths.map((item, idx) => (
+                              <Text key={`strength-${idx}`} size="sm">- {item}</Text>
+                            ))}
+                          </Stack>
+                        </Card>
+                        <Card withBorder radius="md" p="sm">
+                          <Text fw={700}>Top Risks</Text>
+                          <Stack gap={4} mt={6}>
+                            {aiReport.aiSummary.topRisks.map((item, idx) => (
+                              <Text key={`risk-${idx}`} size="sm">- {item}</Text>
+                            ))}
+                          </Stack>
+                        </Card>
+                      </SimpleGrid>
+                      <Card withBorder radius="md" p="sm">
+                        <Text fw={700}>Recommended Strategy</Text>
+                        <Text size="sm">{aiReport.aiSummary.recommendedStrategy}</Text>
+                      </Card>
+                      <Text size="xs" c="dimmed">{aiReport.aiSummary.advisoryDisclaimer}</Text>
+                    </>
+                  )}
+                </Stack>
+              </Tabs.Panel>
+            </Tabs>
           </Card>
 
           <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Fit Score Contributors</Title><Text size="sm" c="dimmed">Top bar: your current level. Bottom bar: expected target level for this competency.</Text>{groupOrder.map((group) => { const contributors = groupedContributors[group] ?? []; if (contributors.length === 0) return null; return <Stack key={group} gap="xs"><Text fw={700}>{priorityLabel[group] ?? formatEnumLabel(group)}</Text>{contributors.map((contributor) => { const item = analysisByCompetency.get(contributor.competencyId); const currentPct = Math.round((Number(item?.normalizedCurrentScore ?? contributor.matchScore) || 0) * 100); const expectedPct = Math.round((Number(item?.normalizedRequiredScore ?? 1) || 0) * 100); return <Card key={contributor.competencyId} withBorder radius="md" p="sm"><Stack gap={6}><Group justify="space-between" wrap="wrap"><Text>{contributor.competencyName}</Text><Text size="sm" c="dimmed">{currentPct}/{expectedPct}%</Text></Group><Progress value={currentPct} color={scoreColor(currentPct)} /><Progress value={expectedPct} color="dark" /></Stack></Card>; })}</Stack>; })}</Stack></Card>

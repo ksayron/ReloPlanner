@@ -112,6 +112,15 @@ interface ScoringTuningProfile {
   description: string;
 }
 
+type AiTaskGrade = 'EASY' | 'REASONING';
+type AiProviderName = 'OPENAI' | 'OPENROUTER' | 'MOCK';
+
+interface AiRoutingPolicy {
+  defaults: Record<AiTaskGrade, AiProviderName>;
+  orders: Record<AiTaskGrade, AiProviderName[]>;
+  availableProviders: AiProviderName[];
+}
+
 const statusColor = (status: SyncResult['status']) =>
   status === 'synced' ? 'teal' : status === 'skipped' ? 'yellow' : 'red';
 
@@ -134,6 +143,8 @@ export default function SyncManager() {
   const [scoringProfiles, setScoringProfiles] = useState<ScoringTuningProfile[]>([]);
   const [activeScoringProfile, setActiveScoringProfile] = useState<ScoringTuningProfile | null>(null);
   const [updatingScoringProfile, setUpdatingScoringProfile] = useState<ScoringTuningProfileName | null>(null);
+  const [aiRoutingPolicy, setAiRoutingPolicy] = useState<AiRoutingPolicy | null>(null);
+  const [updatingAiGrade, setUpdatingAiGrade] = useState<AiTaskGrade | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadCountries = async () => {
@@ -156,7 +167,10 @@ export default function SyncManager() {
         client.get('/cost-of-living/sync/status'),
         client.get('/cost-of-living/sync/runs?limit=5'),
       ]);
-      const scoringProfilesRes = await client.get('/admin/scoring/tuning-profiles');
+      const [scoringProfilesRes, aiRoutingRes] = await Promise.all([
+        client.get('/admin/scoring/tuning-profiles'),
+        client.get('/admin/ai/routing-policy'),
+      ]);
       setMarketHealth(marketHealthRes.data);
       setMarketRuns(Array.isArray(marketRunsRes.data) ? marketRunsRes.data : []);
       setColSyncHealth(colHealthRes.data);
@@ -167,6 +181,7 @@ export default function SyncManager() {
           : [],
       );
       setActiveScoringProfile(scoringProfilesRes.data?.activeProfile ?? null);
+      setAiRoutingPolicy(aiRoutingRes.data ?? null);
     } catch {
       setPageError('Failed to load sync status');
     }
@@ -183,6 +198,19 @@ export default function SyncManager() {
       setPageError(`Failed to set scoring profile: ${name}`);
     } finally {
       setUpdatingScoringProfile(null);
+    }
+  };
+
+  const handleSetAiDefaultProvider = async (grade: AiTaskGrade, provider: AiProviderName) => {
+    setUpdatingAiGrade(grade);
+    setPageError('');
+    try {
+      const res = await client.post(`/admin/ai/routing-policy/${grade}/${provider}`);
+      setAiRoutingPolicy(res.data);
+    } catch {
+      setPageError(`Failed to set AI provider for ${grade}`);
+    } finally {
+      setUpdatingAiGrade(null);
     }
   };
 
@@ -321,6 +349,49 @@ export default function SyncManager() {
               </Button>
             ))}
           </Group>
+        </Stack>
+      </Paper>
+
+      <Paper withBorder radius="lg" p="lg" className="bg-white">
+        <Stack>
+          <Title order={3}>AI Provider Routing</Title>
+          <Text size="sm" c="dimmed">
+            Runtime-only policy. Resets to env defaults after backend restart.
+          </Text>
+          {aiRoutingPolicy ? (
+            (Object.keys(aiRoutingPolicy.defaults) as AiTaskGrade[]).map((grade) => (
+              <Card key={grade} withBorder radius="md" p="sm">
+                <Stack gap="xs">
+                  <Group justify="space-between" align="center">
+                    <Text fw={700}>{grade}</Text>
+                    <Badge variant="light" color="brand.1">
+                      Default: {aiRoutingPolicy.defaults[grade]}
+                    </Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed">
+                    Fallback chain: {aiRoutingPolicy.orders[grade].join(' -> ')}
+                  </Text>
+                  <Group>
+                    {aiRoutingPolicy.availableProviders.map((provider) => (
+                      <Button
+                        key={`${grade}-${provider}`}
+                        size="xs"
+                        variant={aiRoutingPolicy.defaults[grade] === provider ? 'filled' : 'light'}
+                        color={aiRoutingPolicy.defaults[grade] === provider ? 'brand.3' : 'brand.7'}
+                        disabled={updatingAiGrade !== null}
+                        loading={updatingAiGrade === grade}
+                        onClick={() => handleSetAiDefaultProvider(grade, provider)}
+                      >
+                        {provider}
+                      </Button>
+                    ))}
+                  </Group>
+                </Stack>
+              </Card>
+            ))
+          ) : (
+            <Text size="sm" c="dimmed">AI routing policy is unavailable.</Text>
+          )}
         </Stack>
       </Paper>
 
