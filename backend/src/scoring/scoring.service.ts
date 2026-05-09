@@ -243,10 +243,14 @@ export class ScoringService {
     roleRelevance: string;
   }): RecommendationType {
     if (args.excluded) return 'EXCLUDED_AS_IRRELEVANT';
-    if (args.matchScore >= 1) return 'MARKET_CONTEXT';
-    if (
+    const isPrimaryRoleSkill =
       (args.priority === 'CORE' || args.priority === 'IMPORTANT') &&
-      (args.roleRelevance === 'CORE' || args.roleRelevance === 'RELATED')
+      (args.roleRelevance === 'CORE' || args.roleRelevance === 'RELATED');
+    if (args.matchScore >= 1) {
+      return isPrimaryRoleSkill ? 'OPTIONAL_IMPROVEMENT' : 'MARKET_CONTEXT';
+    }
+    if (
+      isPrimaryRoleSkill
     ) {
       return 'ACTIONABLE_GAP';
     }

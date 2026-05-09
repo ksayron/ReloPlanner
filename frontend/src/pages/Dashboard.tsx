@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import {
+  Accordion,
   Alert,
   Badge,
   Button,
@@ -365,11 +366,7 @@ export default function Dashboard() {
       }, {} as Record<string, typeof result.fitScoreContributors>)
     : {};
   const groupOrder = ['CORE', 'IMPORTANT', 'OPTIONAL', 'CONTEXTUAL'];
-  const showProgressPanel =
-    analyzing ||
-    Boolean(job) ||
-    (jobHistory.length > 0 &&
-      jobHistory[jobHistory.length - 1]?.status === 'COMPLETED');
+  const showProgressPanel = analyzing || Boolean(job);
 
   return (
     <Stack className="mx-auto max-w-6xl" gap="lg">
@@ -418,28 +415,37 @@ export default function Dashboard() {
             {historyLoading ? <Loader size="sm" color="brand.7" /> : null}
           </Group>
           {history.length === 0 && <Text c="dimmed">No saved analyses yet.</Text>}
-          {history.map((item) => (
-            <Card key={item.id} withBorder radius="md" p="sm">
-              <Group justify="space-between" align="flex-start" wrap="wrap">
-                <Stack gap={2}>
-                  <Text fw={600}>{new Date(item.createdAt).toLocaleString()}</Text>
-                  <Text size="sm" c="dimmed">
-                    Fit: {Math.round(item.fitScore * 100)}%
-                  </Text>
-                  <Text size="sm" c="dimmed">{formatSnapshotContext(item.snapshotMetadata)}</Text>
-                </Stack>
-                <Button
-                  size="xs"
-                  variant={selectedAnalysisId === item.id ? 'light' : 'filled'}
-                  color={selectedAnalysisId === item.id ? 'brand.1' : 'brand.7'}
-                  onClick={() => openHistoricalResult(item.id)}
-                  disabled={selectedAnalysisId === item.id}
-                >
-                  {selectedAnalysisId === item.id ? 'Opened' : 'Open'}
-                </Button>
-              </Group>
-            </Card>
-          ))}
+          {history.length > 0 && (
+            <Accordion variant="separated" radius="md">
+              {history.map((item) => (
+                <Accordion.Item key={item.id} value={item.id}>
+                  <Accordion.Control>
+                    <Group justify="space-between" wrap="wrap">
+                      <Text fw={600}>{new Date(item.createdAt).toLocaleString()}</Text>
+                      <Badge color="brand.1" variant="light">
+                        Fit: {Math.round(item.fitScore * 100)}%
+                      </Badge>
+                    </Group>
+                  </Accordion.Control>
+                  <Accordion.Panel>
+                    <Stack gap="sm">
+                      <Text size="sm" c="dimmed">{formatSnapshotContext(item.snapshotMetadata)}</Text>
+                      <Button
+                        size="xs"
+                        variant={selectedAnalysisId === item.id ? 'light' : 'filled'}
+                        color={selectedAnalysisId === item.id ? 'brand.1' : 'brand.7'}
+                        onClick={() => openHistoricalResult(item.id)}
+                        disabled={selectedAnalysisId === item.id}
+                        w="fit-content"
+                      >
+                        {selectedAnalysisId === item.id ? 'Opened' : 'Open'}
+                      </Button>
+                    </Stack>
+                  </Accordion.Panel>
+                </Accordion.Item>
+              ))}
+            </Accordion>
+          )}
         </Stack>
       </Card>
 
@@ -579,7 +585,7 @@ export default function Dashboard() {
             </Tabs>
           </Card>
 
-          <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Fit Score Contributors</Title><Text size="sm" c="dimmed">Top bar: your current level. Bottom bar: expected target level for this competency.</Text>{groupOrder.map((group) => { const contributors = groupedContributors[group] ?? []; if (contributors.length === 0) return null; return <Stack key={group} gap="xs"><Text fw={700}>{priorityLabel[group] ?? formatEnumLabel(group)}</Text>{contributors.map((contributor) => { const item = analysisByCompetency.get(contributor.competencyId); const currentPct = Math.round((Number(item?.normalizedCurrentScore ?? contributor.matchScore) || 0) * 100); const expectedPct = Math.round((Number(item?.normalizedRequiredScore ?? 1) || 0) * 100); return <Card key={contributor.competencyId} withBorder radius="md" p="sm"><Stack gap={6}><Group justify="space-between" wrap="wrap"><Text>{contributor.competencyName}</Text><Text size="sm" c="dimmed">{currentPct}/{expectedPct}%</Text></Group><Progress value={currentPct} color={scoreColor(currentPct)} /><Progress value={expectedPct} color="dark" /></Stack></Card>; })}</Stack>; })}</Stack></Card>
+          <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Fit Score Contributors</Title><Text size="sm" c="dimmed">Top bar: your current level. Bottom bar: expected target level for this competency.</Text>{groupOrder.map((group) => { const contributors = groupedContributors[group] ?? []; if (contributors.length === 0) return null; return <Stack key={group} gap="xs"><Text fw={700}>{priorityLabel[group] ?? formatEnumLabel(group)}</Text>{contributors.map((contributor) => { const item = analysisByCompetency.get(contributor.competencyId); const currentPct = Math.round((Number(item?.normalizedCurrentScore ?? contributor.matchScore) || 0) * 100); const expectedPct = Math.round((Number(item?.normalizedRequiredScore ?? 1) || 0) * 100); const matchPct = Math.round((Number(contributor.matchScore) || 0) * 100); return <Card key={contributor.competencyId} withBorder radius="md" p="sm"><Stack gap={6}><Group justify="space-between" wrap="wrap"><Text>{contributor.competencyName}</Text><Text size="sm" c="dimmed">{currentPct}/{expectedPct}%</Text></Group><Progress value={currentPct} color={scoreColor(matchPct)} /><Progress value={expectedPct} color="dark" /></Stack></Card>; })}</Stack>; })}</Stack></Card>
 
           <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Actionable Gaps</Title>{result.actionableGaps.length === 0 && <Text c="dimmed">No actionable gaps identified.</Text>}{result.actionableGaps.map((gap) => <Card key={gap.competency.id} withBorder radius="md" p="sm"><Stack gap={4}><Group justify="space-between" wrap="wrap"><Text fw={600}>{gap.competency.name}</Text><Badge variant="light" color="brand.1">{gap.currentLevel} to {gap.requiredLevel}</Badge></Group><Text size="sm" c="dimmed">{formatEnumLabel(gap.priority)} / {formatEnumLabel(gap.roleRelevance)} / {formatEnumLabel(gap.recommendationType)}</Text><Text size="sm">{gap.reason}</Text></Stack></Card>)}</Stack></Card>
 
@@ -634,3 +640,4 @@ export default function Dashboard() {
     </Stack>
   );
 }
+
