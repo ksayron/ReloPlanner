@@ -84,12 +84,10 @@ export default function Profiles() {
           {profiles.map((profile) => (
             <Card
               key={profile.id}
-              component={RouterLink}
-              to={`/dashboard/${profile.id}`}
               withBorder
               radius="lg"
               padding="lg"
-              className="bg-white no-underline transition-shadow hover:shadow-md"
+              className="bg-white transition-shadow hover:shadow-md"
             >
               <Stack gap="xs">
                 <Group justify="space-between" align="flex-start">
@@ -103,6 +101,25 @@ export default function Profiles() {
                   {profile.targetCity ? `, ${profile.targetCity}` : ''}
                 </Text>
                 <Text size="xs" c="dimmed">Created: {new Date(profile.createdAt).toLocaleDateString()}</Text>
+                <Group gap="xs" pt="xs">
+                  <Button
+                    component={RouterLink}
+                    to={`/dashboard/${profile.id}`}
+                    size="xs"
+                    color="brand.7"
+                  >
+                    Open Dashboard
+                  </Button>
+                  <Button
+                    component={RouterLink}
+                    to={`/wizard/${profile.id}`}
+                    size="xs"
+                    variant="light"
+                    color="brand.1"
+                  >
+                    Edit Profile
+                  </Button>
+                </Group>
               </Stack>
             </Card>
           ))}

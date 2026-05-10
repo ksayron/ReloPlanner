@@ -13,6 +13,7 @@ import { JSDOM } from 'jsdom';
 import htmlToPdfmake from 'html-to-pdfmake';
 import { AiReportEnrichmentService } from '../ai/ai-report-enrichment.service.js';
 import { LegalKnowledgeEngineService } from '../legal-readiness/legal-knowledge-engine.service.js';
+import { FinancialKnowledgeEngineService } from '../financial-readiness/financial-knowledge-engine.service.js';
 
 @Injectable()
 export class ReportsService {
@@ -20,6 +21,7 @@ export class ReportsService {
     private readonly prisma: PrismaService,
     private readonly aiEnrichment: AiReportEnrichmentService,
     private readonly legalReadinessEngine: LegalKnowledgeEngineService,
+    private readonly financialReadinessEngine: FinancialKnowledgeEngineService,
   ) {}
 
   async generateSnapshot(
@@ -38,7 +40,7 @@ export class ReportsService {
     try {
       generation.status = 'GENERATING';
       const analysis = await this.loadAnalysis(analysisId, userId);
-      const snapshot = this.buildSnapshot(analysis);
+      const snapshot = await this.buildSnapshot(analysis);
 
       let aiSummary: ReportAiSummary | null = null;
       let aiSummaryMeta: ReportAiSummaryMeta | null = null;
@@ -114,7 +116,7 @@ export class ReportsService {
     generation.status = 'GENERATING';
 
     const analysis = await this.loadAnalysis(analysisId, userId);
-    const snapshot = this.buildSnapshot(analysis);
+    const snapshot = await this.buildSnapshot(analysis);
     const enriched = await this.aiEnrichment.summarizeSnapshot(snapshot, 'REASONING');
 
     await (this.prisma as any).analysisAiSummary.upsert({
@@ -192,7 +194,7 @@ export class ReportsService {
     };
   }
 
-  private buildSnapshot(analysis: any): RelocationReadinessReportSnapshot {
+  private async buildSnapshot(analysis: any): Promise<RelocationReadinessReportSnapshot> {
     const fitScore = Number(analysis.fitScore);
     const totalPrepMonths = Number(analysis.totalPrepMonths);
     const skillBreakdownRaw = Array.isArray(analysis.skillBreakdown)
@@ -283,6 +285,32 @@ export class ReportsService {
         targetCountry: analysis.profile.targetCountry,
         targetCity: analysis.profile.targetCity ?? undefined,
         desiredRole: analysis.profile.desiredRole ?? undefined,
+        hasExistingWorkAuthorization:
+          analysis.profile.hasExistingWorkAuthorization ?? undefined,
+        hasJobOffer: analysis.profile.hasJobOffer ?? undefined,
+        hasRecognizedDegree: analysis.profile.hasRecognizedDegree ?? undefined,
+        hasFormalEducation: analysis.profile.hasFormalEducation ?? undefined,
+        relocationWithFamily: analysis.profile.relocationWithFamily ?? undefined,
+      }),
+      financialReadiness: await this.financialReadinessEngine.evaluate({
+        targetCountry: analysis.profile.targetCountry,
+        targetCity: analysis.profile.targetCity ?? undefined,
+        savingsAmount: analysis.profile.savingsAmount
+          ? Number(analysis.profile.savingsAmount)
+          : undefined,
+        savingsCurrency: analysis.profile.savingsCurrency ?? undefined,
+        monthlyBudgetAmount: analysis.profile.monthlyBudgetAmount
+          ? Number(analysis.profile.monthlyBudgetAmount)
+          : undefined,
+        monthlyBudgetCurrency: analysis.profile.monthlyBudgetCurrency ?? undefined,
+        expectedNetSalaryAmount: analysis.profile.expectedNetSalaryAmount
+          ? Number(analysis.profile.expectedNetSalaryAmount)
+          : undefined,
+        expectedNetSalaryCurrency:
+          analysis.profile.expectedNetSalaryCurrency ?? undefined,
+        dependentsCount: analysis.profile.dependentsCount ?? undefined,
+        lifestyle: analysis.profile.lifestyle ?? undefined,
+        jobSearchMonths: analysis.profile.jobSearchMonths ?? undefined,
       }),
     };
   }
@@ -369,6 +397,13 @@ export class ReportsService {
     const legalArticles = (legal?.recommendedArticleSlugs ?? [])
       .map((slug) => `<li>${this.escapeHtml(slug)}</li>`)
       .join('');
+    const financial = snapshot.financialReadiness;
+    const financialWarnings = (financial?.warnings ?? [])
+      .map((warning) => `<li>${this.escapeHtml(warning.message)}</li>`)
+      .join('');
+    const financialAdvice = (financial?.advice ?? [])
+      .map((item) => `<li>${this.escapeHtml(item.message)}</li>`)
+      .join('');
 
     return `<!doctype html>
 <html lang="en">
@@ -438,6 +473,17 @@ export class ReportsService {
   <h3>Recommended Knowledge Slugs</h3>
   <ul>${legalArticles || '<li>No recommended article slugs.</li>'}</ul>
   <p class="muted">${this.escapeHtml(legal?.disclaimer ?? 'This section is informational guidance only and not legal advice.')}</p>
+
+  <h2>Financial Readiness</h2>
+  <p><strong>Risk:</strong> ${financial?.financialRiskLevel ?? 'UNKNOWN'}</p>
+  <p><strong>Monthly Cost Estimate:</strong> ${financial ? financial.costEstimate.totalMonthlyEstimateUsd.toFixed(2) : '0.00'} USD</p>
+  <p><strong>Runway:</strong> ${financial?.runwayMonths !== null && financial?.runwayMonths !== undefined ? `${financial.runwayMonths.toFixed(1)} months` : 'Unavailable'}</p>
+  <p><strong>Recommended Savings:</strong> ${financial ? financial.recommendedSavingsAmount.toFixed(2) : '0.00'} USD</p>
+  <p>${this.escapeHtml(financial?.summary ?? 'Financial readiness summary is unavailable.')}</p>
+  <h3>Warnings</h3>
+  <ul>${financialWarnings || '<li>No specific warnings.</li>'}</ul>
+  <h3>Advice</h3>
+  <ul>${financialAdvice || '<li>No additional advice.</li>'}</ul>
 </body>
 </html>`;
   }

@@ -50,6 +50,7 @@ function AppRoutes() {
         <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="profiles" element={<ProtectedRoute><Profiles /></ProtectedRoute>} />
         <Route path="wizard" element={<ProtectedRoute><ProfileWizard /></ProtectedRoute>} />
+        <Route path="wizard/:profileId" element={<ProtectedRoute><ProfileWizard /></ProtectedRoute>} />
         <Route path="dashboard/:profileId" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="progress/:profileId" element={<ProtectedRoute><ProgressTracker /></ProtectedRoute>} />
         <Route path="cost-of-living" element={<ProtectedRoute><CostOfLiving /></ProtectedRoute>} />

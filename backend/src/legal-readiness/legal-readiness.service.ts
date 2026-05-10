@@ -15,12 +15,12 @@ export class LegalReadinessService {
   }
 
   async evaluateForProfile(profileId: string, userId: string) {
-    const profile = await this.prisma.relocationProfile.findFirst({
+    const profile = (await this.prisma.relocationProfile.findFirst({
       where: {
         id: profileId,
         userId,
       },
-    });
+    })) as any;
 
     if (!profile) {
       throw new NotFoundException('Profile not found');
@@ -31,6 +31,12 @@ export class LegalReadinessService {
       targetCountry: profile.targetCountry,
       targetCity: profile.targetCity ?? undefined,
       desiredRole: profile.desiredRole ?? undefined,
+      hasExistingWorkAuthorization:
+        profile.hasExistingWorkAuthorization ?? undefined,
+      hasJobOffer: profile.hasJobOffer ?? undefined,
+      hasRecognizedDegree: profile.hasRecognizedDegree ?? undefined,
+      hasFormalEducation: profile.hasFormalEducation ?? undefined,
+      relocationWithFamily: profile.relocationWithFamily ?? undefined,
     });
   }
 }

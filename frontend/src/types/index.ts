@@ -29,6 +29,8 @@ export type RecommendationType =
 export type HardSkillLevel = 'NONE' | 'BASIC' | 'PRACTICAL' | 'CONFIDENT' | 'ADVANCED';
 export type LanguageLevel = 'NONE' | 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type CertificationStatus = 'NONE' | 'PLANNED' | 'IN_PROGRESS' | 'OBTAINED' | 'EXPIRED';
+export type CurrencyCode = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'PLN' | 'UAH';
+export type LifestyleProfile = 'FRUGAL' | 'STANDARD' | 'COMFORTABLE';
 
 export interface User {
   id: string;
@@ -67,10 +69,24 @@ export interface UserCompetencyInput {
 export interface RelocationProfile {
   id: string;
   targetCountry: string;
-  targetCity?: string;
+  targetCity?: string | null;
   currentCountry: string;
   yearsExperience: number;
   desiredRole: string;
+  savingsAmount?: number | null;
+  savingsCurrency?: CurrencyCode | null;
+  monthlyBudgetAmount?: number | null;
+  monthlyBudgetCurrency?: CurrencyCode | null;
+  expectedNetSalaryAmount?: number | null;
+  expectedNetSalaryCurrency?: CurrencyCode | null;
+  dependentsCount?: number | null;
+  lifestyle?: LifestyleProfile | null;
+  jobSearchMonths?: number | null;
+  hasExistingWorkAuthorization?: boolean | null;
+  hasJobOffer?: boolean | null;
+  hasRecognizedDegree?: boolean | null;
+  hasFormalEducation?: boolean | null;
+  relocationWithFamily?: boolean | null;
   competencies?: UserCompetencyInput[];
 }
 
@@ -366,6 +382,52 @@ export interface LegalReadinessResult {
   disclaimer: string;
 }
 
+export type FinancialRiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'UNKNOWN';
+export type CostEstimateSource = 'CITY' | 'COUNTRY' | 'GLOBAL';
+
+export interface FinancialCostCategoryEstimate {
+  category: CostCategory;
+  monthlyAmountUsd: number;
+}
+
+export interface FinancialCostEstimate {
+  source: CostEstimateSource;
+  categories: FinancialCostCategoryEstimate[];
+  totalMonthlyEstimateUsd: number;
+  appliedLifestyleMultiplier: number;
+  appliedDependentsMultiplier: number;
+}
+
+export interface FinancialWarning {
+  code: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  message: string;
+}
+
+export interface FinancialAdvice {
+  code: string;
+  message: string;
+}
+
+export interface TriggeredFinancialRule {
+  code: string;
+  description: string;
+}
+
+export interface FinancialReadinessResult {
+  targetCountry: string;
+  targetCity: string | null;
+  financialRiskLevel: FinancialRiskLevel;
+  runwayMonths: number | null;
+  recommendedSavingsAmount: number;
+  recommendedSavingsCurrency: 'USD';
+  costEstimate: FinancialCostEstimate;
+  triggeredRules: TriggeredFinancialRule[];
+  warnings: FinancialWarning[];
+  advice: FinancialAdvice[];
+  summary: string;
+}
+
 export interface ReportAiSummary {
   executiveSummary: string;
   topStrengths: string[];
@@ -409,6 +471,7 @@ export interface ReportSnapshotResponse {
       totalPrepMonths: number;
     };
     legalReadiness?: LegalReadinessResult;
+    financialReadiness?: FinancialReadinessResult;
   };
   variant: ReportVariant;
   aiSummary: ReportAiSummary | null;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -7,41 +7,12 @@ import {
   Card,
   Group,
   Loader,
-  Select,
   Stack,
   Text,
   Title,
 } from '@mantine/core';
 import client from '../api/client';
 import type { LegalReadinessResult } from '../types';
-
-type AnswerValue = 'unknown' | 'yes' | 'no';
-
-type SupportedQuestionKey =
-  | 'hasExistingWorkAuthorization'
-  | 'hasJobOffer'
-  | 'hasRecognizedDegree'
-  | 'hasFormalEducation'
-  | 'relocationWithFamily'
-  | 'hasFamilyDocumentsPrepared'
-  | 'hasCheckedDependentResidenceRules';
-
-const supportedQuestionKeys = new Set<SupportedQuestionKey>([
-  'hasExistingWorkAuthorization',
-  'hasJobOffer',
-  'hasRecognizedDegree',
-  'hasFormalEducation',
-  'relocationWithFamily',
-  'hasFamilyDocumentsPrepared',
-  'hasCheckedDependentResidenceRules',
-]);
-
-type ProfileFacts = {
-  currentCountry: string;
-  targetCountry: string;
-  targetCity?: string | null;
-  desiredRole?: string | null;
-};
 
 function resolveRiskColor(level: LegalReadinessResult['overallRisk']) {
   if (level === 'HIGH') return 'red';
@@ -57,90 +28,38 @@ function getLocale(): string {
   return fallback.slice(0, 2).toLowerCase();
 }
 
-function toBoolean(value: AnswerValue): boolean | undefined {
-  if (value === 'yes') return true;
-  if (value === 'no') return false;
-  return undefined;
-}
-
 export default function LegalReadinessCard({ profileId }: { profileId: string }) {
-  const [profile, setProfile] = useState<ProfileFacts | null>(null);
   const [result, setResult] = useState<LegalReadinessResult | null>(null);
-  const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [loading, setLoading] = useState(true);
-  const [evaluating, setEvaluating] = useState(false);
   const [error, setError] = useState('');
-
   const locale = useMemo(() => getLocale(), []);
-
-  const evaluate = useCallback(async () => {
-    if (!profile) return;
-    setEvaluating(true);
-    setError('');
-
-    try {
-      const payload: Record<string, unknown> = {
-        sourceCountry: profile.currentCountry,
-        targetCountry: profile.targetCountry,
-        targetCity: profile.targetCity ?? undefined,
-        desiredRole: profile.desiredRole ?? undefined,
-      };
-
-      for (const [key, value] of Object.entries(answers)) {
-        if (!supportedQuestionKeys.has(key as SupportedQuestionKey)) continue;
-        const boolValue = toBoolean(value);
-        if (typeof boolValue === 'boolean') {
-          payload[key] = boolValue;
-        }
-      }
-
-      const response = await client.post<LegalReadinessResult>(
-        '/legal-readiness/evaluate',
-        payload,
-      );
-      setResult(response.data);
-    } catch {
-      setError('Failed to evaluate legal readiness.');
-    } finally {
-      setEvaluating(false);
-    }
-  }, [answers, profile]);
 
   useEffect(() => {
     setLoading(true);
     setError('');
     void (async () => {
       try {
-        const profileResponse = await client.get<ProfileFacts>(`/profiles/${profileId}`);
-        setProfile(profileResponse.data);
+        const response = await client.get<LegalReadinessResult>(
+          `/profiles/${profileId}/legal-readiness`,
+        );
+        setResult(response.data);
       } catch {
-        setError('Failed to load profile context for legal readiness.');
+        setError('Failed to evaluate legal readiness.');
       } finally {
         setLoading(false);
       }
     })();
   }, [profileId]);
 
-  useEffect(() => {
-    if (!profile) return;
-    void evaluate();
-  }, [profile, evaluate]);
-
   return (
     <Card withBorder radius="lg" p="lg" className="bg-white">
       <Stack gap="md">
         <Group justify="space-between" wrap="wrap">
           <Title order={3}>Legal / Visa Readiness</Title>
-          {evaluating ? <Loader size="sm" color="brand.7" /> : null}
+          {loading ? <Loader size="sm" color="brand.7" /> : null}
         </Group>
 
-        {loading && (
-          <Group justify="center" py="sm">
-            <Loader color="brand.7" />
-          </Group>
-        )}
-
-        {!loading && error && <Alert color="red">{error}</Alert>}
+        {error && <Alert color="red">{error}</Alert>}
 
         {!loading && !error && result && (
           <>
@@ -168,42 +87,18 @@ export default function LegalReadinessCard({ profileId }: { profileId: string })
               )}
             </Stack>
 
-            <Stack gap={8}>
-              <Text fw={700}>Additional Questions</Text>
+            <Stack gap={6}>
+              <Text fw={700}>Questions to Clarify</Text>
               {result.questions.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No additional legal clarification questions right now.
+                  No additional clarification questions right now.
                 </Text>
               ) : (
                 result.questions.map((question) => (
-                  <Group key={question.key} grow align="flex-end">
-                    <Text size="sm">{question.text}</Text>
-                    <Select
-                      value={answers[question.key] ?? 'unknown'}
-                      onChange={(value) =>
-                        setAnswers((prev) => ({
-                          ...prev,
-                          [question.key]: (value as AnswerValue) ?? 'unknown',
-                        }))
-                      }
-                      data={[
-                        { value: 'unknown', label: 'Unknown' },
-                        { value: 'yes', label: 'Yes' },
-                        { value: 'no', label: 'No' },
-                      ]}
-                    />
-                  </Group>
+                  <Text key={question.key} size="sm">
+                    - {question.text}
+                  </Text>
                 ))
-              )}
-              {result.questions.length > 0 && (
-                <Button
-                  onClick={() => void evaluate()}
-                  loading={evaluating}
-                  color="brand.7"
-                  w="fit-content"
-                >
-                  Re-evaluate Legal Readiness
-                </Button>
               )}
             </Stack>
 
@@ -211,7 +106,7 @@ export default function LegalReadinessCard({ profileId }: { profileId: string })
               <Text fw={700}>Possible Routes to Check</Text>
               {result.possibleRoutes.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No route hints available for current answers.
+                  No route hints available for current profile data.
                 </Text>
               ) : (
                 result.possibleRoutes.map((route) => (

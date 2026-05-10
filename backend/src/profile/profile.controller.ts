@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   UseGuards,
@@ -10,6 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ProfileService } from './profile.service';
 import { CreateProfileDto } from './dto/create-profile.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @Controller('profiles')
@@ -27,6 +29,15 @@ export class ProfileController {
   @Post()
   create(@Request() req: any, @Body() dto: CreateProfileDto) {
     return this.profileService.create(req.user.id, dto);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.profileService.update(id, req.user.id, dto);
   }
 
   @Get(':id')

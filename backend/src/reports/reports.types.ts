@@ -1,4 +1,5 @@
 import type { LegalReadinessResult } from '../legal-readiness/legal-readiness.types.js';
+import type { FinancialReadinessResult } from '../financial-readiness/financial-readiness.types.js';
 
 export type ReportGenerationStatus = 'PENDING' | 'GENERATING' | 'COMPLETED' | 'FAILED';
 export type ReportVariant = 'snapshot' | 'ai-summary';
@@ -81,6 +82,7 @@ export interface RelocationReadinessReportSnapshot {
     jobMarketNote: string;
   };
   legalReadiness?: LegalReadinessResult;
+  financialReadiness?: FinancialReadinessResult;
 }
 
 export interface ReportAiSummary {

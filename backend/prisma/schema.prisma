@@ -146,6 +146,21 @@ enum ProcessingJobStatus {
   FAILED
 }
 
+enum CurrencyCode {
+  USD
+  EUR
+  GBP
+  CAD
+  PLN
+  UAH
+}
+
+enum LifestyleProfile {
+  FRUGAL
+  STANDARD
+  COMFORTABLE
+}
+
 model User {
   id                              String              @id @default(uuid())
   email                           String              @unique
@@ -166,18 +181,32 @@ model User {
 }
 
 model RelocationProfile {
-  id              String           @id @default(uuid())
-  userId          String           @map("user_id")
-  targetCountry   String           @map("target_country")
-  targetCity      String?          @map("target_city")
-  currentCountry  String           @map("current_country")
-  yearsExperience Int              @map("years_experience") @db.SmallInt
-  desiredRole     String           @map("desired_role")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  user            User             @relation(fields: [userId], references: [id])
-  skills          UserSkill[]
-  competencies    UserCompetency[]
-  analyses        AnalysisResult[]
+  id                           String             @id @default(uuid())
+  userId                       String             @map("user_id")
+  targetCountry                String             @map("target_country")
+  targetCity                   String?            @map("target_city")
+  currentCountry               String             @map("current_country")
+  yearsExperience              Int                @map("years_experience") @db.SmallInt
+  desiredRole                  String             @map("desired_role")
+  savingsAmount                Decimal?           @map("savings_amount") @db.Decimal(12, 2)
+  savingsCurrency              CurrencyCode?      @map("savings_currency")
+  monthlyBudgetAmount          Decimal?           @map("monthly_budget_amount") @db.Decimal(12, 2)
+  monthlyBudgetCurrency        CurrencyCode?      @map("monthly_budget_currency")
+  expectedNetSalaryAmount      Decimal?           @map("expected_net_salary_amount") @db.Decimal(12, 2)
+  expectedNetSalaryCurrency    CurrencyCode?      @map("expected_net_salary_currency")
+  dependentsCount              Int?               @map("dependents_count") @db.SmallInt
+  lifestyle                    LifestyleProfile?  @map("lifestyle")
+  jobSearchMonths              Int?               @map("job_search_months") @db.SmallInt
+  hasExistingWorkAuthorization Boolean?           @map("has_existing_work_authorization")
+  hasJobOffer                  Boolean?           @map("has_job_offer")
+  hasRecognizedDegree          Boolean?           @map("has_recognized_degree")
+  hasFormalEducation           Boolean?           @map("has_formal_education")
+  relocationWithFamily         Boolean?           @map("relocation_with_family")
+  createdAt                    DateTime           @default(now()) @map("created_at")
+  user                         User               @relation(fields: [userId], references: [id])
+  skills                       UserSkill[]
+  competencies                 UserCompetency[]
+  analyses                     AnalysisResult[]
 
   @@map("relocation_profiles")
 }

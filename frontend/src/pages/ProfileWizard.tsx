@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   Badge,
@@ -31,6 +31,8 @@ import type {
   ResumeMappedCompetency,
   ResumeProfileDraft,
   UserCompetencyInput,
+  CurrencyCode,
+  LifestyleProfile,
 } from '../types';
 
 interface SelectedCompetency {
@@ -41,6 +43,36 @@ interface SelectedCompetency {
 
 interface CvReviewCompetency extends ResumeMappedCompetency {
   enabled: boolean;
+}
+
+interface ExistingProfileResponse {
+  id: string;
+  targetCountry: string;
+  targetCity: string | null;
+  currentCountry: string;
+  yearsExperience: number;
+  desiredRole: string;
+  savingsAmount: number | null;
+  savingsCurrency: CurrencyCode | null;
+  monthlyBudgetAmount: number | null;
+  monthlyBudgetCurrency: CurrencyCode | null;
+  expectedNetSalaryAmount: number | null;
+  expectedNetSalaryCurrency: CurrencyCode | null;
+  dependentsCount: number | null;
+  lifestyle: LifestyleProfile | null;
+  jobSearchMonths: number | null;
+  hasExistingWorkAuthorization: boolean | null;
+  hasJobOffer: boolean | null;
+  hasRecognizedDegree: boolean | null;
+  hasFormalEducation: boolean | null;
+  relocationWithFamily: boolean | null;
+  competencies: Array<{
+    competencyId: string;
+    competency: { type: Competency['type'] };
+    hardSkillLevel?: HardSkillLevel | null;
+    languageLevel?: LanguageLevel | null;
+    certificationStatus?: CertificationStatus | null;
+  }>;
 }
 
 const ROLES = [
@@ -65,6 +97,8 @@ const CERT_LEVELS: CertificationStatus[] = [
   'OBTAINED',
   'EXPIRED',
 ];
+const CURRENCIES: CurrencyCode[] = ['USD', 'EUR', 'GBP', 'CAD', 'PLN', 'UAH'];
+const LIFESTYLES: LifestyleProfile[] = ['FRUGAL', 'STANDARD', 'COMFORTABLE'];
 
 const HARD_LEVEL_LABELS: Record<HardSkillLevel, string> = {
   NONE: 'None - no practical knowledge yet',
@@ -83,6 +117,17 @@ const formatEnumLabel = (value: string) =>
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+
+const booleanSelectValue = (value: boolean | null | undefined): string =>
+  typeof value === 'boolean' ? (value ? 'yes' : 'no') : 'unknown';
+
+const fromBooleanSelectValue = (
+  value: string | null,
+): boolean | undefined => {
+  if (value === 'yes') return true;
+  if (value === 'no') return false;
+  return undefined;
+};
 
 const getLevelLabel = (
   type: Competency['type'],
@@ -111,17 +156,36 @@ const confidencePercent = (value: number) =>
 
 export default function ProfileWizard() {
   const navigate = useNavigate();
+  const { profileId } = useParams<{ profileId?: string }>();
+  const isEditing = Boolean(profileId);
   const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   const [targetCountry, setTargetCountry] = useState('');
   const [targetCity, setTargetCity] = useState('');
   const [yearsExperience, setYearsExperience] = useState(0);
   const [desiredRole, setDesiredRole] = useState('');
   const [currentCountry, setCurrentCountry] = useState('');
-  const [budget] = useState('');
-  const [visa] = useState('');
+  const [savingsAmount, setSavingsAmount] = useState<number | ''>('');
+  const [savingsCurrency, setSavingsCurrency] = useState<CurrencyCode>('USD');
+  const [monthlyBudgetAmount, setMonthlyBudgetAmount] = useState<number | ''>('');
+  const [monthlyBudgetCurrency, setMonthlyBudgetCurrency] = useState<CurrencyCode>('USD');
+  const [expectedNetSalaryAmount, setExpectedNetSalaryAmount] = useState<number | ''>('');
+  const [expectedNetSalaryCurrency, setExpectedNetSalaryCurrency] = useState<CurrencyCode>('USD');
+  const [dependentsCount, setDependentsCount] = useState(0);
+  const [lifestyle, setLifestyle] = useState<LifestyleProfile>('STANDARD');
+  const [jobSearchMonths, setJobSearchMonths] = useState(6);
+  const [hasExistingWorkAuthorization, setHasExistingWorkAuthorization] = useState<
+    boolean | undefined
+  >(undefined);
+  const [hasJobOffer, setHasJobOffer] = useState<boolean | undefined>(undefined);
+  const [hasRecognizedDegree, setHasRecognizedDegree] = useState<boolean | undefined>(undefined);
+  const [hasFormalEducation, setHasFormalEducation] = useState<boolean | undefined>(undefined);
+  const [relocationWithFamily, setRelocationWithFamily] = useState<boolean | undefined>(
+    undefined,
+  );
 
   const [allCompetencies, setAllCompetencies] = useState<Competency[]>([]);
   const [allCompetencyCatalog, setAllCompetencyCatalog] = useState<Competency[]>([]);
@@ -188,6 +252,68 @@ export default function ProfileWizard() {
     };
     void loadAllCompetencies();
   }, []);
+
+  useEffect(() => {
+    if (!profileId) return;
+    setLoadingProfile(true);
+    setError('');
+    void (async () => {
+      try {
+        const response = await client.get<ExistingProfileResponse>(`/profiles/${profileId}`);
+        const profile = response.data;
+        setTargetCountry(profile.targetCountry ?? '');
+        setTargetCity(profile.targetCity ?? '');
+        setCurrentCountry(profile.currentCountry ?? '');
+        setYearsExperience(Number(profile.yearsExperience ?? 0));
+        setDesiredRole(profile.desiredRole ?? '');
+        setSavingsAmount(profile.savingsAmount ?? '');
+        setSavingsCurrency(profile.savingsCurrency ?? 'USD');
+        setMonthlyBudgetAmount(profile.monthlyBudgetAmount ?? '');
+        setMonthlyBudgetCurrency(profile.monthlyBudgetCurrency ?? 'USD');
+        setExpectedNetSalaryAmount(profile.expectedNetSalaryAmount ?? '');
+        setExpectedNetSalaryCurrency(profile.expectedNetSalaryCurrency ?? 'USD');
+        setDependentsCount(profile.dependentsCount ?? 0);
+        setLifestyle(profile.lifestyle ?? 'STANDARD');
+        setJobSearchMonths(profile.jobSearchMonths ?? 6);
+        setHasExistingWorkAuthorization(
+          profile.hasExistingWorkAuthorization ?? undefined,
+        );
+        setHasJobOffer(profile.hasJobOffer ?? undefined);
+        setHasRecognizedDegree(profile.hasRecognizedDegree ?? undefined);
+        setHasFormalEducation(profile.hasFormalEducation ?? undefined);
+        setRelocationWithFamily(profile.relocationWithFamily ?? undefined);
+
+        const mappedSelected: SelectedCompetency[] = (profile.competencies ?? []).map((item) => {
+          const type = item.competency.type;
+          if (type === 'LANGUAGE') {
+            return {
+              competencyId: item.competencyId,
+              type,
+              level: (item.languageLevel ?? 'A2') as LanguageLevel,
+            };
+          }
+          if (type === 'CERTIFICATION') {
+            return {
+              competencyId: item.competencyId,
+              type,
+              level: (item.certificationStatus ?? 'NONE') as CertificationStatus,
+            };
+          }
+          return {
+            competencyId: item.competencyId,
+            type,
+            level: (item.hardSkillLevel ?? 'BASIC') as HardSkillLevel,
+          };
+        });
+
+        setSelected(mappedSelected);
+      } catch {
+        setError('Failed to load profile for editing.');
+      } finally {
+        setLoadingProfile(false);
+      }
+    })();
+  }, [profileId]);
 
   const relevantCompetencyIds = useMemo(
     () => new Set(allCompetencies.map((competency) => competency.id)),
@@ -357,6 +483,14 @@ export default function ProfileWizard() {
         setError('Destination page: desired country is required.');
         return false;
       }
+      if (jobSearchMonths < 1) {
+        setError('Job-search duration must be at least 1 month.');
+        return false;
+      }
+      if (dependentsCount < 0) {
+        setError('Dependents count cannot be negative.');
+        return false;
+      }
     }
 
     if (step === 1) {
@@ -390,17 +524,40 @@ export default function ProfileWizard() {
     setSubmitting(true);
     setError('');
     try {
-      const res = await client.post('/profiles', {
+      const payload = {
         currentCountry,
         yearsExperience,
         desiredRole,
         targetCountry,
         targetCity: !targetCity || targetCity === OTHER_CITY_VALUE ? undefined : targetCity,
+        savingsAmount: savingsAmount === '' ? undefined : Number(savingsAmount),
+        savingsCurrency,
+        monthlyBudgetAmount:
+          monthlyBudgetAmount === '' ? undefined : Number(monthlyBudgetAmount),
+        monthlyBudgetCurrency,
+        expectedNetSalaryAmount:
+          expectedNetSalaryAmount === '' ? undefined : Number(expectedNetSalaryAmount),
+        expectedNetSalaryCurrency,
+        dependentsCount,
+        lifestyle,
+        jobSearchMonths,
+        hasExistingWorkAuthorization,
+        hasJobOffer,
+        hasRecognizedDegree,
+        hasFormalEducation,
+        relocationWithFamily,
         competencies: toPayloadCompetencies(),
-      });
-      navigate(`/dashboard/${res.data.id}`);
+      };
+
+      if (isEditing && profileId) {
+        await client.patch(`/profiles/${profileId}`, payload);
+        navigate(`/dashboard/${profileId}`);
+      } else {
+        const res = await client.post('/profiles', payload);
+        navigate(`/dashboard/${res.data.id}`);
+      }
     } catch {
-      setError('Failed to create profile');
+      setError(isEditing ? 'Failed to update profile' : 'Failed to create profile');
     } finally {
       setSubmitting(false);
     }
@@ -507,17 +664,24 @@ export default function ProfileWizard() {
   const lowCountryConfidence =
     cvDraft?.currentCountry && cvDraft.currentCountry.confidence < LOW_CONFIDENCE_THRESHOLD;
 
-  if (!countriesCatalog.target.length && !countriesCatalog.source.length) {
+  if (
+    loadingProfile ||
+    (!countriesCatalog.target.length && !countriesCatalog.source.length)
+  ) {
     return (
       <div className="mt-10 flex justify-center">
-        <Text c="dimmed">Loading profile wizard...</Text>
+        <Text c="dimmed">
+          {loadingProfile ? 'Loading profile data...' : 'Loading profile wizard...'}
+        </Text>
       </div>
     );
   }
 
   return (
     <Stack className="mx-auto max-w-5xl" gap="lg">
-      <Title order={2}>Create Relocation Profile</Title>
+      <Title order={2}>
+        {isEditing ? 'Edit Relocation Profile' : 'Create Relocation Profile'}
+      </Title>
       {error && <Alert color="red">{error}</Alert>}
 
       <Modal
@@ -853,18 +1017,147 @@ export default function ProfileWizard() {
                   ])}
               />
 
-              <TextInput
-                label="Budget (inactive, planned)"
-                value={budget}
-                disabled
-                placeholder="Will be activated in next iteration"
+              <Group grow>
+                <NumberInput
+                  label="Savings Amount (optional)"
+                  min={0}
+                  value={savingsAmount}
+                  onChange={(value) =>
+                    setSavingsAmount(value === '' || value === null ? '' : Number(value))
+                  }
+                />
+                <Select
+                  label="Savings Currency"
+                  value={savingsCurrency}
+                  onChange={(value) => setSavingsCurrency((value as CurrencyCode) || 'USD')}
+                  data={CURRENCIES.map((currency) => ({ value: currency, label: currency }))}
+                />
+              </Group>
+
+              <Group grow>
+                <NumberInput
+                  label="Monthly Budget (optional)"
+                  min={0}
+                  value={monthlyBudgetAmount}
+                  onChange={(value) =>
+                    setMonthlyBudgetAmount(
+                      value === '' || value === null ? '' : Number(value),
+                    )
+                  }
+                />
+                <Select
+                  label="Monthly Budget Currency"
+                  value={monthlyBudgetCurrency}
+                  onChange={(value) => setMonthlyBudgetCurrency((value as CurrencyCode) || 'USD')}
+                  data={CURRENCIES.map((currency) => ({ value: currency, label: currency }))}
+                />
+              </Group>
+
+              <Group grow>
+                <NumberInput
+                  label="Expected Net Salary (optional)"
+                  min={0}
+                  value={expectedNetSalaryAmount}
+                  onChange={(value) =>
+                    setExpectedNetSalaryAmount(
+                      value === '' || value === null ? '' : Number(value),
+                    )
+                  }
+                />
+                <Select
+                  label="Expected Salary Currency"
+                  value={expectedNetSalaryCurrency}
+                  onChange={(value) =>
+                    setExpectedNetSalaryCurrency((value as CurrencyCode) || 'USD')
+                  }
+                  data={CURRENCIES.map((currency) => ({ value: currency, label: currency }))}
+                />
+              </Group>
+
+              <Group grow>
+                <NumberInput
+                  label="Dependents Count"
+                  min={0}
+                  max={10}
+                  value={dependentsCount}
+                  onChange={(value) => setDependentsCount(Math.max(0, Number(value) || 0))}
+                />
+                <Select
+                  label="Lifestyle"
+                  value={lifestyle}
+                  onChange={(value) => setLifestyle((value as LifestyleProfile) || 'STANDARD')}
+                  data={LIFESTYLES.map((item) => ({
+                    value: item,
+                    label: formatEnumLabel(item),
+                  }))}
+                />
+              </Group>
+
+              <NumberInput
+                label="Planned Job Search Duration (months)"
+                min={1}
+                max={24}
+                value={jobSearchMonths}
+                onChange={(value) => setJobSearchMonths(Math.max(1, Number(value) || 1))}
               />
 
-              <TextInput
-                label="Visa (inactive, planned)"
-                value={visa}
-                disabled
-                placeholder="Will be activated in next iteration"
+              <Title order={5}>Legal Readiness Inputs</Title>
+
+              <Select
+                label="Existing work authorization for target country"
+                value={booleanSelectValue(hasExistingWorkAuthorization)}
+                onChange={(value) =>
+                  setHasExistingWorkAuthorization(fromBooleanSelectValue(value))
+                }
+                data={[
+                  { value: 'unknown', label: 'Unknown / Not sure' },
+                  { value: 'yes', label: 'Yes' },
+                  { value: 'no', label: 'No' },
+                ]}
+              />
+
+              <Select
+                label="Confirmed job offer"
+                value={booleanSelectValue(hasJobOffer)}
+                onChange={(value) => setHasJobOffer(fromBooleanSelectValue(value))}
+                data={[
+                  { value: 'unknown', label: 'Unknown / Not sure' },
+                  { value: 'yes', label: 'Yes' },
+                  { value: 'no', label: 'No' },
+                ]}
+              />
+
+              <Select
+                label="Recognized degree"
+                value={booleanSelectValue(hasRecognizedDegree)}
+                onChange={(value) => setHasRecognizedDegree(fromBooleanSelectValue(value))}
+                data={[
+                  { value: 'unknown', label: 'Unknown / Not sure' },
+                  { value: 'yes', label: 'Yes' },
+                  { value: 'no', label: 'No' },
+                ]}
+              />
+
+              <Select
+                label="Formal education"
+                value={booleanSelectValue(hasFormalEducation)}
+                onChange={(value) => setHasFormalEducation(fromBooleanSelectValue(value))}
+                data={[
+                  { value: 'unknown', label: 'Unknown / Not sure' },
+                  { value: 'yes', label: 'Yes' },
+                  { value: 'no', label: 'No' },
+                ]}
+              />
+
+              <Select
+                label="Relocating with family"
+                value={booleanSelectValue(relocationWithFamily)}
+                onChange={(value) => setRelocationWithFamily(fromBooleanSelectValue(value))}
+                data={[
+                  { value: 'unknown', label: 'Unknown / Not sure' },
+                  { value: 'yes', label: 'Yes' },
+                  { value: 'no', label: 'No' },
+                ]}
               />
             </Stack>
           </Card>
@@ -1010,7 +1303,7 @@ export default function ProfileWizard() {
           </Button>
         ) : (
           <Button color="brand.7" onClick={handleSubmit} loading={submitting}>
-            Create Profile
+            {isEditing ? 'Update Profile' : 'Create Profile'}
           </Button>
         )}
       </Group>
