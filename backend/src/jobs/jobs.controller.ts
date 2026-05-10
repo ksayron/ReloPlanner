@@ -11,17 +11,27 @@ import {
   Query,
   Req,
   Sse,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { JobsRunnerService } from './jobs-runner.service.js';
 import { JobsService } from './jobs.service.js';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Roles, RolesGuard } from '../auth/roles.guard.js';
 import { Role } from '@prisma/client';
 import { ReportVariant } from '../reports/reports.types.js';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Express } from 'express';
+import { ResumeTextExtractionService } from '../resume/resume-text-extraction.service.js';
 
 @Controller('jobs')
 @UseGuards(AuthGuard('jwt'))
@@ -31,6 +41,7 @@ export class JobsController {
   constructor(
     private readonly jobsService: JobsService,
     private readonly jobsRunnerService: JobsRunnerService,
+    private readonly resumeTextExtractionService: ResumeTextExtractionService,
   ) {}
 
   @Post('profiles/:id/analyze')
@@ -135,6 +146,50 @@ export class JobsController {
     };
   }
 
+  @Post('resume/parse-profile')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  async createResumeProfileParseJob(
+    @Req() req: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const extracted = await this.resumeTextExtractionService.extractFromUpload(file);
+    const job = await this.jobsService.createJob({
+      userId: req.user.id,
+      type: 'RESUME_PROFILE_PARSE',
+      payload: {
+        fileName: extracted.fileName,
+        format: extracted.format,
+        characterCount: extracted.characterCount,
+      },
+    });
+
+    this.jobsRunnerService.runResumeProfileParseJob(job.id, req.user.id, extracted);
+
+    return {
+      jobId: job.id,
+      type: job.type,
+      status: job.status,
+      currentStep: job.currentStep,
+      progressPercent: job.progressPercent,
+      eventsUrl: `/api/jobs/${job.id}/events`,
+      statusUrl: `/api/jobs/${job.id}`,
+    };
+  }
+
   @Get('active')
   async getActiveJob(
     @Req() req: any,
@@ -142,7 +197,12 @@ export class JobsController {
     @Query('payloadKey') payloadKey?: string,
     @Query('payloadValue') payloadValue?: string,
   ) {
-    if (type !== 'PROFILE_ANALYSIS' && type !== 'MARKET_SYNC' && type !== 'REPORT_GENERATION') {
+    if (
+      type !== 'PROFILE_ANALYSIS' &&
+      type !== 'MARKET_SYNC' &&
+      type !== 'REPORT_GENERATION' &&
+      type !== 'RESUME_PROFILE_PARSE'
+    ) {
       throw new BadRequestException('Invalid job type');
     }
     return this.jobsService.findActiveJobForUser({
