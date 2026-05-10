@@ -317,6 +317,55 @@ export type ReportVariant = 'snapshot' | 'ai-summary';
 export type AiProviderName = 'OPENAI' | 'OPENROUTER' | 'MOCK';
 export type AiTaskGrade = 'EASY' | 'REASONING';
 
+export type RegionType = 'EU' | 'NON_EU' | 'UNKNOWN';
+export type LegalRiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'UNKNOWN';
+
+export interface LegalQuestion {
+  key: string;
+  text: string;
+  type: 'BOOLEAN';
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface LegalRoute {
+  code: string;
+  title: string;
+  applicability: 'POSSIBLE' | 'LESS_LIKELY' | 'UNKNOWN';
+  description: string;
+}
+
+export interface LegalWarning {
+  code: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  message: string;
+}
+
+export interface LegalAdvice {
+  code: string;
+  message: string;
+}
+
+export interface TriggeredLegalRule {
+  code: string;
+  description: string;
+}
+
+export interface LegalReadinessResult {
+  sourceCountry: string;
+  targetCountry: string;
+  sourceRegion: RegionType;
+  targetRegion: RegionType;
+  visaCheckLikelyRequired: boolean;
+  overallRisk: LegalRiskLevel;
+  triggeredRules: TriggeredLegalRule[];
+  questions: LegalQuestion[];
+  possibleRoutes: LegalRoute[];
+  warnings: LegalWarning[];
+  advice: LegalAdvice[];
+  recommendedArticleSlugs: string[];
+  disclaimer: string;
+}
+
 export interface ReportAiSummary {
   executiveSummary: string;
   topStrengths: string[];
@@ -359,6 +408,7 @@ export interface ReportSnapshotResponse {
       readinessLevel: 'READY' | 'NEAR_READY' | 'PREPARATION_REQUIRED';
       totalPrepMonths: number;
     };
+    legalReadiness?: LegalReadinessResult;
   };
   variant: ReportVariant;
   aiSummary: ReportAiSummary | null;

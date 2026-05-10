@@ -87,25 +87,38 @@ export class KnowledgeService {
 
   async getArticleBySlug(slug: string, languageRaw?: string): Promise<KnowledgeArticleDetail> {
     const language = this.normalizeLanguage(languageRaw);
-    const article = await (this.prisma as any).knowledgeArticle.findUnique({
+    const select = {
+      slug: true,
+      title: true,
+      country: true,
+      category: true,
+      language: true,
+      content: true,
+      topicTags: true,
+      riskTags: true,
+      updatedAt: true,
+    };
+    let article = await (this.prisma as any).knowledgeArticle.findUnique({
       where: {
         slug_language: {
           slug,
           language,
         },
       },
-      select: {
-        slug: true,
-        title: true,
-        country: true,
-        category: true,
-        language: true,
-        content: true,
-        topicTags: true,
-        riskTags: true,
-        updatedAt: true,
-      },
+      select,
     });
+
+    if (!article && language !== 'en') {
+      article = await (this.prisma as any).knowledgeArticle.findUnique({
+        where: {
+          slug_language: {
+            slug,
+            language: 'en',
+          },
+        },
+        select,
+      });
+    }
 
     if (!article) {
       throw new NotFoundException('Knowledge article not found');

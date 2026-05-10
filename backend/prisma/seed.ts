@@ -198,6 +198,146 @@ Use one master tracker shared across profile, legal, and job preparation tasks.`
     topicTags: ['process', 'documents'],
     riskTags: ['legal', 'completeness'],
   },
+  {
+    slug: 'non-eu-to-eu-relocation-checklist',
+    title: 'Non-EU to EU Relocation Checklist',
+    country: 'DE',
+    category: 'VISA',
+    language: 'en',
+    content: `# Non-EU to EU Relocation Checklist
+
+Use this checklist as informational guidance before relocation:
+
+- Confirm whether work authorization or residence permissions are required.
+- Verify whether a job offer is needed for your intended route.
+- Prepare qualification documents and translations where required.
+- Keep timeline buffer for legal processing and appointments.
+- Validate all requirements on official government websites.
+
+## Important
+This guide is informational only and not legal advice.`,
+    topicTags: ['visa', 'checklist', 'legal'],
+    riskTags: ['legal', 'timeline'],
+  },
+  {
+    slug: 'work-authorization-basics',
+    title: 'Work Authorization Basics',
+    country: 'DE',
+    category: 'LEGAL',
+    language: 'en',
+    content: `# Work Authorization Basics
+
+Before relocating for work:
+
+- Confirm country-specific work authorization requirements.
+- Check allowed job type, employer restrictions, and validity period.
+- Track renewal windows and dependent rights where relevant.
+
+## Important
+Always verify final conditions with official sources.`,
+    topicTags: ['work-authorization', 'legal'],
+    riskTags: ['legal'],
+  },
+  {
+    slug: 'germany-blue-card-overview',
+    title: 'Germany EU Blue Card Overview',
+    country: 'DE',
+    category: 'VISA',
+    language: 'en',
+    content: `# Germany EU Blue Card Overview
+
+The EU Blue Card is commonly described as a residence route for qualified employment in Germany.
+
+Typical conditions mentioned by official sources include:
+
+- a concrete job offer,
+- qualification alignment,
+- and salary-related thresholds.
+
+In some cases, official sources also mention special pathways for IT professionals without a traditional degree.
+
+## Important
+This overview is informational only and not an eligibility decision.`,
+    topicTags: ['germany', 'blue-card', 'visa'],
+    riskTags: ['legal'],
+  },
+  {
+    slug: 'germany-it-specialist-visa-options',
+    title: 'Germany IT Specialist Visa Options',
+    country: 'DE',
+    category: 'VISA',
+    language: 'en',
+    content: `# Germany IT Specialist Visa Options
+
+For IT roles, some official guidance mentions options that may apply even without a traditional degree.
+
+- Check whether your role and experience fit current published criteria.
+- Confirm job offer and salary conditions where required.
+- Validate documentary requirements early.
+
+## Important
+Treat this as directional guidance only and verify with official sources.`,
+    topicTags: ['germany', 'it', 'visa'],
+    riskTags: ['legal'],
+  },
+  {
+    slug: 'eu-internal-relocation-basics',
+    title: 'EU Internal Relocation Basics',
+    country: 'DE',
+    category: 'LEGAL',
+    language: 'en',
+    content: `# EU Internal Relocation Basics
+
+EU-to-EU relocation may have lower visa complexity, but practical legal steps can still apply:
+
+- local registration,
+- tax and social contribution setup,
+- residence and employment documentation.
+
+## Important
+Always confirm local administrative requirements.`,
+    topicTags: ['eu', 'relocation', 'admin'],
+    riskTags: ['legal', 'administrative'],
+  },
+  {
+    slug: 'family-relocation-basics',
+    title: 'Family Relocation Basics',
+    country: 'DE',
+    category: 'LEGAL',
+    language: 'en',
+    content: `# Family Relocation Basics
+
+Relocating with family can add legal complexity:
+
+- dependent residence rights,
+- document preparation for family members,
+- possible timing differences between principal and dependent applications.
+
+## Important
+Use official requirements as the final source of truth.`,
+    topicTags: ['family', 'dependents', 'legal'],
+    riskTags: ['legal', 'timeline'],
+  },
+  {
+    slug: 'official-visa-source-checklist',
+    title: 'Official Visa Source Checklist',
+    country: 'DE',
+    category: 'VISA',
+    language: 'en',
+    content: `# Official Visa Source Checklist
+
+When information is uncertain:
+
+- start from official government migration portals,
+- confirm requirements for your exact country pair,
+- verify update dates and legal references,
+- document the source links you rely on.
+
+## Important
+This product provides informational support and does not replace legal advice.`,
+    topicTags: ['official-sources', 'visa', 'verification'],
+    riskTags: ['legal', 'uncertainty'],
+  },
 ];
 
 const ROLE_LIST = [

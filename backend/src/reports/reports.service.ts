@@ -12,12 +12,14 @@ import {
 import { JSDOM } from 'jsdom';
 import htmlToPdfmake from 'html-to-pdfmake';
 import { AiReportEnrichmentService } from '../ai/ai-report-enrichment.service.js';
+import { LegalKnowledgeEngineService } from '../legal-readiness/legal-knowledge-engine.service.js';
 
 @Injectable()
 export class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiEnrichment: AiReportEnrichmentService,
+    private readonly legalReadinessEngine: LegalKnowledgeEngineService,
   ) {}
 
   async generateSnapshot(
@@ -276,6 +278,12 @@ export class ReportsService {
         totalVacancies: analysis.snapshot.totalVacancies,
         jobMarketNote: `${analysis.snapshot.country} market snapshot from ${analysis.snapshot.source}. ${gapText}`,
       },
+      legalReadiness: this.legalReadinessEngine.evaluate({
+        sourceCountry: analysis.profile.currentCountry,
+        targetCountry: analysis.profile.targetCountry,
+        targetCity: analysis.profile.targetCity ?? undefined,
+        desiredRole: analysis.profile.desiredRole ?? undefined,
+      }),
     };
   }
 
@@ -339,6 +347,29 @@ export class ReportsService {
       )
       .join('');
 
+    const legal = snapshot.legalReadiness;
+    const legalReasons = (legal?.triggeredRules ?? [])
+      .map((rule) => `<li>${this.escapeHtml(rule.description)}</li>`)
+      .join('');
+    const legalQuestions = (legal?.questions ?? [])
+      .map((question) => `<li>${this.escapeHtml(question.text)}</li>`)
+      .join('');
+    const legalRoutes = (legal?.possibleRoutes ?? [])
+      .map(
+        (route) =>
+          `<li><strong>${this.escapeHtml(route.title)}</strong>: ${this.escapeHtml(route.description)}</li>`,
+      )
+      .join('');
+    const legalWarnings = (legal?.warnings ?? [])
+      .map((warning) => `<li>${this.escapeHtml(warning.message)}</li>`)
+      .join('');
+    const legalAdvice = (legal?.advice ?? [])
+      .map((item) => `<li>${this.escapeHtml(item.message)}</li>`)
+      .join('');
+    const legalArticles = (legal?.recommendedArticleSlugs ?? [])
+      .map((slug) => `<li>${this.escapeHtml(slug)}</li>`)
+      .join('');
+
     return `<!doctype html>
 <html lang="en">
 <head>
@@ -390,6 +421,23 @@ export class ReportsService {
 
   <h2>Market Context</h2>
   <p>${this.escapeHtml(snapshot.marketContext.jobMarketNote)}</p>
+
+  <h2>Legal and Visa Readiness</h2>
+  <p><strong>Risk:</strong> ${legal?.overallRisk ?? 'UNKNOWN'}</p>
+  <p><strong>Visa/Legal Check Likely Required:</strong> ${legal?.visaCheckLikelyRequired ? 'Yes' : 'No'}</p>
+  <h3>Why</h3>
+  <ul>${legalReasons || '<li>No rule triggers available.</li>'}</ul>
+  <h3>Questions to Clarify</h3>
+  <ul>${legalQuestions || '<li>No additional clarification questions.</li>'}</ul>
+  <h3>Possible Routes to Check</h3>
+  <ul>${legalRoutes || '<li>No route hints available.</li>'}</ul>
+  <h3>Warnings</h3>
+  <ul>${legalWarnings || '<li>No specific warnings.</li>'}</ul>
+  <h3>Advice</h3>
+  <ul>${legalAdvice || '<li>No additional advice.</li>'}</ul>
+  <h3>Recommended Knowledge Slugs</h3>
+  <ul>${legalArticles || '<li>No recommended article slugs.</li>'}</ul>
+  <p class="muted">${this.escapeHtml(legal?.disclaimer ?? 'This section is informational guidance only and not legal advice.')}</p>
 </body>
 </html>`;
   }

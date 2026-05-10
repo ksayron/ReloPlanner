@@ -15,6 +15,7 @@ import { JobsModule } from './jobs/jobs.module.js';
 import { AiModule } from './ai/ai.module.js';
 import { ResumeModule } from './resume/resume.module.js';
 import { KnowledgeModule } from './knowledge/knowledge.module.js';
+import { LegalReadinessModule } from './legal-readiness/legal-readiness.module.js';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { KnowledgeModule } from './knowledge/knowledge.module.js';
     AiModule,
     ResumeModule,
     KnowledgeModule,
+    LegalReadinessModule,
   ],
 })
 export class AppModule {}

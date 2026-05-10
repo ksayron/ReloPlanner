@@ -18,6 +18,7 @@ import {
 } from '@mantine/core';
 import client from '../api/client';
 import JobProgressPanel from '../components/JobProgressPanel';
+import LegalReadinessCard from '../components/LegalReadinessCard';
 import type {
   AnalysisHistoryItem,
   AnalysisResult,
@@ -448,6 +449,7 @@ export default function Dashboard() {
           )}
         </Stack>
       </Card>
+      {profileId ? <LegalReadinessCard profileId={profileId} /> : null}
 
       {noResults && !result && !analyzing && <Paper withBorder radius="lg" p="xl" className="bg-white text-center"><Stack align="center"><Text>No analysis results yet.</Text><Button onClick={runAnalysis} color="brand.7">Run Analysis</Button></Stack></Paper>}
 
