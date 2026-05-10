@@ -22,8 +22,11 @@ import { Roles, RolesGuard } from './roles.guard.js';
 import { GithubAuthGuard } from './github-auth.guard.js';
 import { GithubLinkGuard } from './github-link.guard.js';
 import { GithubCallbackGuard } from './github-callback.guard.js';
+import { GoogleAuthGuard } from './google-auth.guard.js';
+import { GoogleLinkGuard } from './google-link.guard.js';
+import { GoogleCallbackGuard } from './google-callback.guard.js';
 
-type GithubCallbackGuardPayload =
+type OAuthCallbackGuardPayload =
   | { type: 'ok'; data: unknown }
   | { type: 'error'; code: string };
 
@@ -68,9 +71,48 @@ export class AuthController {
   @UseGuards(GithubCallbackGuard)
   @ApiExcludeEndpoint()
   githubCallback(@Req() req: Request, @Res() res: Response) {
+    return this.handleOAuthCallback(req, res, {
+      authCallbackRoute: '/oauth/github/callback',
+      successQueryKey: 'githubLinked',
+    });
+  }
+
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  @ApiExcludeEndpoint()
+  googleAuth() {
+    // Handled by Passport redirect.
+  }
+
+  @Get('google/link')
+  @UseGuards(AuthGuard('jwt'), GoogleLinkGuard)
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  googleLink() {
+    // Handled by Passport redirect.
+  }
+
+  @Get('google/callback')
+  @UseGuards(GoogleCallbackGuard)
+  @ApiExcludeEndpoint()
+  googleCallback(@Req() req: Request, @Res() res: Response) {
+    return this.handleOAuthCallback(req, res, {
+      authCallbackRoute: '/oauth/google/callback',
+      successQueryKey: 'googleLinked',
+    });
+  }
+
+  private handleOAuthCallback(
+    req: Request,
+    res: Response,
+    options: {
+      authCallbackRoute: '/oauth/github/callback' | '/oauth/google/callback';
+      successQueryKey: 'githubLinked' | 'googleLinked';
+    },
+  ) {
     const flow = typeof req.query?.flow === 'string' ? req.query.flow : 'auth';
-    const errorRoute = flow === 'link' ? '/settings' : '/oauth/github/callback';
-    const payload = req.user as GithubCallbackGuardPayload;
+    const errorRoute = flow === 'link' ? '/settings' : options.authCallbackRoute;
+    const payload = req.user as OAuthCallbackGuardPayload;
     if (payload?.type === 'error') {
       return res.redirect(
         this.auth.buildFrontendOAuthRedirect(errorRoute, {
@@ -104,14 +146,14 @@ export class AuthController {
     if (data.type === 'linked') {
       return res.redirect(
         this.auth.buildFrontendOAuthRedirect('/settings', {
-          githubLinked: '1',
+          [options.successQueryKey]: '1',
           returnTo: data.returnTo,
         }),
       );
     }
 
     return res.redirect(
-      this.auth.buildFrontendOAuthRedirect('/oauth/github/callback', {
+      this.auth.buildFrontendOAuthRedirect(options.authCallbackRoute, {
         code: data.exchangeCode,
         returnTo: data.returnTo,
       }),

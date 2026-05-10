@@ -36,6 +36,11 @@ export default function Login() {
     window.location.assign(`/api/auth/github?${params.toString()}`);
   };
 
+  const handleGoogleLogin = () => {
+    const params = new URLSearchParams({ returnTo: '/wizard' });
+    window.location.assign(`/api/auth/google?${params.toString()}`);
+  };
+
   return (
     <div className="mx-auto mt-8 max-w-md">
       <Paper withBorder radius="lg" p="xl" className="bg-white">
@@ -60,6 +65,15 @@ export default function Login() {
               Login
             </Button>
             <Divider label="or" labelPosition="center" />
+            <Button
+              type="button"
+              variant="light"
+              color="dark"
+              onClick={handleGoogleLogin}
+              fullWidth
+            >
+              Continue with Google
+            </Button>
             <Button
               type="button"
               variant="light"

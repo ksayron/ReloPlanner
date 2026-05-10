@@ -152,6 +152,8 @@ model User {
   passwordHash                    String?             @map("password_hash")
   githubId                        String?             @unique @map("github_id")
   githubLogin                     String?             @map("github_login")
+  googleId                        String?             @unique @map("google_id")
+  googleEmail                     String?             @map("google_email")
   emailVerifiedAt                 DateTime?           @map("email_verified_at")
   emailVerificationTokenHash      String?             @unique @map("email_verification_token_hash")
   emailVerificationTokenExpiresAt DateTime?           @map("email_verification_token_expires_at")

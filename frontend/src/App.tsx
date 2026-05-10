@@ -5,6 +5,7 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import OAuthGithubCallback from './pages/OAuthGithubCallback';
+import OAuthGoogleCallback from './pages/OAuthGoogleCallback';
 import OAuthGithubCompleteEmail from './pages/OAuthGithubCompleteEmail';
 import Settings from './pages/Settings';
 import ProfileWizard from './pages/ProfileWizard';
@@ -39,6 +40,7 @@ function AppRoutes() {
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
         <Route path="oauth/github/callback" element={<OAuthGithubCallback />} />
+        <Route path="oauth/google/callback" element={<OAuthGoogleCallback />} />
         <Route
           path="oauth/github/complete-email"
           element={<OAuthGithubCompleteEmail />}

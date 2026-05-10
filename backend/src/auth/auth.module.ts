@@ -9,6 +9,10 @@ import { GithubStrategy } from './github.strategy.js';
 import { GithubAuthGuard } from './github-auth.guard.js';
 import { GithubLinkGuard } from './github-link.guard.js';
 import { GithubCallbackGuard } from './github-callback.guard.js';
+import { GoogleStrategy } from './google.strategy.js';
+import { GoogleAuthGuard } from './google-auth.guard.js';
+import { GoogleLinkGuard } from './google-link.guard.js';
+import { GoogleCallbackGuard } from './google-callback.guard.js';
 import { RolesGuard } from './roles.guard.js';
 
 @Module({
@@ -29,6 +33,10 @@ import { RolesGuard } from './roles.guard.js';
     GithubAuthGuard,
     GithubLinkGuard,
     GithubCallbackGuard,
+    GoogleStrategy,
+    GoogleAuthGuard,
+    GoogleLinkGuard,
+    GoogleCallbackGuard,
     RolesGuard,
   ],
   controllers: [AuthController, AdminUsersController],

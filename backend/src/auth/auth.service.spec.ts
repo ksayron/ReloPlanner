@@ -386,6 +386,103 @@ describe('AuthService OAuth flow', () => {
     ).rejects.toEqual(expect.objectContaining({ code: 'oauth_identity_conflict' }));
   });
 
+  it('returns exchange code for already linked googleId', async () => {
+    prisma.user.findUnique.mockImplementation(
+      ({ where }: { where: { googleId?: string; id?: string } }) => {
+        if (where.googleId) {
+          return {
+            id: 'user-google-1',
+            email: 'google1@example.com',
+            role: 'USER',
+            googleId: 'google-1',
+            googleEmail: 'old@example.com',
+            emailVerifiedAt: null,
+          };
+        }
+        if (where.id) {
+          return {
+            id: 'user-google-1',
+            email: 'google1@example.com',
+            role: 'USER',
+          };
+        }
+        return null;
+      },
+    );
+    prisma.user.update.mockResolvedValue({
+      id: 'user-google-1',
+      email: 'google1@example.com',
+      role: 'USER',
+      googleId: 'google-1',
+      googleEmail: 'google1@example.com',
+      emailVerifiedAt: new Date(),
+    });
+
+    const state = service.createGoogleAuthState('/wizard');
+    const resolved = await service.resolveGoogleCallback(state, {
+      id: 'google-1',
+      displayName: 'Google One',
+      emails: [{ value: 'google1@example.com', verified: true }],
+    });
+
+    expect(resolved.type).toBe('exchange');
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'user-google-1' },
+        data: expect.objectContaining({
+          googleEmail: 'google1@example.com',
+        }),
+      }),
+    );
+  });
+
+  it('links google profile for authenticated user in link flow', async () => {
+    prisma.user.findUnique.mockImplementation(
+      ({ where }: { where: { id?: string; googleId?: string } }) => {
+        if (where.id === 'user-google-link') {
+          return {
+            id: 'user-google-link',
+            email: 'owner@example.com',
+            role: 'USER',
+            googleId: null,
+            googleEmail: null,
+          };
+        }
+        if (where.googleId === 'google-link') {
+          return null;
+        }
+        return null;
+      },
+    );
+    prisma.user.update.mockResolvedValue({
+      id: 'user-google-link',
+      email: 'owner@example.com',
+      role: 'USER',
+      googleId: 'google-link',
+      googleEmail: 'owner@example.com',
+    });
+
+    const state = service.createGoogleLinkState('user-google-link', '/settings');
+    const resolved = await service.resolveGoogleCallback(state, {
+      id: 'google-link',
+      emails: [{ value: 'owner@example.com', verified: true }],
+    });
+
+    expect(resolved).toEqual({
+      type: 'linked',
+      returnTo: '/settings',
+    });
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'user-google-link' },
+        data: {
+          googleId: 'google-link',
+          googleEmail: 'owner@example.com',
+        },
+      }),
+    );
+  });
+
   it('throws OAuthFlowError for unknown exchange code', async () => {
     await expect(
       service.exchangeOAuthCode({ code: 'missing-code' }),

@@ -13,6 +13,8 @@ type SettingsUser = {
   emailVerifiedAt: string | null;
   githubLinked: boolean;
   githubLogin: string | null;
+  googleLinked: boolean;
+  googleEmail: string | null;
 };
 
 function buildGithubLinkUrl() {
@@ -20,21 +22,26 @@ function buildGithubLinkUrl() {
   return `/api/auth/github/link?${params.toString()}`;
 }
 
+function buildGoogleLinkUrl() {
+  const params = new URLSearchParams({ returnTo: '/settings' });
+  return `/api/auth/google/link?${params.toString()}`;
+}
+
 function mapOAuthError(code: string | null) {
   if (!code) return null;
   if (code === 'oauth_identity_conflict') {
-    return 'This GitHub account is already linked to another user.';
+    return 'This OAuth account is already linked to another user.';
   }
   if (code === 'oauth_invalid_state') {
-    return 'GitHub link session expired. Please try again.';
+    return 'OAuth link session expired. Please try again.';
   }
   if (code === 'oauth_provider_failure') {
-    return 'GitHub OAuth failed. Please retry.';
+    return 'OAuth flow failed. Please retry.';
   }
   if (code === 'email_verify_invalid') {
     return 'Email verification link is invalid or expired. Request a new one.';
   }
-  return 'GitHub linking failed.';
+  return 'OAuth linking failed.';
 }
 
 export default function Settings() {
@@ -47,6 +54,7 @@ export default function Settings() {
   const [resendInfo, setResendInfo] = useState<string | null>(null);
 
   const successLinked = searchParams.get('githubLinked') === '1';
+  const successGoogleLinked = searchParams.get('googleLinked') === '1';
   const successEmailVerified = searchParams.get('emailVerified') === '1';
   const oauthError = mapOAuthError(searchParams.get('error'));
 
@@ -66,9 +74,11 @@ export default function Settings() {
           emailVerifiedAt: null,
           githubLinked: false,
           githubLogin: null,
+          googleLinked: false,
+          googleEmail: null,
         });
         setLoadError(
-          'Backend /auth/me endpoint is unavailable. Restart backend to see current GitHub link status.',
+          'Backend /auth/me endpoint is unavailable. Restart backend to see current OAuth link status.',
         );
       } else {
         setLoadError('Failed to load settings.');
@@ -127,8 +137,23 @@ export default function Settings() {
     );
   }, [user]);
 
+  const googleStatus = useMemo(() => {
+    if (!user?.googleLinked) {
+      return <Badge color="gray">Not linked</Badge>;
+    }
+    return (
+      <Badge color="teal">
+        Linked{user.googleEmail ? ` (${user.googleEmail})` : ''}
+      </Badge>
+    );
+  }, [user]);
+
   const handleLinkGithub = () => {
     window.location.assign(buildGithubLinkUrl());
+  };
+
+  const handleLinkGoogle = () => {
+    window.location.assign(buildGoogleLinkUrl());
   };
 
   return (
@@ -138,6 +163,9 @@ export default function Settings() {
 
         {successLinked && (
           <Alert color="teal">GitHub profile linked successfully.</Alert>
+        )}
+        {successGoogleLinked && (
+          <Alert color="teal">Google profile linked successfully.</Alert>
         )}
         {successEmailVerified && (
           <Alert color="teal">Email verified successfully.</Alert>
@@ -179,6 +207,24 @@ export default function Settings() {
               onClick={handleLinkGithub}
             >
               {user?.githubLinked ? 'Relink GitHub Profile' : 'Link GitHub Profile'}
+            </Button>
+          </Stack>
+        </Paper>
+
+        <Paper withBorder radius="lg" p="xl" className="bg-white">
+          <Stack gap="md">
+            <Title order={4}>Google Integration</Title>
+            <Text size="sm" c="dimmed">
+              Link your Google profile to support Google-based login and future
+              account signals.
+            </Text>
+            {loading ? <Text size="sm">Loading...</Text> : googleStatus}
+            <Button
+              color="brand.7"
+              variant={user?.googleLinked ? 'light' : 'filled'}
+              onClick={handleLinkGoogle}
+            >
+              {user?.googleLinked ? 'Relink Google Profile' : 'Link Google Profile'}
             </Button>
           </Stack>
         </Paper>

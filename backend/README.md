@@ -93,6 +93,18 @@ Behavior:
 - `POST /api/auth/email/resend-verification` (JWT) resends verification for unverified users.
 - If SMTP is not configured, registration still works and verification email send is skipped.
 
+## OAuth Providers
+
+GitHub:
+- `GITHUB_OAUTH_CLIENT_ID`
+- `GITHUB_OAUTH_CLIENT_SECRET`
+- `GITHUB_OAUTH_CALLBACK_URL` (default `http://localhost:3000/api/auth/github/callback`)
+
+Google:
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_CALLBACK_URL` (default `http://localhost:3000/api/auth/google/callback`)
+
 ## Scoring Tuning Config
 
 Scoring multipliers and thresholds are centrally configured and validated on startup. Defaults preserve current behavior; optional env overrides:

@@ -67,6 +67,12 @@ export type GithubProfileLike = {
   emails?: GithubProfileEmail[];
 };
 
+export type GoogleProfileLike = {
+  id: string;
+  displayName?: string;
+  emails?: GithubProfileEmail[];
+};
+
 export type GithubCallbackResolution =
   | {
       type: 'exchange';
@@ -92,7 +98,9 @@ export class AuthService {
   private readonly frontendBaseUrl: string;
   private readonly backendBaseUrl: string;
   private readonly githubOauthEnabled: boolean;
+  private readonly googleOauthEnabled: boolean;
   private readonly githubCallbackUrl: string;
+  private readonly googleCallbackUrl: string;
   private readonly smtpFrom: string | null;
   private readonly mailTransporter: Transporter | null;
 
@@ -104,6 +112,9 @@ export class AuthService {
     const githubClientId = this.config.get<string>('GITHUB_OAUTH_CLIENT_ID') ?? '';
     const githubClientSecret =
       this.config.get<string>('GITHUB_OAUTH_CLIENT_SECRET') ?? '';
+    const googleClientId = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID') ?? '';
+    const googleClientSecret =
+      this.config.get<string>('GOOGLE_OAUTH_CLIENT_SECRET') ?? '';
     this.frontendBaseUrl = (
       this.config.get<string>('FRONTEND_BASE_URL') ?? 'http://localhost:5173'
     ).replace(/\/+$/, '');
@@ -113,8 +124,14 @@ export class AuthService {
     this.githubCallbackUrl =
       this.config.get<string>('GITHUB_OAUTH_CALLBACK_URL') ??
       'http://localhost:3000/api/auth/github/callback';
+    this.googleCallbackUrl =
+      this.config.get<string>('GOOGLE_OAUTH_CALLBACK_URL') ??
+      'http://localhost:3000/api/auth/google/callback';
     this.githubOauthEnabled = Boolean(
       githubClientId.trim() && githubClientSecret.trim(),
+    );
+    this.googleOauthEnabled = Boolean(
+      googleClientId.trim() && googleClientSecret.trim(),
     );
 
     const smtpHost = (this.config.get<string>('SMTP_HOST') ?? '').trim();
@@ -216,12 +233,49 @@ export class AuthService {
     return state;
   }
 
+  createGoogleAuthState(returnTo: string | undefined) {
+    this.cleanupOAuthStores();
+    const state = this.generateToken();
+    this.oauthStates.set(state, {
+      returnTo: this.sanitizeReturnTo(returnTo),
+      mode: 'auth',
+      expiresAt: Date.now() + OAUTH_STATE_TTL_MS,
+    });
+    return state;
+  }
+
+  createGoogleLinkState(userId: string, returnTo: string | undefined) {
+    this.cleanupOAuthStores();
+    const state = this.generateToken();
+    this.oauthStates.set(state, {
+      returnTo: this.sanitizeReturnTo(returnTo ?? '/settings'),
+      mode: 'link',
+      userId,
+      expiresAt: Date.now() + OAUTH_STATE_TTL_MS,
+    });
+    return state;
+  }
+
   isGithubOAuthEnabled() {
     return this.githubOauthEnabled;
   }
 
+  isGoogleOAuthEnabled() {
+    return this.googleOauthEnabled;
+  }
+
   getGithubCallbackUrl(flow: 'auth' | 'link') {
     const url = new URL(this.githubCallbackUrl);
+    if (flow === 'link') {
+      url.searchParams.set('flow', 'link');
+    } else {
+      url.searchParams.delete('flow');
+    }
+    return url.toString();
+  }
+
+  getGoogleCallbackUrl(flow: 'auth' | 'link') {
+    const url = new URL(this.googleCallbackUrl);
     if (flow === 'link') {
       url.searchParams.set('flow', 'link');
     } else {
@@ -260,7 +314,7 @@ export class AuthService {
       );
     }
 
-    const providerEmail = this.pickGithubEmail(profile.emails);
+    const providerEmail = this.pickProviderEmail(profile.emails);
 
     const byGithubId = await this.prisma.user.findUnique({
       where: { githubId },
@@ -350,6 +404,110 @@ export class AuthService {
     };
   }
 
+  async resolveGoogleCallback(
+    state: string | undefined,
+    profile: GoogleProfileLike,
+  ): Promise<GithubCallbackResolution> {
+    this.cleanupOAuthStores();
+    const stateRecord = this.consumeOAuthState(state);
+
+    if (!stateRecord) {
+      throw new OAuthFlowError('oauth_invalid_state');
+    }
+
+    const returnTo = stateRecord.returnTo;
+    const googleId = String(profile.id ?? '').trim();
+    if (!googleId) {
+      throw new OAuthFlowError('oauth_provider_failure');
+    }
+
+    const providerEmail = this.pickProviderEmail(profile.emails);
+    if (!providerEmail) {
+      throw new OAuthFlowError('oauth_provider_failure');
+    }
+
+    if (stateRecord.mode === 'link') {
+      return this.resolveGoogleLinkCallback(
+        stateRecord.userId,
+        returnTo,
+        googleId,
+        providerEmail.email,
+      );
+    }
+
+    const byGoogleId = await this.prisma.user.findUnique({
+      where: { googleId },
+    });
+
+    if (byGoogleId) {
+      const updateData: {
+        googleEmail?: string;
+        emailVerifiedAt?: Date;
+      } = {};
+      if (byGoogleId.googleEmail !== providerEmail.email) {
+        updateData.googleEmail = providerEmail.email;
+      }
+      if (providerEmail.verified && !byGoogleId.emailVerifiedAt) {
+        updateData.emailVerifiedAt = new Date();
+      }
+      if (Object.keys(updateData).length > 0) {
+        await this.prisma.user.update({
+          where: { id: byGoogleId.id },
+          data: updateData,
+        });
+      }
+
+      return {
+        type: 'exchange',
+        exchangeCode: this.createOAuthExchangeCode(byGoogleId.id),
+        returnTo,
+      };
+    }
+
+    const byEmail = await this.prisma.user.findUnique({
+      where: { email: providerEmail.email },
+    });
+
+    if (byEmail) {
+      if (byEmail.googleId && byEmail.googleId !== googleId) {
+        throw new OAuthFlowError('oauth_identity_conflict');
+      }
+      const linked = await this.prisma.user.update({
+        where: { id: byEmail.id },
+        data: {
+          googleId,
+          googleEmail: providerEmail.email,
+          emailVerifiedAt:
+            providerEmail.verified && !byEmail.emailVerifiedAt
+              ? new Date()
+              : byEmail.emailVerifiedAt,
+        },
+      });
+
+      return {
+        type: 'exchange',
+        exchangeCode: this.createOAuthExchangeCode(linked.id),
+        returnTo,
+      };
+    }
+
+    const created = await this.prisma.user.create({
+      data: {
+        email: providerEmail.email,
+        passwordHash: null,
+        googleId,
+        googleEmail: providerEmail.email,
+        emailVerifiedAt: providerEmail.verified ? new Date() : null,
+      },
+    });
+
+    return {
+      type: 'exchange',
+      exchangeCode: this.createOAuthExchangeCode(created.id),
+      returnTo,
+    };
+  }
+
   private async resolveGithubLinkCallback(
     userId: string | undefined,
     returnTo: string,
@@ -383,6 +541,50 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: currentUser.id },
       data: { githubId, githubLogin },
+    });
+
+    return {
+      type: 'linked',
+      returnTo,
+    };
+  }
+
+  private async resolveGoogleLinkCallback(
+    userId: string | undefined,
+    returnTo: string,
+    googleId: string,
+    googleEmail: string,
+  ): Promise<GithubCallbackResolution> {
+    if (!userId) {
+      throw new OAuthFlowError('oauth_invalid_state');
+    }
+
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!currentUser) {
+      throw new OAuthFlowError('oauth_invalid_state');
+    }
+
+    const linkedUser = await this.prisma.user.findUnique({
+      where: { googleId },
+    });
+
+    if (linkedUser && linkedUser.id !== currentUser.id) {
+      throw new OAuthFlowError('oauth_identity_conflict');
+    }
+
+    if (currentUser.googleId && currentUser.googleId !== googleId) {
+      throw new OAuthFlowError('oauth_identity_conflict');
+    }
+
+    await this.prisma.user.update({
+      where: { id: currentUser.id },
+      data: {
+        googleId,
+        googleEmail,
+      },
     });
 
     return {
@@ -558,6 +760,7 @@ export class AuthService {
   buildFrontendOAuthRedirect(
     route:
       | '/oauth/github/callback'
+      | '/oauth/google/callback'
       | '/oauth/github/complete-email'
       | '/settings',
     params: Record<string, string | undefined>,
@@ -582,6 +785,8 @@ export class AuthService {
         role: true,
         githubId: true,
         githubLogin: true,
+        googleId: true,
+        googleEmail: true,
         emailVerifiedAt: true,
       },
     });
@@ -596,6 +801,8 @@ export class AuthService {
       role: user.role,
       githubLinked: Boolean(user.githubId),
       githubLogin: user.githubLogin,
+      googleLinked: Boolean(user.googleId),
+      googleEmail: user.googleEmail,
       emailVerified: Boolean(user.emailVerifiedAt),
       emailVerifiedAt: user.emailVerifiedAt,
     };
@@ -610,6 +817,8 @@ export class AuthService {
         role: true,
         githubId: true,
         githubLogin: true,
+        googleId: true,
+        googleEmail: true,
         emailVerifiedAt: true,
         createdAt: true,
       },
@@ -693,7 +902,7 @@ export class AuthService {
     return trimmed.length > 0 ? trimmed : null;
   }
 
-  private pickGithubEmail(emails: GithubProfileEmail[] | undefined) {
+  private pickProviderEmail(emails: GithubProfileEmail[] | undefined) {
     if (!emails || emails.length === 0) {
       return null;
     }
