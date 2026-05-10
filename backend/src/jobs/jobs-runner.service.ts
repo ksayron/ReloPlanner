@@ -4,6 +4,8 @@ import { JobsEventBusService } from './jobs-event-bus.service.js';
 import { MarketSyncService } from '../market/market-sync.service.js';
 import { ReportsService } from '../reports/reports.service.js';
 import { ReportVariant } from '../reports/reports.types.js';
+import { ResumeTextExtractionResult } from '../resume/resume.types.js';
+import { ResumeProfileDraftService } from '../resume/resume-profile-draft.service.js';
 
 @Injectable()
 export class JobsRunnerService {
@@ -12,6 +14,7 @@ export class JobsRunnerService {
     private readonly jobsEventBus: JobsEventBusService,
     private readonly marketSyncService: MarketSyncService,
     private readonly reportsService: ReportsService,
+    private readonly resumeProfileDraftService: ResumeProfileDraftService,
   ) {}
 
   runProfileAnalysisJob(jobId: string, profileId: string, userId: string) {
@@ -30,6 +33,14 @@ export class JobsRunnerService {
     format: 'json' | 'html' | 'pdf',
   ) {
     void this.executeReportGenerationJob(jobId, analysisId, userId, variant, format);
+  }
+
+  runResumeProfileParseJob(
+    jobId: string,
+    userId: string,
+    extracted: ResumeTextExtractionResult,
+  ) {
+    void this.executeResumeProfileParseJob(jobId, userId, extracted);
   }
 
   private async executeProfileAnalysisJob(jobId: string, profileId: string, userId: string) {
@@ -204,6 +215,80 @@ export class JobsRunnerService {
             format === 'json'
               ? `/api/reports/analyses/${analysisId}?variant=${variant}`
               : `/api/reports/analyses/${analysisId}/${format}?variant=${variant}`,
+        },
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.jobsEventBus.emit({
+        type: 'JOB_FAILED',
+        jobId,
+        step: lastStep,
+        progressPercent: lastProgress,
+        errorMessage: message,
+      });
+    }
+  }
+
+  private async executeResumeProfileParseJob(
+    jobId: string,
+    userId: string,
+    extracted: ResumeTextExtractionResult,
+  ) {
+    let lastStep = 'QUEUED';
+    let lastProgress = 0;
+
+    this.jobsEventBus.emit({
+      type: 'JOB_STARTED',
+      jobId,
+      step: 'STARTED',
+      progressPercent: 1,
+    });
+
+    try {
+      lastStep = 'FILE_PARSED';
+      lastProgress = 25;
+      this.jobsEventBus.emit({
+        type: 'JOB_PROGRESS',
+        jobId,
+        step: 'FILE_PARSED',
+        progressPercent: 25,
+      });
+
+      lastStep = 'AI_EXTRACTION';
+      lastProgress = 55;
+      this.jobsEventBus.emit({
+        type: 'JOB_PROGRESS',
+        jobId,
+        step: 'AI_EXTRACTION',
+        progressPercent: 55,
+      });
+
+      const draft = await this.resumeProfileDraftService.parseToProfileDraft(
+        extracted.text,
+      );
+
+      lastStep = 'MAPPING_TO_QUESTIONNAIRE';
+      lastProgress = 82;
+      this.jobsEventBus.emit({
+        type: 'JOB_PROGRESS',
+        jobId,
+        step: 'MAPPING_TO_QUESTIONNAIRE',
+        progressPercent: 82,
+      });
+
+      this.jobsEventBus.emit({
+        type: 'JOB_COMPLETED',
+        jobId,
+        step: 'COMPLETED',
+        progressPercent: 100,
+        result: {
+          userId,
+          extracted: {
+            fileName: extracted.fileName,
+            format: extracted.format,
+            characterCount: extracted.characterCount,
+          },
+          draft,
         },
       });
     } catch (error: unknown) {

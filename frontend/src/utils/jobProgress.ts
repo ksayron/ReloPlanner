@@ -16,6 +16,9 @@ export const defaultJobStepLabel: Record<string, string> = {
   SAVE_RESULTS: 'Save analysis result',
   BUILDING_SNAPSHOT: 'Build report snapshot',
   ARTIFACT_READY: 'Prepare export artifact',
+  FILE_PARSED: 'File parsed',
+  AI_EXTRACTION: 'AI extraction',
+  MAPPING_TO_QUESTIONNAIRE: 'Map to questionnaire',
   COMPLETED: 'Completed',
 };
 

@@ -201,7 +201,11 @@ export interface CountriesCatalog {
   source: CountryOption[];
 }
 
-export type ProcessingJobType = 'PROFILE_ANALYSIS' | 'MARKET_SYNC' | 'REPORT_GENERATION';
+export type ProcessingJobType =
+  | 'PROFILE_ANALYSIS'
+  | 'MARKET_SYNC'
+  | 'REPORT_GENERATION'
+  | 'RESUME_PROFILE_PARSE';
 export type ProcessingJobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
 export interface ProcessingJobSnapshot {
@@ -217,6 +221,30 @@ export interface ProcessingJobSnapshot {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ResumeDraftField<T> {
+  value: T | null;
+  confidence: number;
+}
+
+export interface ResumeMappedCompetency {
+  competencyId: string;
+  competencyName: string;
+  competencyType: CompetencyType;
+  confidence: number;
+  hardSkillLevel?: HardSkillLevel;
+  languageLevel?: LanguageLevel;
+  certificationStatus?: CertificationStatus;
+}
+
+export interface ResumeProfileDraft {
+  desiredRole: ResumeDraftField<string>;
+  yearsExperience: ResumeDraftField<number>;
+  currentCountry: ResumeDraftField<string>;
+  competencies: ResumeMappedCompetency[];
+  unmatchedSkills: Array<{ name: string; confidence: number }>;
+  overallConfidence: number;
 }
 
 export interface JobPosting {

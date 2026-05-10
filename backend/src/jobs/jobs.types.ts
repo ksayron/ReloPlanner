@@ -1,4 +1,8 @@
-export type ProcessingJobType = 'PROFILE_ANALYSIS' | 'MARKET_SYNC' | 'REPORT_GENERATION';
+export type ProcessingJobType =
+  | 'PROFILE_ANALYSIS'
+  | 'MARKET_SYNC'
+  | 'REPORT_GENERATION'
+  | 'RESUME_PROFILE_PARSE';
 
 export type ProcessingJobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
