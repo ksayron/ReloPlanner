@@ -2,6 +2,14 @@ export type Role = 'USER' | 'PREMIUM' | 'ADMIN';
 export type GapStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 export type SkillCategory = 'HARD_SKILL' | 'LANGUAGE' | 'CERTIFICATION' | 'SOFT_SKILL';
 export type CostCategory = 'RENT' | 'FOOD' | 'TRANSPORT' | 'UTILITIES' | 'OTHER';
+export type KnowledgeCategory =
+  | 'VISA'
+  | 'LEGAL'
+  | 'COST'
+  | 'JOB'
+  | 'CV'
+  | 'LANGUAGE'
+  | 'HOUSING';
 
 export type CompetencyType =
   | 'HARD_SKILL'
@@ -188,6 +196,40 @@ export interface CostComparison {
   city1: string;
   city2: string;
   comparison: { category: CostCategory; city1Amount: number; city2Amount: number }[];
+}
+
+export interface KnowledgeArticleListItem {
+  slug: string;
+  title: string;
+  country: string;
+  category: KnowledgeCategory;
+  language: string;
+  excerpt: string;
+  topicTags: string[];
+  riskTags: string[];
+  updatedAt: string;
+}
+
+export interface KnowledgeArticleDetail {
+  slug: string;
+  title: string;
+  country: string;
+  category: KnowledgeCategory;
+  language: string;
+  content: string;
+  topicTags: string[];
+  riskTags: string[];
+  updatedAt: string;
+}
+
+export interface KnowledgeListResponse {
+  items: KnowledgeArticleListItem[];
+  filters: {
+    country: string | null;
+    category: KnowledgeCategory | null;
+    language: string;
+  };
+  total: number;
 }
 
 export interface CountryOption {

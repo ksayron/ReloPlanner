@@ -44,6 +44,9 @@ export default function Layout() {
               <Anchor component={RouterLink} to="/cost-of-living" className={linkClass} underline="never">
                 Cost of Living
               </Anchor>
+              <Anchor component={RouterLink} to="/knowledge" className={linkClass} underline="never">
+                Knowledge Base
+              </Anchor>
               {user && (
                 <>
                   <Anchor component={RouterLink} to="/profiles" className={linkClass} underline="never">
@@ -98,6 +101,7 @@ export default function Layout() {
       <Drawer opened={opened} onClose={close} title="Navigation" padding="md" size="xs" hiddenFrom="md">
         <Stack gap="sm">
           <Anchor component={RouterLink} to="/cost-of-living" underline="never" onClick={close}>Cost of Living</Anchor>
+          <Anchor component={RouterLink} to="/knowledge" underline="never" onClick={close}>Knowledge Base</Anchor>
           {user && (
             <>
               <Anchor component={RouterLink} to="/profiles" underline="never" onClick={close}>My Profiles</Anchor>

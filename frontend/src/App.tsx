@@ -9,6 +9,8 @@ import Dashboard from './pages/Dashboard';
 import ProgressTracker from './pages/ProgressTracker';
 import CostOfLiving from './pages/CostOfLiving';
 import Profiles from './pages/Profiles';
+import KnowledgeList from './pages/KnowledgeList';
+import KnowledgeArticle from './pages/KnowledgeArticle';
 import TaxonomyManager from './pages/admin/TaxonomyManager';
 import MarketImport from './pages/admin/MarketImport';
 import UserList from './pages/admin/UserList';
@@ -33,6 +35,8 @@ function AppRoutes() {
         <Route index element={<Landing />} />
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
+        <Route path="knowledge" element={<KnowledgeList />} />
+        <Route path="knowledge/:slug" element={<KnowledgeArticle />} />
         <Route path="profiles" element={<ProtectedRoute><Profiles /></ProtectedRoute>} />
         <Route path="wizard" element={<ProtectedRoute><ProfileWizard /></ProtectedRoute>} />
         <Route path="dashboard/:profileId" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

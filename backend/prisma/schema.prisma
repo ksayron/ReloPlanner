@@ -122,6 +122,16 @@ enum CostCategory {
   OTHER
 }
 
+enum KnowledgeCategory {
+  VISA
+  LEGAL
+  COST
+  JOB
+  CV
+  LANGUAGE
+  HOUSING
+}
+
 enum ProcessingJobType {
   PROFILE_ANALYSIS
   MARKET_SYNC
@@ -465,4 +475,22 @@ model JobPosting {
   updatedAt          DateTime @updatedAt @map("updated_at")
   @@index([countryCode, roleName, createdAt])
   @@map("job_postings")
+}
+
+model KnowledgeArticle {
+  id        String            @id @default(uuid())
+  slug      String
+  title     String
+  country   String
+  category  KnowledgeCategory
+  language  String            @default("en")
+  content   String
+  topicTags String[]          @default([])
+  riskTags  String[]          @default([])
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  @@unique([slug, language])
+  @@index([country, category, language])
+  @@index([updatedAt(sort: Desc)])
+  @@map("knowledge_articles")
 }
