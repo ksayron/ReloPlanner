@@ -5,6 +5,10 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service.js';
 import { AdminUsersController, AuthController } from './auth.controller.js';
 import { JwtStrategy } from './jwt.strategy.js';
+import { GithubStrategy } from './github.strategy.js';
+import { GithubAuthGuard } from './github-auth.guard.js';
+import { GithubLinkGuard } from './github-link.guard.js';
+import { GithubCallbackGuard } from './github-callback.guard.js';
 import { RolesGuard } from './roles.guard.js';
 
 @Module({
@@ -18,7 +22,15 @@ import { RolesGuard } from './roles.guard.js';
       }),
     }),
   ],
-  providers: [AuthService, JwtStrategy, RolesGuard],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    GithubStrategy,
+    GithubAuthGuard,
+    GithubLinkGuard,
+    GithubCallbackGuard,
+    RolesGuard,
+  ],
   controllers: [AuthController, AdminUsersController],
   exports: [RolesGuard],
 })

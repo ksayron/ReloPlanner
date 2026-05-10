@@ -16,6 +16,17 @@ services:
       DATABASE_URL: postgresql://reloplanner:reloplanner_dev@postgres:5432/reloplanner
       JWT_SECRET: dev-secret-change-in-production
       PORT: 3000
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost}
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:-http://localhost:3000}
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL:-http://localhost/api/auth/github/callback}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       ADZUNA_APP_ID: ${ADZUNA_APP_ID:-your_app_id}
       ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-your_app_key}
     ports:

@@ -1,4 +1,4 @@
-﻿import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   AppShell,
   Anchor,
@@ -7,6 +7,7 @@ import {
   Divider,
   Drawer,
   Group,
+  Menu,
   Stack,
   Text,
   Title,
@@ -15,12 +16,11 @@ import { useDisclosure } from '@mantine/hooks';
 import { useAuth } from '../api/AuthContext';
 
 const linkClass = 'text-slate-700 hover:text-slate-900';
-const adminLinkClass = 'text-[var(--app-accent)] hover:text-[#316684]';
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [opened, { open, close }] = useDisclosure(false);
+  const [opened, { toggle, close }] = useDisclosure(false);
 
   const handleLogout = () => {
     logout();
@@ -30,46 +30,61 @@ export default function Layout() {
 
   return (
     <>
-      <AppShell header={{ height: 72 }} padding="md" className="min-h-screen bg-[var(--app-bg)]">
+      <AppShell
+        header={{ height: 72 }}
+        padding="md"
+        className="min-h-screen bg-[var(--app-bg)]"
+      >
         <AppShell.Header className="border-b border-slate-200 bg-white/95">
           <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between px-4">
             <Group gap="md">
-              <Burger opened={opened} onClick={open} hiddenFrom="md" size="sm" />
+              <Burger
+                opened={opened}
+                onClick={toggle}
+                size="sm"
+                aria-label="Open navigation menu"
+              />
               <Anchor component={RouterLink} to="/" underline="never">
-                <Title order={3} c="brand.7">ReloPlanner</Title>
+                <Title order={3} c="brand.7">
+                  ReloPlanner
+                </Title>
               </Anchor>
             </Group>
 
             <Group gap="lg" visibleFrom="md">
-              <Anchor component={RouterLink} to="/cost-of-living" className={linkClass} underline="never">
+              <Anchor
+                component={RouterLink}
+                to="/cost-of-living"
+                className={linkClass}
+                underline="never"
+              >
                 Cost of Living
               </Anchor>
-              <Anchor component={RouterLink} to="/knowledge" className={linkClass} underline="never">
+              <Anchor
+                component={RouterLink}
+                to="/knowledge"
+                className={linkClass}
+                underline="never"
+              >
                 Knowledge Base
               </Anchor>
               {user && (
                 <>
-                  <Anchor component={RouterLink} to="/profiles" className={linkClass} underline="never">
+                  <Anchor
+                    component={RouterLink}
+                    to="/profiles"
+                    className={linkClass}
+                    underline="never"
+                  >
                     My Profiles
                   </Anchor>
-                  <Anchor component={RouterLink} to="/wizard" className={linkClass} underline="never">
+                  <Anchor
+                    component={RouterLink}
+                    to="/wizard"
+                    className={linkClass}
+                    underline="never"
+                  >
                     New Profile
-                  </Anchor>
-                </>
-              )}
-              {user?.role === 'ADMIN' && (
-                <>
-                  <Anchor component={RouterLink} to="/admin/taxonomy" className={adminLinkClass} underline="never">
-                    Taxonomy
-                  </Anchor>
-                  <Anchor component={RouterLink} to="/admin/market" className={adminLinkClass} underline="never">
-                    Market
-                  </Anchor>
-                  <Anchor component={RouterLink} to="/admin/users" className={adminLinkClass} underline="never">
-                    Users
-                  </Anchor>
-                  <Anchor component={RouterLink} to="/admin/sync" className={adminLinkClass} underline="never">
-                    Sync
                   </Anchor>
                 </>
               )}
@@ -77,14 +92,37 @@ export default function Layout() {
 
             <Group gap="sm" visibleFrom="md">
               {user ? (
-                <>
-                  <Text c="dimmed" size="sm">{user.email}</Text>
-                  <Button variant="filled" color="brand.7" onClick={handleLogout}>Logout</Button>
-                </>
+                <Menu width={220} shadow="md" position="bottom-end">
+                  <Menu.Target>
+                    <Button variant="subtle" color="gray">
+                      {user.email}
+                    </Button>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Label>Account</Menu.Label>
+                    <Menu.Item component={RouterLink} to="/settings">
+                      Settings
+                    </Menu.Item>
+                    <Menu.Item disabled>More options soon</Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Item color="red" onClick={handleLogout}>
+                      Logout
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
               ) : (
                 <>
-                  <Button component={RouterLink} to="/login" variant="subtle" color="brand.7">Login</Button>
-                  <Button component={RouterLink} to="/register" color="brand.7">Register</Button>
+                  <Button
+                    component={RouterLink}
+                    to="/login"
+                    variant="subtle"
+                    color="brand.7"
+                  >
+                    Login
+                  </Button>
+                  <Button component={RouterLink} to="/register" color="brand.7">
+                    Register
+                  </Button>
                 </>
               )}
             </Group>
@@ -98,35 +136,128 @@ export default function Layout() {
         </AppShell.Main>
       </AppShell>
 
-      <Drawer opened={opened} onClose={close} title="Navigation" padding="md" size="xs" hiddenFrom="md">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Navigation"
+        padding="md"
+        size="xs"
+        position="left"
+      >
         <Stack gap="sm">
-          <Anchor component={RouterLink} to="/cost-of-living" underline="never" onClick={close}>Cost of Living</Anchor>
-          <Anchor component={RouterLink} to="/knowledge" underline="never" onClick={close}>Knowledge Base</Anchor>
+          <Anchor
+            component={RouterLink}
+            to="/cost-of-living"
+            underline="never"
+            onClick={close}
+          >
+            Cost of Living
+          </Anchor>
+          <Anchor
+            component={RouterLink}
+            to="/knowledge"
+            underline="never"
+            onClick={close}
+          >
+            Knowledge Base
+          </Anchor>
           {user && (
             <>
-              <Anchor component={RouterLink} to="/profiles" underline="never" onClick={close}>My Profiles</Anchor>
-              <Anchor component={RouterLink} to="/wizard" underline="never" onClick={close}>New Profile</Anchor>
+              <Anchor
+                component={RouterLink}
+                to="/profiles"
+                underline="never"
+                onClick={close}
+              >
+                My Profiles
+              </Anchor>
+              <Anchor
+                component={RouterLink}
+                to="/wizard"
+                underline="never"
+                onClick={close}
+              >
+                New Profile
+              </Anchor>
+              <Anchor
+                component={RouterLink}
+                to="/settings"
+                underline="never"
+                onClick={close}
+              >
+                Settings
+              </Anchor>
             </>
           )}
           {user?.role === 'ADMIN' && (
             <>
               <Divider />
-              <Anchor component={RouterLink} to="/admin/taxonomy" underline="never" onClick={close}>Taxonomy</Anchor>
-              <Anchor component={RouterLink} to="/admin/market" underline="never" onClick={close}>Market</Anchor>
-              <Anchor component={RouterLink} to="/admin/users" underline="never" onClick={close}>Users</Anchor>
-              <Anchor component={RouterLink} to="/admin/sync" underline="never" onClick={close}>Sync</Anchor>
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+                Admin Panel
+              </Text>
+              <Anchor
+                component={RouterLink}
+                to="/admin/taxonomy"
+                underline="never"
+                onClick={close}
+              >
+                Taxonomy
+              </Anchor>
+              <Anchor
+                component={RouterLink}
+                to="/admin/market"
+                underline="never"
+                onClick={close}
+              >
+                Market
+              </Anchor>
+              <Anchor
+                component={RouterLink}
+                to="/admin/users"
+                underline="never"
+                onClick={close}
+              >
+                Users
+              </Anchor>
+              <Anchor
+                component={RouterLink}
+                to="/admin/sync"
+                underline="never"
+                onClick={close}
+              >
+                Sync
+              </Anchor>
             </>
           )}
           <Divider />
           {user ? (
             <>
-              <Text size="sm" c="dimmed">{user.email}</Text>
-              <Button color="brand.7" onClick={handleLogout}>Logout</Button>
+              <Text size="sm" c="dimmed">
+                {user.email}
+              </Text>
+              <Button color="brand.7" onClick={handleLogout}>
+                Logout
+              </Button>
             </>
           ) : (
             <Group grow>
-              <Button component={RouterLink} to="/login" variant="light" color="brand.7" onClick={close}>Login</Button>
-              <Button component={RouterLink} to="/register" color="brand.7" onClick={close}>Register</Button>
+              <Button
+                component={RouterLink}
+                to="/login"
+                variant="light"
+                color="brand.7"
+                onClick={close}
+              >
+                Login
+              </Button>
+              <Button
+                component={RouterLink}
+                to="/register"
+                color="brand.7"
+                onClick={close}
+              >
+                Register
+              </Button>
             </Group>
           )}
         </Stack>

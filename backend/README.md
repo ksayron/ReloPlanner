@@ -73,6 +73,26 @@ $ npx ts-node prisma/seed.ts
 $ npm run test:e2e
 ```
 
+## Email Verification + SMTP
+
+Email verification is now enabled for email/password registration flows.
+
+Required/optional environment variables:
+- `FRONTEND_BASE_URL` (default `http://localhost:5173`) used for redirecting verification results to settings.
+- `BACKEND_BASE_URL` (default `http://localhost:3000`) used to build verification links in email.
+- `SMTP_HOST`
+- `SMTP_PORT` (default `587`)
+- `SMTP_SECURE` (`true` for SSL, `false` for STARTTLS/plain)
+- `SMTP_USER` (optional if relay allows unauthenticated submission)
+- `SMTP_PASS` (optional if relay allows unauthenticated submission)
+- `SMTP_FROM` (required for sending emails)
+
+Behavior:
+- On register, backend creates a verification token and attempts to send a link.
+- `GET /api/auth/verify-email?token=...` validates token and redirects to `/settings`.
+- `POST /api/auth/email/resend-verification` (JWT) resends verification for unverified users.
+- If SMTP is not configured, registration still works and verification email send is skipped.
+
 ## Scoring Tuning Config
 
 Scoring multipliers and thresholds are centrally configured and validated on startup. Defaults preserve current behavior; optional env overrides:

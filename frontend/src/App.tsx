@@ -4,6 +4,9 @@ import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import OAuthGithubCallback from './pages/OAuthGithubCallback';
+import OAuthGithubCompleteEmail from './pages/OAuthGithubCompleteEmail';
+import Settings from './pages/Settings';
 import ProfileWizard from './pages/ProfileWizard';
 import Dashboard from './pages/Dashboard';
 import ProgressTracker from './pages/ProgressTracker';
@@ -35,8 +38,14 @@ function AppRoutes() {
         <Route index element={<Landing />} />
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
+        <Route path="oauth/github/callback" element={<OAuthGithubCallback />} />
+        <Route
+          path="oauth/github/complete-email"
+          element={<OAuthGithubCompleteEmail />}
+        />
         <Route path="knowledge" element={<KnowledgeList />} />
         <Route path="knowledge/:slug" element={<KnowledgeArticle />} />
+        <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="profiles" element={<ProtectedRoute><Profiles /></ProtectedRoute>} />
         <Route path="wizard" element={<ProtectedRoute><ProfileWizard /></ProtectedRoute>} />
         <Route path="dashboard/:profileId" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
