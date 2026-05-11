@@ -186,6 +186,20 @@ export class AuthController {
     return this.auth.resendVerificationEmail(req.user?.id ?? '');
   }
 
+  @Post('github/unlink')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  unlinkGithub(@Req() req: Request & { user?: { id?: string } }) {
+    return this.auth.unlinkGithub(req.user?.id ?? '');
+  }
+
+  @Post('google/unlink')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  unlinkGoogle(@Req() req: Request & { user?: { id?: string } }) {
+    return this.auth.unlinkGoogle(req.user?.id ?? '');
+  }
+
   @Get('verify-email')
   @ApiExcludeEndpoint()
   async verifyEmail(

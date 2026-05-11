@@ -17,13 +17,19 @@ type SettingsUser = {
   googleEmail: string | null;
 };
 
-function buildGithubLinkUrl() {
+function buildGithubLinkUrl(token: string | null) {
   const params = new URLSearchParams({ returnTo: '/settings' });
+  if (token) {
+    params.set('access_token', token);
+  }
   return `/api/auth/github/link?${params.toString()}`;
 }
 
-function buildGoogleLinkUrl() {
+function buildGoogleLinkUrl(token: string | null) {
   const params = new URLSearchParams({ returnTo: '/settings' });
+  if (token) {
+    params.set('access_token', token);
+  }
   return `/api/auth/google/link?${params.toString()}`;
 }
 
@@ -38,6 +44,9 @@ function mapOAuthError(code: string | null) {
   if (code === 'oauth_provider_failure') {
     return 'OAuth flow failed. Please retry.';
   }
+  if (code === 'oauth_email_mismatch') {
+    return 'Google account email must match your ReloPlanner account email for linking.';
+  }
   if (code === 'email_verify_invalid') {
     return 'Email verification link is invalid or expired. Request a new one.';
   }
@@ -46,7 +55,7 @@ function mapOAuthError(code: string | null) {
 
 export default function Settings() {
   const [searchParams] = useSearchParams();
-  const { user: authUser } = useAuth();
+  const { user: authUser, token } = useAuth();
   const [user, setUser] = useState<SettingsUser | null>(null);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -149,11 +158,29 @@ export default function Settings() {
   }, [user]);
 
   const handleLinkGithub = () => {
-    window.location.assign(buildGithubLinkUrl());
+    window.location.assign(buildGithubLinkUrl(token));
   };
 
   const handleLinkGoogle = () => {
-    window.location.assign(buildGoogleLinkUrl());
+    window.location.assign(buildGoogleLinkUrl(token));
+  };
+
+  const handleUnlinkGithub = async () => {
+    try {
+      await client.post('/auth/github/unlink');
+      await load();
+    } catch {
+      setLoadError('Failed to unlink GitHub account.');
+    }
+  };
+
+  const handleUnlinkGoogle = async () => {
+    try {
+      await client.post('/auth/google/unlink');
+      await load();
+    } catch {
+      setLoadError('Failed to unlink Google account.');
+    }
   };
 
   return (
@@ -208,6 +235,14 @@ export default function Settings() {
             >
               {user?.githubLinked ? 'Relink GitHub Profile' : 'Link GitHub Profile'}
             </Button>
+            <Button
+              variant="outline"
+              color="red"
+              onClick={handleUnlinkGithub}
+              disabled={!user?.githubLinked}
+            >
+              Unlink GitHub Profile
+            </Button>
           </Stack>
         </Paper>
 
@@ -225,6 +260,14 @@ export default function Settings() {
               onClick={handleLinkGoogle}
             >
               {user?.googleLinked ? 'Relink Google Profile' : 'Link Google Profile'}
+            </Button>
+            <Button
+              variant="outline"
+              color="red"
+              onClick={handleUnlinkGoogle}
+              disabled={!user?.googleLinked}
+            >
+              Unlink Google Profile
             </Button>
           </Stack>
         </Paper>

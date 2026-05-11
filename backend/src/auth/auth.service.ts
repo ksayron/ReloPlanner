@@ -20,6 +20,9 @@ const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const OAUTH_EXCHANGE_TTL_MS = 2 * 60 * 1000;
 const OAUTH_EMAIL_TICKET_TTL_MS = 10 * 60 * 1000;
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const SMTP_CONNECTION_TIMEOUT_MS = 5000;
+const SMTP_GREETING_TIMEOUT_MS = 5000;
+const SMTP_SOCKET_TIMEOUT_MS = 10000;
 
 type OAuthStateRecord = {
   returnTo: string;
@@ -45,7 +48,8 @@ export type OAuthErrorCode =
   | 'oauth_provider_failure'
   | 'oauth_exchange_invalid'
   | 'oauth_email_required'
-  | 'oauth_identity_conflict';
+  | 'oauth_identity_conflict'
+  | 'oauth_email_mismatch';
 
 export class OAuthFlowError extends Error {
   constructor(public readonly code: OAuthErrorCode) {
@@ -150,6 +154,9 @@ export class AuthService {
         host: smtpHost,
         port: Number.isFinite(smtpPort) ? smtpPort : 587,
         secure: smtpSecureRaw === 'true',
+        connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+        greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+        socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
         auth:
           smtpUser && smtpPass
             ? {
@@ -182,7 +189,9 @@ export class AuthService {
       data: { email, passwordHash: hash },
     });
 
-    await this.issueEmailVerification(user.id, user.email);
+    await this.issueEmailVerification(user.id, user.email, {
+      waitForSend: false,
+    });
 
     const token = this.signToken(user.id, user.role, user.email);
 
@@ -579,6 +588,10 @@ export class AuthService {
       throw new OAuthFlowError('oauth_identity_conflict');
     }
 
+    if (currentUser.email.trim().toLowerCase() !== googleEmail) {
+      throw new OAuthFlowError('oauth_email_mismatch');
+    }
+
     await this.prisma.user.update({
       where: { id: currentUser.id },
       data: {
@@ -711,6 +724,46 @@ export class AuthService {
     };
   }
 
+  async unlinkGithub(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        githubId: null,
+        githubLogin: null,
+      },
+    });
+
+    return { unlinked: true };
+  }
+
+  async unlinkGoogle(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        googleId: null,
+        googleEmail: null,
+      },
+    });
+
+    return { unlinked: true };
+  }
+
   async verifyEmailToken(token: string | undefined) {
     const value = token?.trim();
     if (!value) {
@@ -825,7 +878,11 @@ export class AuthService {
     });
   }
 
-  private async issueEmailVerification(userId: string, email: string) {
+  private async issueEmailVerification(
+    userId: string,
+    email: string,
+    options?: { waitForSend?: boolean },
+  ) {
     const token = this.generateToken();
     const tokenHash = this.hashToken(token);
     const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
@@ -837,6 +894,11 @@ export class AuthService {
         emailVerificationTokenExpiresAt: expiresAt,
       },
     });
+
+    if (options?.waitForSend === false) {
+      void this.sendVerificationEmail(email, token);
+      return false;
+    }
 
     return this.sendVerificationEmail(email, token);
   }
