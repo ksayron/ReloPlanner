@@ -13,9 +13,11 @@ import {
   Select,
   Stack,
   Stepper,
+  Tooltip,
   Text,
   TextInput,
   Title,
+  ActionIcon,
 } from '@mantine/core';
 import client from '../api/client';
 import { fetchCountriesCatalog } from '../api/countries';
@@ -153,6 +155,24 @@ const getDefaultLevel = (type: Competency['type']) => {
 
 const confidencePercent = (value: number) =>
   `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+
+function QuestionHelp({ text }: { text: string }) {
+  return (
+    <Tooltip label={text} multiline w={280} withArrow>
+      <ActionIcon
+        variant="default"
+        color="gray"
+        size="sm"
+        radius="xl"
+        aria-label="Question explanation"
+      >
+        <Text size="xs" fw={700}>
+          ?
+        </Text>
+      </ActionIcon>
+    </Tooltip>
+  );
+}
 
 export default function ProfileWizard() {
   const navigate = useNavigate();
@@ -1019,7 +1039,12 @@ export default function ProfileWizard() {
 
               <Group grow>
                 <NumberInput
-                  label="Savings Amount (optional)"
+                  label={
+                    <Group gap={6} wrap="nowrap">
+                      <Text component="span">Savings Amount (optional)</Text>
+                      <QuestionHelp text="How much liquid money you currently have for relocation and first months after arrival." />
+                    </Group>
+                  }
                   min={0}
                   value={savingsAmount}
                   onChange={(value) =>
@@ -1027,7 +1052,12 @@ export default function ProfileWizard() {
                   }
                 />
                 <Select
-                  label="Savings Currency"
+                  label={
+                    <Group gap={6} wrap="nowrap">
+                      <Text component="span">Savings Currency</Text>
+                      <QuestionHelp text="Currency of your savings amount. Use the same currency as the value entered on the left." />
+                    </Group>
+                  }
                   value={savingsCurrency}
                   onChange={(value) => setSavingsCurrency((value as CurrencyCode) || 'USD')}
                   data={CURRENCIES.map((currency) => ({ value: currency, label: currency }))}
@@ -1036,7 +1066,12 @@ export default function ProfileWizard() {
 
               <Group grow>
                 <NumberInput
-                  label="Monthly Budget (optional)"
+                  label={
+                    <Group gap={6} wrap="nowrap">
+                      <Text component="span">Monthly Budget (optional)</Text>
+                      <QuestionHelp text="Planned monthly spending limit in target location while settling and searching for work." />
+                    </Group>
+                  }
                   min={0}
                   value={monthlyBudgetAmount}
                   onChange={(value) =>
@@ -1046,7 +1081,12 @@ export default function ProfileWizard() {
                   }
                 />
                 <Select
-                  label="Monthly Budget Currency"
+                  label={
+                    <Group gap={6} wrap="nowrap">
+                      <Text component="span">Monthly Budget Currency</Text>
+                      <QuestionHelp text="Currency used for your monthly budget number." />
+                    </Group>
+                  }
                   value={monthlyBudgetCurrency}
                   onChange={(value) => setMonthlyBudgetCurrency((value as CurrencyCode) || 'USD')}
                   data={CURRENCIES.map((currency) => ({ value: currency, label: currency }))}
@@ -1055,7 +1095,12 @@ export default function ProfileWizard() {
 
               <Group grow>
                 <NumberInput
-                  label="Expected Net Salary (optional)"
+                  label={
+                    <Group gap={6} wrap="nowrap">
+                      <Text component="span">Expected Net Salary (optional)</Text>
+                      <QuestionHelp text="Estimated monthly take-home salary after taxes in your target country, if known." />
+                    </Group>
+                  }
                   min={0}
                   value={expectedNetSalaryAmount}
                   onChange={(value) =>
@@ -1065,7 +1110,12 @@ export default function ProfileWizard() {
                   }
                 />
                 <Select
-                  label="Expected Salary Currency"
+                  label={
+                    <Group gap={6} wrap="nowrap">
+                      <Text component="span">Expected Salary Currency</Text>
+                      <QuestionHelp text="Currency for your expected net salary value." />
+                    </Group>
+                  }
                   value={expectedNetSalaryCurrency}
                   onChange={(value) =>
                     setExpectedNetSalaryCurrency((value as CurrencyCode) || 'USD')
@@ -1076,14 +1126,24 @@ export default function ProfileWizard() {
 
               <Group grow>
                 <NumberInput
-                  label="Dependents Count"
+                  label={
+                    <Group gap={6} wrap="nowrap">
+                      <Text component="span">Dependents Count</Text>
+                      <QuestionHelp text="People financially depending on you (for example partner, children, or parents)." />
+                    </Group>
+                  }
                   min={0}
                   max={10}
                   value={dependentsCount}
                   onChange={(value) => setDependentsCount(Math.max(0, Number(value) || 0))}
                 />
                 <Select
-                  label="Lifestyle"
+                  label={
+                    <Group gap={6} wrap="nowrap">
+                      <Text component="span">Lifestyle</Text>
+                      <QuestionHelp text="Spending style used for estimates: frugal, standard, or comfortable living costs." />
+                    </Group>
+                  }
                   value={lifestyle}
                   onChange={(value) => setLifestyle((value as LifestyleProfile) || 'STANDARD')}
                   data={LIFESTYLES.map((item) => ({
@@ -1094,7 +1154,12 @@ export default function ProfileWizard() {
               </Group>
 
               <NumberInput
-                label="Planned Job Search Duration (months)"
+                label={
+                  <Group gap={6} wrap="nowrap">
+                    <Text component="span">Planned Job Search Duration (months)</Text>
+                    <QuestionHelp text="How many months you expect to search before receiving an offer. Used for financial runway and risk checks." />
+                  </Group>
+                }
                 min={1}
                 max={24}
                 value={jobSearchMonths}
@@ -1104,7 +1169,12 @@ export default function ProfileWizard() {
               <Title order={5}>Legal Readiness Inputs</Title>
 
               <Select
-                label="Existing work authorization for target country"
+                label={
+                  <Group gap={6} wrap="nowrap">
+                    <Text component="span">Existing work authorization for target country</Text>
+                    <QuestionHelp text="Whether you already hold valid residence/work rights for the target country." />
+                  </Group>
+                }
                 value={booleanSelectValue(hasExistingWorkAuthorization)}
                 onChange={(value) =>
                   setHasExistingWorkAuthorization(fromBooleanSelectValue(value))
@@ -1117,7 +1187,12 @@ export default function ProfileWizard() {
               />
 
               <Select
-                label="Confirmed job offer"
+                label={
+                  <Group gap={6} wrap="nowrap">
+                    <Text component="span">Confirmed job offer</Text>
+                    <QuestionHelp text="Whether you already have a signed or formally confirmed offer from an employer in the target country." />
+                  </Group>
+                }
                 value={booleanSelectValue(hasJobOffer)}
                 onChange={(value) => setHasJobOffer(fromBooleanSelectValue(value))}
                 data={[
@@ -1128,7 +1203,12 @@ export default function ProfileWizard() {
               />
 
               <Select
-                label="Recognized degree"
+                label={
+                  <Group gap={6} wrap="nowrap">
+                    <Text component="span">Recognized degree</Text>
+                    <QuestionHelp text="Whether your degree is recognized or likely comparable for the target country’s skilled-worker routes." />
+                  </Group>
+                }
                 value={booleanSelectValue(hasRecognizedDegree)}
                 onChange={(value) => setHasRecognizedDegree(fromBooleanSelectValue(value))}
                 data={[
@@ -1139,7 +1219,12 @@ export default function ProfileWizard() {
               />
 
               <Select
-                label="Formal education"
+                label={
+                  <Group gap={6} wrap="nowrap">
+                    <Text component="span">Formal education</Text>
+                    <QuestionHelp text="Whether you have structured formal education (for example university or accredited vocational program)." />
+                  </Group>
+                }
                 value={booleanSelectValue(hasFormalEducation)}
                 onChange={(value) => setHasFormalEducation(fromBooleanSelectValue(value))}
                 data={[
@@ -1150,7 +1235,12 @@ export default function ProfileWizard() {
               />
 
               <Select
-                label="Relocating with family"
+                label={
+                  <Group gap={6} wrap="nowrap">
+                    <Text component="span">Relocating with family</Text>
+                    <QuestionHelp text="Family relocation can affect legal steps, required documents, timeline, and monthly expenses." />
+                  </Group>
+                }
                 value={booleanSelectValue(relocationWithFamily)}
                 onChange={(value) => setRelocationWithFamily(fromBooleanSelectValue(value))}
                 data={[
