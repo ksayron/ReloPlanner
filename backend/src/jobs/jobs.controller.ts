@@ -28,7 +28,7 @@ import {
 } from '@nestjs/swagger';
 import { Roles, RolesGuard } from '../auth/roles.guard.js';
 import { Role } from '@prisma/client';
-import { ReportVariant } from '../reports/reports.types.js';
+import { ReportLocale, ReportVariant } from '../reports/reports.types.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Express } from 'express';
 import { ResumeTextExtractionService } from '../resume/resume-text-extraction.service.js';
@@ -124,16 +124,25 @@ export class JobsController {
     @Req() req: any,
     @Query('variant') variantRaw?: string,
     @Query('format') formatRaw?: string,
+    @Query('locale') localeRaw?: string,
   ) {
     const variant: ReportVariant = variantRaw === 'ai-summary' ? 'ai-summary' : 'snapshot';
     const format = formatRaw === 'pdf' || formatRaw === 'html' ? formatRaw : 'json';
+    const locale: ReportLocale = localeRaw === 'ru' ? 'ru' : 'en';
     const job = await this.jobsService.createJob({
       userId: req.user.id,
       type: 'REPORT_GENERATION',
-      payload: { analysisId, variant, format },
+      payload: { analysisId, variant, format, locale },
     });
 
-    this.jobsRunnerService.runReportGenerationJob(job.id, analysisId, req.user.id, variant, format);
+    this.jobsRunnerService.runReportGenerationJob(
+      job.id,
+      analysisId,
+      req.user.id,
+      variant,
+      format,
+      locale,
+    );
 
     return {
       jobId: job.id,

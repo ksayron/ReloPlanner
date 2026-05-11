@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   RelocationReadinessReportSnapshot,
@@ -6,6 +11,7 @@ import {
   ReportAiSummaryMeta,
   ReportGapItem,
   ReportGenerationMeta,
+  ReportLocale,
   ReportSkillBreakdownItem,
   ReportVariant,
 } from './reports.types.js';
@@ -28,6 +34,7 @@ export class ReportsService {
     analysisId: string,
     userId: string,
     variant: ReportVariant = 'snapshot',
+    locale: ReportLocale = 'en',
   ): Promise<{
     generation: ReportGenerationMeta;
     snapshot: RelocationReadinessReportSnapshot;
@@ -40,7 +47,7 @@ export class ReportsService {
     try {
       generation.status = 'GENERATING';
       const analysis = await this.loadAnalysis(analysisId, userId);
-      const snapshot = await this.buildSnapshot(analysis);
+      const snapshot = await this.buildSnapshot(analysis, locale);
 
       let aiSummary: ReportAiSummary | null = null;
       let aiSummaryMeta: ReportAiSummaryMeta | null = null;
@@ -66,6 +73,7 @@ export class ReportsService {
     analysisId: string,
     userId: string,
     variant: ReportVariant = 'snapshot',
+    locale: ReportLocale = 'en',
   ): Promise<{
     generation: ReportGenerationMeta;
     snapshot: RelocationReadinessReportSnapshot;
@@ -74,7 +82,7 @@ export class ReportsService {
     aiSummaryMeta: ReportAiSummaryMeta | null;
     html: string;
   }> {
-    const report = await this.generateSnapshot(analysisId, userId, variant);
+    const report = await this.generateSnapshot(analysisId, userId, variant, locale);
     if (variant === 'ai-summary' && !report.aiSummary) {
       throw new BadRequestException(
         'AI summary has not been generated yet. Generate it first, then export.',
@@ -88,6 +96,7 @@ export class ReportsService {
     analysisId: string,
     userId: string,
     variant: ReportVariant = 'snapshot',
+    locale: ReportLocale = 'en',
   ): Promise<{
     generation: ReportGenerationMeta;
     snapshot: RelocationReadinessReportSnapshot;
@@ -97,8 +106,16 @@ export class ReportsService {
     html: string;
     pdf: Buffer;
   }> {
-    const report = await this.renderHtmlReport(analysisId, userId, variant);
-    const pdf = await this.renderPdfFromHtml(report.html);
+    const report = await this.renderHtmlReport(analysisId, userId, variant, locale);
+    const pdf = await this.renderPdfFromHtml(report.html, {
+      title:
+        variant === 'ai-summary'
+          ? 'Relocation Readiness AI Summary'
+          : 'Relocation Readiness Snapshot',
+      analysisId,
+      generatedAtIso: report.snapshot.generatedAt.toISOString(),
+      locale,
+    });
     return { ...report, pdf };
   }
 
@@ -116,7 +133,7 @@ export class ReportsService {
     generation.status = 'GENERATING';
 
     const analysis = await this.loadAnalysis(analysisId, userId);
-    const snapshot = await this.buildSnapshot(analysis);
+    const snapshot = await this.buildSnapshot(analysis, 'en');
     const enriched = await this.aiEnrichment.summarizeSnapshot(snapshot, 'REASONING');
 
     await (this.prisma as any).analysisAiSummary.upsert({
@@ -194,7 +211,10 @@ export class ReportsService {
     };
   }
 
-  private async buildSnapshot(analysis: any): Promise<RelocationReadinessReportSnapshot> {
+  private async buildSnapshot(
+    analysis: any,
+    locale: ReportLocale,
+  ): Promise<RelocationReadinessReportSnapshot> {
     const fitScore = Number(analysis.fitScore);
     const totalPrepMonths = Number(analysis.totalPrepMonths);
     const skillBreakdownRaw = Array.isArray(analysis.skillBreakdown)
@@ -275,7 +295,7 @@ export class ReportsService {
       marketContext: {
         country: analysis.snapshot.country,
         city: analysis.snapshot.city,
-        snapshotDate: analysis.snapshot.snapshotDate.toISOString().slice(0, 10),
+        snapshotDate: this.formatDate(analysis.snapshot.snapshotDate, locale),
         source: analysis.snapshot.source,
         totalVacancies: analysis.snapshot.totalVacancies,
         jobMarketNote: `${analysis.snapshot.country} market snapshot from ${analysis.snapshot.source}. ${gapText}`,
@@ -564,29 +584,76 @@ export class ReportsService {
 </html>`;
   }
 
-  private async renderPdfFromHtml(html: string): Promise<Buffer> {
-    const pdfMakeModule: any = await import('pdfmake/build/pdfmake.js');
-    const pdfFontsModule: any = await import('pdfmake/build/vfs_fonts.js');
-    const pdfMake: any = pdfMakeModule.default ?? pdfMakeModule;
-    const pdfVfs: any = pdfFontsModule.default ?? pdfFontsModule;
+  private async renderPdfFromHtml(
+    html: string,
+    context: { title: string; analysisId: string; generatedAtIso: string; locale: ReportLocale },
+  ): Promise<Buffer> {
+    try {
+      const pdfMakeModule: any = await import('pdfmake/build/pdfmake.js');
+      const pdfFontsModule: any = await import('pdfmake/build/vfs_fonts.js');
+      const pdfMake: any = pdfMakeModule.default ?? pdfMakeModule;
+      const pdfVfs: any = pdfFontsModule.default ?? pdfFontsModule;
 
-    if (typeof pdfMake.addVirtualFileSystem === 'function') {
-      pdfMake.addVirtualFileSystem(pdfVfs);
-    } else if (pdfVfs?.pdfMake?.vfs) {
-      pdfMake.vfs = pdfVfs.pdfMake.vfs;
+      if (typeof pdfMake.addVirtualFileSystem === 'function') {
+        pdfMake.addVirtualFileSystem(pdfVfs);
+      } else if (pdfVfs?.pdfMake?.vfs) {
+        pdfMake.vfs = pdfVfs.pdfMake.vfs;
+      }
+
+      const window = new JSDOM('').window;
+      const pdfContent = htmlToPdfmake(html, {
+        window,
+        tableAutoSize: true,
+      });
+
+      const docDefinition = {
+        pageSize: 'A4',
+        pageMargins: [32, 56, 32, 42],
+        header: (_currentPage: number, _pageCount: number) => ({
+          margin: [32, 18, 32, 0],
+          fontSize: 9,
+          color: '#6b7280',
+          text: `${context.title} | Analysis ${context.analysisId}`,
+        }),
+        footer: (currentPage: number, pageCount: number) => ({
+          margin: [32, 0, 32, 14],
+          columns: [
+            {
+              text: `Generated ${context.generatedAtIso}`,
+              fontSize: 8,
+              color: '#6b7280',
+            },
+            {
+              text: `Page ${currentPage} of ${pageCount}`,
+              alignment: 'right',
+              fontSize: 8,
+              color: '#6b7280',
+            },
+          ],
+        }),
+        content: pdfContent,
+        defaultStyle: {
+          font: 'Roboto',
+          fontSize: 10,
+          lineHeight: 1.25,
+        },
+        styles: {
+          h1: { fontSize: 20, bold: true, margin: [0, 0, 0, 10] },
+          h2: { fontSize: 14, bold: true, margin: [0, 10, 0, 6] },
+          h3: { fontSize: 12, bold: true, margin: [0, 8, 0, 4] },
+          p: { margin: [0, 0, 0, 6] },
+          table: { margin: [0, 6, 0, 10] },
+          li: { margin: [0, 0, 0, 3] },
+        },
+      };
+
+      const createdPdf = pdfMake.createPdf(docDefinition);
+      const buffer = await createdPdf.getBuffer();
+      return Buffer.from(buffer);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Unknown PDF generation error';
+      throw new InternalServerErrorException(`Failed to generate PDF report: ${reason}`);
     }
-
-    const window = new JSDOM('').window;
-    const pdfContent = htmlToPdfmake(html, { window });
-    const docDefinition = {
-      content: pdfContent,
-      defaultStyle: { fontSize: 10 },
-      pageMargins: [24, 24, 24, 24],
-    };
-
-    const createdPdf = pdfMake.createPdf(docDefinition);
-    const buffer = await createdPdf.getBuffer();
-    return Buffer.from(buffer);
   }
 
   private escapeHtml(value: string): string {
@@ -596,5 +663,13 @@ export class ReportsService {
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
+  }
+
+  private formatDate(value: Date, locale: ReportLocale): string {
+    return new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : 'en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(value);
   }
 }

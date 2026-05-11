@@ -3,7 +3,7 @@ import { AnalysisWorkflowService } from '../scoring/analysis-workflow.service.js
 import { JobsEventBusService } from './jobs-event-bus.service.js';
 import { MarketSyncService } from '../market/market-sync.service.js';
 import { ReportsService } from '../reports/reports.service.js';
-import { ReportVariant } from '../reports/reports.types.js';
+import { ReportLocale, ReportVariant } from '../reports/reports.types.js';
 import { ResumeTextExtractionResult } from '../resume/resume.types.js';
 import { ResumeProfileDraftService } from '../resume/resume-profile-draft.service.js';
 
@@ -31,8 +31,9 @@ export class JobsRunnerService {
     userId: string,
     variant: ReportVariant,
     format: 'json' | 'html' | 'pdf',
+    locale: ReportLocale = 'en',
   ) {
-    void this.executeReportGenerationJob(jobId, analysisId, userId, variant, format);
+    void this.executeReportGenerationJob(jobId, analysisId, userId, variant, format, locale);
   }
 
   runResumeProfileParseJob(
@@ -160,6 +161,7 @@ export class JobsRunnerService {
     userId: string,
     variant: ReportVariant,
     format: 'json' | 'html' | 'pdf',
+    locale: ReportLocale = 'en',
   ) {
     let lastStep = 'QUEUED';
     let lastProgress = 0;
@@ -185,12 +187,12 @@ export class JobsRunnerService {
         if (variant === 'ai-summary') {
           await this.reportsService.generateAndPersistAiSummary(analysisId, userId);
         } else {
-          await this.reportsService.generateSnapshot(analysisId, userId, variant);
+          await this.reportsService.generateSnapshot(analysisId, userId, variant, locale);
         }
       } else if (format === 'html') {
-        await this.reportsService.renderHtmlReport(analysisId, userId, variant);
+        await this.reportsService.renderHtmlReport(analysisId, userId, variant, locale);
       } else {
-        await this.reportsService.renderPdfReport(analysisId, userId, variant);
+        await this.reportsService.renderPdfReport(analysisId, userId, variant, locale);
       }
 
       lastStep = 'ARTIFACT_READY';
@@ -213,8 +215,8 @@ export class JobsRunnerService {
           format,
           downloadUrl:
             format === 'json'
-              ? `/api/reports/analyses/${analysisId}?variant=${variant}`
-              : `/api/reports/analyses/${analysisId}/${format}?variant=${variant}`,
+              ? `/api/reports/analyses/${analysisId}?variant=${variant}&locale=${locale}`
+              : `/api/reports/analyses/${analysisId}/${format}?variant=${variant}&locale=${locale}`,
         },
       });
     } catch (error: unknown) {
