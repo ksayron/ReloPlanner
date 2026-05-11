@@ -1,6 +1,7 @@
 import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
+  ActionIcon,
   AppShell,
   Anchor,
   Badge,
@@ -12,20 +13,53 @@ import {
   Menu,
   Stack,
   Text,
+  Tooltip,
   Title,
+  useComputedColorScheme,
+  useMantineColorScheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useAuth } from '../api/AuthContext';
 import { getBillingStatus } from '../api/billing';
+import { fetchMyPreferences, updateMyPreferences } from '../api/preferences';
 import type { BillingPlanCode } from '../types';
 
-const linkClass = 'text-slate-700 hover:text-slate-900';
+const linkClass = 'text-[var(--app-nav-link)] hover:text-[var(--app-nav-link-hover)]';
+
+function SunIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M12 2.5V5.5M12 18.5V21.5M21.5 12H18.5M5.5 12H2.5M18.72 5.28L16.6 7.4M7.4 16.6L5.28 18.72M18.72 18.72L16.6 16.6M7.4 7.4L5.28 5.28"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M20 14.2A8.5 8.5 0 1 1 9.8 4 7 7 0 1 0 20 14.2Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [opened, { toggle, close }] = useDisclosure(false);
   const [planCode, setPlanCode] = useState<BillingPlanCode | null>(null);
+  const { setColorScheme } = useMantineColorScheme();
+  const computedColorScheme = useComputedColorScheme('light');
 
   useEffect(() => {
     if (!user) {
@@ -50,11 +84,45 @@ export default function Layout() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let alive = true;
+    void (async () => {
+      try {
+        const preferences = await fetchMyPreferences();
+        if (!alive || !preferences) return;
+        setColorScheme(preferences.preferredTheme);
+      } catch {
+        // Ignore preference sync failures to avoid blocking navigation.
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [setColorScheme, user]);
+
   const handleLogout = () => {
     logout();
     navigate('/');
     close();
   };
+
+  const handleThemeToggle = () => {
+    const nextTheme = computedColorScheme === 'dark' ? 'light' : 'dark';
+    setColorScheme(nextTheme);
+    if (!user) return;
+    void updateMyPreferences({ preferredTheme: nextTheme }).catch(() => {
+      // Keep UI responsive even if theme persistence fails.
+    });
+  };
+
+  const themeToggleLabel =
+    computedColorScheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  const themeToggleIcon = computedColorScheme === 'dark' ? <SunIcon /> : <MoonIcon />;
 
   const effectivePlan = user?.role === 'ADMIN' ? null : planCode;
   const planColor = effectivePlan === 'PREMIUM' ? 'teal' : 'gray';
@@ -67,7 +135,10 @@ export default function Layout() {
         padding="md"
         className="min-h-screen bg-[var(--app-bg)]"
       >
-        <AppShell.Header className="border-b border-slate-200 bg-white/95">
+        <AppShell.Header
+          className="border-b bg-[var(--app-shell-header-bg)]"
+          style={{ borderColor: 'var(--app-border)' }}
+        >
           <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between px-4">
             <Group gap="md">
               <Burger
@@ -123,6 +194,17 @@ export default function Layout() {
             </Group>
 
             <Group gap="sm" visibleFrom="md">
+              <Tooltip label={themeToggleLabel} withArrow>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size="lg"
+                  aria-label={themeToggleLabel}
+                  onClick={handleThemeToggle}
+                >
+                  {themeToggleIcon}
+                </ActionIcon>
+              </Tooltip>
               {user ? (
                 <Group gap="xs">
                   <Menu width={220} shadow="md" position="bottom-end">
@@ -135,6 +217,9 @@ export default function Layout() {
                       <Menu.Label>Account</Menu.Label>
                       <Menu.Item component={RouterLink} to="/settings">
                         Settings
+                      </Menu.Item>
+                      <Menu.Item component={RouterLink} to="/plan">
+                        Plan
                       </Menu.Item>
                       <Menu.Item disabled>More options soon</Menu.Item>
                       <Menu.Divider />
@@ -200,6 +285,9 @@ export default function Layout() {
           >
             Knowledge Base
           </Anchor>
+          <Button variant="light" color="gray" onClick={handleThemeToggle}>
+            {themeToggleLabel}
+          </Button>
           {user && (
             <>
               <Anchor
@@ -225,6 +313,14 @@ export default function Layout() {
                 onClick={close}
               >
                 Settings
+              </Anchor>
+              <Anchor
+                component={RouterLink}
+                to="/plan"
+                underline="never"
+                onClick={close}
+              >
+                Plan
               </Anchor>
             </>
           )}
@@ -288,7 +384,7 @@ export default function Layout() {
               <Button
                 component={RouterLink}
                 to="/login"
-                variant="light"
+                variant="filled"
                 color="brand.7"
                 onClick={close}
               >

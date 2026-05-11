@@ -1,8 +1,26 @@
-import { createTheme } from '@mantine/core';
+import { createTheme, defaultVariantColorsResolver, type VariantColorsResolver } from '@mantine/core';
+
+const variantColorResolver: VariantColorsResolver = (input) => {
+  const resolved = defaultVariantColorsResolver(input);
+  const isBrandTone = typeof input.color === 'string' && input.color.startsWith('brand');
+
+  if (!isBrandTone || input.variant !== 'light') {
+    return resolved;
+  }
+
+  const [baseColor] = String(input.color).split('.');
+  return {
+    background: `var(--mantine-color-${baseColor}-light)`,
+    hover: `var(--mantine-color-${baseColor}-light-hover)`,
+    color: `var(--mantine-color-${baseColor}-light-color)`,
+    border: '1px solid transparent',
+  };
+};
 
 export const appTheme = createTheme({
   fontFamily: 'Inter, Segoe UI, Roboto, sans-serif',
   primaryColor: 'brand',
+  variantColorResolver,
   colors: {
     brand: [
       '#f6f4eb',

@@ -211,8 +211,26 @@ model User {
   processingJobs                  ProcessingJob[]
   subscriptions                   Subscription[]
   payments                        Payment[]
+  preferences                     UserPreference?
 
   @@map("users")
+}
+
+model UserPreference {
+  id                    String       @id @default(uuid())
+  userId                String       @unique @map("user_id")
+  preferredLanguage     String       @default("en") @map("preferred_language")
+  preferredTheme        String       @default("light") @map("preferred_theme")
+  preferredCurrency     CurrencyCode @default(USD) @map("preferred_currency")
+  defaultTargetCountry  String?      @map("default_target_country")
+  defaultTargetCity     String?      @map("default_target_city")
+  weeklyStudyHours      Int          @default(8) @map("weekly_study_hours") @db.SmallInt
+  preferredReportLanguage String     @default("en") @map("preferred_report_language")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+  user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
 }
 
 model Plan {

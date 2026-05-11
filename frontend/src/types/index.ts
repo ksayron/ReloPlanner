@@ -39,6 +39,31 @@ export interface User {
   role: Role;
 }
 
+export type PreferredLanguage = 'en' | 'ru';
+export type PreferredTheme = 'light' | 'dark';
+
+export interface UserPreferences {
+  preferredLanguage: PreferredLanguage;
+  preferredTheme: PreferredTheme;
+  preferredCurrency: CurrencyCode;
+  defaultTargetCountry: string | null;
+  defaultTargetCity: string | null;
+  weeklyStudyHours: number;
+  preferredReportLanguage: PreferredLanguage;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type UpdateUserPreferencesPayload = Partial<{
+  preferredLanguage: PreferredLanguage;
+  preferredTheme: PreferredTheme;
+  preferredCurrency: CurrencyCode;
+  defaultTargetCountry: string | null;
+  defaultTargetCity: string | null;
+  weeklyStudyHours: number;
+  preferredReportLanguage: PreferredLanguage;
+}>;
+
 export type BillingPlanCode = 'FREE' | 'PREMIUM';
 
 export interface BillingFeatureState {
@@ -74,9 +99,40 @@ export interface BillingStatusResponse {
   };
 }
 
+export interface BillingPlanSummaryResponse {
+  plan: BillingStatusResponse['plan'];
+  subscription: BillingStatusResponse['subscription'];
+  payments: BillingStatusResponse['payments'];
+  entitlements: BillingStatusResponse['entitlements'];
+  preferredCurrency: CurrencyCode;
+  premiumPricing: {
+    stripePriceId: string | null;
+    basePriceUsd: number;
+    convertedPrice: number;
+    convertedCurrency: CurrencyCode;
+  };
+  stripe: {
+    mode: 'SIMULATED' | 'LIVE';
+    subscription: {
+      id: string;
+      status: string;
+      cancelAtPeriodEnd: boolean;
+      currentPeriodEnd: string | null;
+      canceledAt: string | null;
+      latestInvoice: {
+        id: string;
+        status?: string | null;
+        paid?: boolean | null;
+        hostedInvoiceUrl?: string | null;
+      } | null;
+    } | null;
+  };
+}
+
 export interface CheckoutStartResponse {
   paymentId: string;
   provider: 'STRIPE';
+  mode: 'SIMULATED' | 'LIVE';
   checkoutSessionId: string;
   checkoutUrl: string | null;
   status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';

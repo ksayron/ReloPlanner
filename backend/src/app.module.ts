@@ -18,6 +18,7 @@ import { KnowledgeModule } from './knowledge/knowledge.module.js';
 import { LegalReadinessModule } from './legal-readiness/legal-readiness.module.js';
 import { FinancialReadinessModule } from './financial-readiness/financial-readiness.module.js';
 import { BillingModule } from './billing/billing.module.js';
+import { PreferencesModule } from './preferences/preferences.module.js';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { BillingModule } from './billing/billing.module.js';
     LegalReadinessModule,
     FinancialReadinessModule,
     BillingModule,
+    PreferencesModule,
   ],
 })
 export class AppModule {}
