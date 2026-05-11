@@ -38,6 +38,60 @@ export interface User {
   role: Role;
 }
 
+export type BillingPlanCode = 'FREE' | 'PREMIUM';
+
+export interface BillingFeatureState {
+  enabled: boolean;
+  limit: number | null;
+}
+
+export interface BillingStatusResponse {
+  plan: {
+    code: BillingPlanCode;
+    name: string;
+  };
+  subscription: {
+    id: string;
+    status: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'CANCELED';
+    startedAt: string;
+    expiresAt: string | null;
+    provider: 'STRIPE';
+  };
+  payments: Array<{
+    id: string;
+    status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
+    amount: number;
+    currency: CurrencyCode;
+    planCode: BillingPlanCode;
+    createdAt: string;
+    errorCode: string | null;
+    errorMessage: string | null;
+  }>;
+  entitlements: {
+    planCode: BillingPlanCode;
+    features: Record<string, BillingFeatureState>;
+  };
+}
+
+export interface CheckoutStartResponse {
+  paymentId: string;
+  provider: 'STRIPE';
+  checkoutSessionId: string;
+  checkoutUrl: string | null;
+  status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
+  amount: number;
+  currency: CurrencyCode;
+}
+
+export interface CheckoutResolveResponse {
+  checkoutSessionId: string;
+  paymentStatus: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
+  subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'CANCELED';
+  planCode: BillingPlanCode;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+}
+
 export interface AuthPayload {
   access_token: string;
 }
@@ -327,6 +381,16 @@ export interface JobMatchResult {
   matchedSkills: string[];
   missingSkills: string[];
   rationale: string;
+}
+
+export interface TopMatchesResponse {
+  items: JobMatchResult[];
+  limit: number;
+  access: {
+    requestedLimit: number;
+    maxAllowedLimit: number | null;
+    upgradeRequired: boolean;
+  };
 }
 
 export type ReportVariant = 'snapshot' | 'ai-summary';

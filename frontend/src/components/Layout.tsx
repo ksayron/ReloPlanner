@@ -1,7 +1,9 @@
 import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import {
   AppShell,
   Anchor,
+  Badge,
   Burger,
   Button,
   Divider,
@@ -14,6 +16,8 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useAuth } from '../api/AuthContext';
+import { getBillingStatus } from '../api/billing';
+import type { BillingPlanCode } from '../types';
 
 const linkClass = 'text-slate-700 hover:text-slate-900';
 
@@ -21,12 +25,40 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [opened, { toggle, close }] = useDisclosure(false);
+  const [planCode, setPlanCode] = useState<BillingPlanCode | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setPlanCode(null);
+      return;
+    }
+
+    let alive = true;
+    void (async () => {
+      try {
+        const status = await getBillingStatus();
+        if (!alive) return;
+        setPlanCode(status.plan.code);
+      } catch {
+        if (!alive) return;
+        setPlanCode(user.role === 'PREMIUM' ? 'PREMIUM' : 'FREE');
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [user]);
 
   const handleLogout = () => {
     logout();
     navigate('/');
     close();
   };
+
+  const effectivePlan = user?.role === 'ADMIN' ? null : planCode;
+  const planColor = effectivePlan === 'PREMIUM' ? 'teal' : 'gray';
+  const planLabel = effectivePlan === 'PREMIUM' ? 'Premium' : 'Free';
 
   return (
     <>
@@ -92,24 +124,31 @@ export default function Layout() {
 
             <Group gap="sm" visibleFrom="md">
               {user ? (
-                <Menu width={220} shadow="md" position="bottom-end">
-                  <Menu.Target>
-                    <Button variant="subtle" color="gray">
-                      {user.email}
-                    </Button>
-                  </Menu.Target>
-                  <Menu.Dropdown>
-                    <Menu.Label>Account</Menu.Label>
-                    <Menu.Item component={RouterLink} to="/settings">
-                      Settings
-                    </Menu.Item>
-                    <Menu.Item disabled>More options soon</Menu.Item>
-                    <Menu.Divider />
-                    <Menu.Item color="red" onClick={handleLogout}>
-                      Logout
-                    </Menu.Item>
-                  </Menu.Dropdown>
-                </Menu>
+                <Group gap="xs">
+                  <Menu width={220} shadow="md" position="bottom-end">
+                    <Menu.Target>
+                      <Button variant="subtle" color="gray">
+                        {user.email}
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Label>Account</Menu.Label>
+                      <Menu.Item component={RouterLink} to="/settings">
+                        Settings
+                      </Menu.Item>
+                      <Menu.Item disabled>More options soon</Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item color="red" onClick={handleLogout}>
+                        Logout
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                  {effectivePlan ? (
+                    <Badge color={planColor} variant="light">
+                      {planLabel}
+                    </Badge>
+                  ) : null}
+                </Group>
               ) : (
                 <>
                   <Button
@@ -235,6 +274,11 @@ export default function Layout() {
               <Text size="sm" c="dimmed">
                 {user.email}
               </Text>
+              {effectivePlan ? (
+                <Badge color={planColor} variant="light" w="fit-content">
+                  Current plan: {planLabel}
+                </Badge>
+              ) : null}
               <Button color="brand.7" onClick={handleLogout}>
                 Logout
               </Button>

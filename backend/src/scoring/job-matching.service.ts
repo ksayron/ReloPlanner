@@ -70,10 +70,22 @@ export class JobMatchingService {
     };
   }
 
-  async getTopMatches(profileId: string, userId: string, limitRaw?: string) {
+  async getTopMatches(
+    profileId: string,
+    userId: string,
+    limitRaw?: string,
+    maxAllowedLimit?: number | null,
+  ) {
     const profile = await this.requireProfile(profileId, userId);
     const parsedLimit = Number(limitRaw ?? 3);
-    const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(10, Math.trunc(parsedLimit))) : 3;
+    const requestedLimit = Number.isFinite(parsedLimit)
+      ? Math.max(1, Math.min(20, Math.trunc(parsedLimit)))
+      : 3;
+    const clampedByPlan =
+      maxAllowedLimit && Number.isFinite(maxAllowedLimit)
+        ? Math.max(1, Math.min(requestedLimit, Math.trunc(maxAllowedLimit)))
+        : requestedLimit;
+    const limit = Math.max(1, Math.min(20, clampedByPlan));
 
     const jobPostingModel = this.getJobPostingModel();
     const postings = await this.fetchCandidatePostings(jobPostingModel, profile, 60);
@@ -85,6 +97,15 @@ export class JobMatchingService {
     return {
       items: scored.sort((a, b) => b.score - a.score).slice(0, limit),
       limit,
+      access: {
+        requestedLimit,
+        maxAllowedLimit: maxAllowedLimit ?? null,
+        upgradeRequired: Boolean(
+          maxAllowedLimit &&
+            Number.isFinite(maxAllowedLimit) &&
+            requestedLimit > Math.trunc(maxAllowedLimit),
+        ),
+      },
     };
   }
 

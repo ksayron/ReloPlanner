@@ -17,17 +17,21 @@ import {
   Title,
 } from '@mantine/core';
 import client from '../api/client';
+import { confirmCheckout, getBillingStatus, startPremiumCheckout } from '../api/billing';
 import JobProgressPanel from '../components/JobProgressPanel';
 import LegalReadinessCard from '../components/LegalReadinessCard';
 import FinancialReadinessCard from '../components/FinancialReadinessCard';
 import SkillFitRadarChart from '../components/SkillFitRadarChart';
+import PremiumUpgradeModal from '../components/PremiumUpgradeModal';
 import type {
   AnalysisHistoryItem,
   AnalysisResult,
+  BillingStatusResponse,
   JobMatchResult,
   ProcessingJobSnapshot,
   ReportSnapshotResponse,
   ReportVariant,
+  TopMatchesResponse,
 } from '../types';
 import { usePersistentJobStream } from '../hooks/usePersistentJobStream';
 import { formatEnumLabel, getJobStepLabel } from '../utils/jobProgress';
@@ -85,6 +89,16 @@ export default function Dashboard() {
   const [noResults, setNoResults] = useState(false);
   const [pageError, setPageError] = useState('');
   const [topMatches, setTopMatches] = useState<JobMatchResult[]>([]);
+  const [topMatchesAccess, setTopMatchesAccess] = useState<{
+    requestedLimit: number;
+    maxAllowedLimit: number | null;
+    upgradeRequired: boolean;
+  } | null>(null);
+  const [billingStatus, setBillingStatus] = useState<BillingStatusResponse | null>(null);
+  const [upgradeModalOpened, setUpgradeModalOpened] = useState(false);
+  const [upgradeFeatureName, setUpgradeFeatureName] = useState<string>('Premium feature');
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string>('');
 
   const loadHistory = useCallback(async () => {
     if (!profileId) return;
@@ -99,6 +113,15 @@ export default function Dashboard() {
       setHistoryLoading(false);
     }
   }, [profileId]);
+
+  const loadBillingStatus = useCallback(async () => {
+    try {
+      const status = await getBillingStatus();
+      setBillingStatus(status);
+    } catch {
+      setBillingStatus(null);
+    }
+  }, []);
 
   const refreshLatestResult = useCallback(async () => {
     if (!profileId) return;
@@ -230,15 +253,21 @@ export default function Dashboard() {
         setPageError((prev) => prev || 'Failed to load analysis history');
       }
       try {
-        const matchesResponse = await client.get(`/profiles/${profileId}/jobs/top-matches`, {
-          params: { limit: 3 },
-        });
+        const matchesResponse = await client.get<TopMatchesResponse>(
+          `/profiles/${profileId}/jobs/top-matches`,
+          {
+            params: { limit: 20 },
+          },
+        );
         setTopMatches(Array.isArray(matchesResponse.data?.items) ? matchesResponse.data.items : []);
+        setTopMatchesAccess(matchesResponse.data?.access ?? null);
       } catch {
         setTopMatches([]);
+        setTopMatchesAccess(null);
       }
+      await loadBillingStatus();
     })();
-  }, [loadHistory, profileId]);
+  }, [loadBillingStatus, loadHistory, profileId]);
 
   const runAnalysis = async () => {
     if (!profileId || analyzing) return;
@@ -251,6 +280,43 @@ export default function Dashboard() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Analysis failed';
       setJobError(message);
+    }
+  };
+
+  const openUpgradeModal = (featureName: string) => {
+    setUpgradeFeatureName(featureName);
+    setUpgradeError('');
+    setUpgradeModalOpened(true);
+  };
+
+  const runPremiumUpgrade = async () => {
+    setUpgradeLoading(true);
+    setUpgradeError('');
+    try {
+      const checkout = await startPremiumCheckout();
+      const resolved = await confirmCheckout(checkout.checkoutSessionId);
+      if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
+        setUpgradeModalOpened(false);
+        await loadBillingStatus();
+        if (profileId) {
+          const matchesResponse = await client.get<TopMatchesResponse>(
+            `/profiles/${profileId}/jobs/top-matches`,
+            { params: { limit: 20 } },
+          );
+          setTopMatches(Array.isArray(matchesResponse.data?.items) ? matchesResponse.data.items : []);
+          setTopMatchesAccess(matchesResponse.data?.access ?? null);
+        }
+      } else {
+        setUpgradeError(
+          resolved.errorMessage ??
+            'Checkout did not succeed. Development mode may intentionally simulate failures.',
+        );
+      }
+    } catch (err: any) {
+      const apiMessage = String(err?.response?.data?.message ?? '').trim();
+      setUpgradeError(apiMessage || 'Upgrade failed');
+    } finally {
+      setUpgradeLoading(false);
     }
   };
 
@@ -277,6 +343,20 @@ export default function Dashboard() {
 
   const exportReport = async (format: 'pdf' | 'html') => {
     if (!result) return;
+    const hasPdfExport = Boolean(
+      billingStatus?.entitlements?.features?.PDF_EXPORT?.enabled,
+    );
+    const hasAiDetailedReport = Boolean(
+      billingStatus?.entitlements?.features?.AI_DETAILED_REPORT?.enabled,
+    );
+    if (format === 'pdf' && !hasPdfExport) {
+      openUpgradeModal('PDF export');
+      return;
+    }
+    if (reportVariant === 'ai-summary' && !hasAiDetailedReport) {
+      openUpgradeModal('AI summary report');
+      return;
+    }
     if (reportVariant === 'ai-summary' && !aiReport?.aiSummary) {
       setPageError('Generate AI summary first, then export.');
       return;
@@ -300,6 +380,10 @@ export default function Dashboard() {
       link.remove();
       window.URL.revokeObjectURL(href);
     } catch (err: any) {
+      if (err?.response?.data?.code === 'UPGRADE_REQUIRED') {
+        openUpgradeModal('Premium report export');
+        return;
+      }
       const apiMessage = String(err?.response?.data?.message ?? '').trim();
       setPageError(apiMessage || `Failed to export ${format.toUpperCase()} report`);
     } finally {
@@ -309,6 +393,13 @@ export default function Dashboard() {
 
   const generateAiSummary = async () => {
     if (!result || aiReportLoading) return;
+    const hasAiDetailedReport = Boolean(
+      billingStatus?.entitlements?.features?.AI_DETAILED_REPORT?.enabled,
+    );
+    if (!hasAiDetailedReport) {
+      openUpgradeModal('AI summary report');
+      return;
+    }
     setPageError('');
     setAiJobError('');
     setAiReportRequested(true);
@@ -321,7 +412,11 @@ export default function Dashboard() {
         );
         return String(startResponse.data.jobId);
       });
-    } catch {
+    } catch (err: any) {
+      if (err?.response?.data?.code === 'UPGRADE_REQUIRED') {
+        openUpgradeModal('AI summary report');
+        return;
+      }
       setPageError((prev) => prev || 'Failed to generate AI summary report');
     }
   };
@@ -370,6 +465,16 @@ export default function Dashboard() {
     : {};
   const groupOrder = ['CORE', 'IMPORTANT', 'OPTIONAL', 'CONTEXTUAL'];
   const showProgressPanel = analyzing || Boolean(job);
+  const aiDetailedEnabled = Boolean(
+    billingStatus?.entitlements?.features?.AI_DETAILED_REPORT?.enabled,
+  );
+  const pdfExportEnabled = Boolean(
+    billingStatus?.entitlements?.features?.PDF_EXPORT?.enabled,
+  );
+  const jobMatchLimit = topMatchesAccess?.maxAllowedLimit ??
+    billingStatus?.entitlements?.features?.JOB_MATCH_LIMIT?.limit ??
+    null;
+  const jobMatchRequestedLimit = topMatchesAccess?.requestedLimit ?? 20;
 
   return (
     <Stack className="mx-auto max-w-6xl" gap="lg">
@@ -462,7 +567,14 @@ export default function Dashboard() {
             <Tabs value={reportVariant} onChange={(value) => setReportVariant((value as ReportVariant) ?? 'snapshot')}>
               <Tabs.List>
                 <Tabs.Tab value="snapshot">Profile Snapshot (No AI)</Tabs.Tab>
-                <Tabs.Tab value="ai-summary">AI Summary</Tabs.Tab>
+                <Tabs.Tab value="ai-summary">
+                  <Group gap={6} wrap="nowrap">
+                    <span>AI Summary</span>
+                    <Badge size="xs" variant="light" color="grape">
+                      Premium
+                    </Badge>
+                  </Group>
+                </Tabs.Tab>
               </Tabs.List>
 
               <Tabs.Panel value="snapshot" pt="lg">
@@ -472,10 +584,18 @@ export default function Dashboard() {
                   <Text ta="center" c="dimmed" maw={760}>{getFitScoreMessage(fitScorePct)}</Text>
                   <Text c="dimmed">Critical-path estimate: {result.totalPrepMonths} months</Text>
                   <Text size="sm" c="dimmed">{formatSnapshotContext(result.snapshotMetadata)}</Text>
-                  <Group>
+                  <Group gap="xs">
                     <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
+                    <Badge size="sm" variant="light" color="grape">
+                      Premium
+                    </Badge>
                     <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
                   </Group>
+                  {!pdfExportEnabled ? (
+                    <Text size="sm" c="dimmed">
+                      PDF export is available on Premium. Click "Save as PDF" to upgrade.
+                    </Text>
+                  ) : null}
                   <SkillFitRadarChart items={result.analysisItems} />
                   {result.timeEstimate && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}><Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge></SimpleGrid>}
                 </Stack>
@@ -505,15 +625,34 @@ export default function Dashboard() {
                       </Button>
                     </Group>
                   </Group>
-                  <Button
-                    onClick={generateAiSummary}
-                    loading={aiReportLoading}
-                    disabled={aiReportLoading || !result}
-                    color="brand.7"
-                    w="fit-content"
-                  >
-                    {aiReport ? 'Regenerate AI Summary' : 'Generate AI Summary'}
-                  </Button>
+                  {!aiDetailedEnabled && (
+                    <Alert color="yellow">
+                      AI detailed report is locked on Free plan.
+                      <Group mt="xs">
+                        <Button
+                          size="xs"
+                          color="brand.7"
+                          onClick={() => openUpgradeModal('AI detailed report')}
+                        >
+                          Upgrade
+                        </Button>
+                      </Group>
+                    </Alert>
+                  )}
+                  <Group gap="xs" w="fit-content">
+                    <Button
+                      onClick={generateAiSummary}
+                      loading={aiReportLoading}
+                      disabled={aiReportLoading || !result}
+                      color="brand.7"
+                      w="fit-content"
+                    >
+                      {aiReport ? 'Regenerate AI Summary' : 'Generate AI Summary'}
+                    </Button>
+                    <Badge size="sm" variant="light" color="grape">
+                      Premium
+                    </Badge>
+                  </Group>
                   {aiReportLoading && <Loader color="brand.7" size="sm" />}
                   {(aiReportLoading || aiReportJob) && (
                     <JobProgressPanel
@@ -599,7 +738,34 @@ export default function Dashboard() {
 
           <Card withBorder radius="lg" p="lg" className="bg-white">
             <Stack>
-              <Title order={3}>Top Matching Jobs</Title>
+              <Group justify="space-between" wrap="wrap">
+                <Title order={3}>Top Matching Jobs</Title>
+                <Group gap="xs">
+                  {jobMatchLimit ? (
+                    <Badge color="gray" variant="light">
+                      Top {jobMatchLimit} of {jobMatchRequestedLimit}
+                    </Badge>
+                  ) : null}
+                  <Badge color="grape" variant="light">
+                    Premium: Top 20
+                  </Badge>
+                </Group>
+              </Group>
+              {topMatchesAccess?.upgradeRequired ? (
+                <Alert color="yellow">
+                  Current plan allows top {topMatchesAccess.maxAllowedLimit ?? 0} matches.
+                  Premium unlocks up to {topMatchesAccess.requestedLimit} matches.
+                  <Group mt="xs">
+                    <Button
+                      size="xs"
+                      color="brand.7"
+                      onClick={() => openUpgradeModal('Expanded job matching')}
+                    >
+                      Upgrade
+                    </Button>
+                  </Group>
+                </Alert>
+              ) : null}
               {topMatches.length === 0 && (
                 <Text c="dimmed">No matching vacancies found yet for your current role/country profile.</Text>
               )}
@@ -639,6 +805,15 @@ export default function Dashboard() {
               ))}
             </Stack>
           </Card>
+
+          <PremiumUpgradeModal
+            opened={upgradeModalOpened}
+            onClose={() => setUpgradeModalOpened(false)}
+            onUpgrade={runPremiumUpgrade}
+            loading={upgradeLoading}
+            featureName={upgradeFeatureName}
+            errorMessage={upgradeError || null}
+          />
         </>
       )}
     </Stack>

@@ -4,6 +4,9 @@ import { Alert, Badge, Button, Paper, Stack, Text, Title } from '@mantine/core';
 import { isAxiosError } from 'axios';
 import client from '../api/client';
 import { useAuth } from '../api/AuthContext';
+import { confirmCheckout, getBillingStatus, startPremiumCheckout } from '../api/billing';
+import PremiumUpgradeModal from '../components/PremiumUpgradeModal';
+import type { BillingStatusResponse } from '../types';
 
 type SettingsUser = {
   id: string;
@@ -58,9 +61,14 @@ export default function Settings() {
   const { user: authUser, token } = useAuth();
   const [user, setUser] = useState<SettingsUser | null>(null);
   const [loading, setLoading] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resendInfo, setResendInfo] = useState<string | null>(null);
+  const [billingStatus, setBillingStatus] = useState<BillingStatusResponse | null>(null);
+  const [upgradeModalOpened, setUpgradeModalOpened] = useState(false);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
 
   const successLinked = searchParams.get('githubLinked') === '1';
   const successGoogleLinked = searchParams.get('googleLinked') === '1';
@@ -97,9 +105,26 @@ export default function Settings() {
     }
   }, [authUser]);
 
+  const loadBilling = useCallback(async () => {
+    if (!authUser) {
+      setBillingStatus(null);
+      return;
+    }
+    setBillingLoading(true);
+    try {
+      const data = await getBillingStatus();
+      setBillingStatus(data);
+    } catch {
+      setBillingStatus(null);
+    } finally {
+      setBillingLoading(false);
+    }
+  }, [authUser]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadBilling();
+  }, [load, loadBilling]);
 
   const handleResendVerification = async () => {
     setResending(true);
@@ -125,6 +150,34 @@ export default function Settings() {
     }
   };
 
+  const handleUpgrade = async () => {
+    setUpgradeLoading(true);
+    setUpgradeError(null);
+    setResendInfo(null);
+    try {
+      const checkout = await startPremiumCheckout();
+      const resolved = await confirmCheckout(checkout.checkoutSessionId);
+      if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
+        setUpgradeModalOpened(false);
+        setResendInfo('Premium activated successfully.');
+      } else {
+        setUpgradeError(
+          resolved.errorMessage ??
+            'Checkout did not succeed. Development mode may intentionally simulate failures.',
+        );
+      }
+      await Promise.all([load(), loadBilling()]);
+    } catch (error) {
+      const message = isAxiosError(error)
+        ? String(error.response?.data?.message ?? error.message)
+        : 'Upgrade failed';
+      setUpgradeError(message);
+      await loadBilling();
+    } finally {
+      setUpgradeLoading(false);
+    }
+  };
+
   const emailStatus = useMemo(() => {
     if (!user) {
       return null;
@@ -134,6 +187,19 @@ export default function Settings() {
     }
     return <Badge color="orange">Unverified</Badge>;
   }, [user]);
+
+  const currentPlanCode =
+    billingStatus?.plan.code ??
+    (user?.role === 'PREMIUM' ? 'PREMIUM' : user?.role === 'ADMIN' ? 'PREMIUM' : 'FREE');
+  const currentPlanName = billingStatus?.plan.name ??
+    (currentPlanCode === 'PREMIUM' ? 'Premium' : 'Free');
+  const premiumFeatureIndicators = [
+    { code: 'AI_DETAILED_REPORT', label: 'AI detailed report' },
+    { code: 'PDF_EXPORT', label: 'PDF export' },
+    { code: 'EXPANDED_JOB_MATCHING', label: 'Expanded job matching' },
+  ] as const;
+  const jobMatchLimit =
+    billingStatus?.entitlements?.features?.JOB_MATCH_LIMIT?.limit ?? null;
 
   const githubStatus = useMemo(() => {
     if (!user?.githubLinked) {
@@ -222,6 +288,83 @@ export default function Settings() {
 
         <Paper withBorder radius="lg" p="xl" className="bg-white">
           <Stack gap="md">
+            <Title order={4}>Subscription</Title>
+            <Text size="sm" c="dimmed">
+              Current plan and billing status for premium feature access.
+            </Text>
+            <Badge
+              color={currentPlanCode === 'PREMIUM' ? 'teal' : 'gray'}
+              variant="light"
+              w="fit-content"
+            >
+              Plan: {currentPlanName}
+            </Badge>
+            {billingLoading ? (
+              <Text size="sm">Loading billing status...</Text>
+            ) : (
+              <Stack gap={6}>
+                <Text size="sm" c="dimmed">
+                  Subscription status: {billingStatus?.subscription.status ?? 'UNKNOWN'}
+                </Text>
+                {jobMatchLimit ? (
+                  <Text size="sm" c="dimmed">
+                    Job matching usage: Top {jobMatchLimit} of 20
+                  </Text>
+                ) : null}
+                <Stack gap={4}>
+                  {premiumFeatureIndicators.map((feature) => {
+                    const enabled = Boolean(
+                      billingStatus?.entitlements?.features?.[feature.code]?.enabled,
+                    );
+                    return (
+                      <Badge
+                        key={feature.code}
+                        color={enabled ? 'teal' : 'gray'}
+                        variant="light"
+                        w="fit-content"
+                      >
+                        {feature.label}: {enabled ? 'Unlocked' : 'Premium'}
+                      </Badge>
+                    );
+                  })}
+                </Stack>
+              </Stack>
+            )}
+            {currentPlanCode !== 'PREMIUM' ? (
+              <Button
+                color="brand.7"
+                onClick={() => {
+                  setUpgradeError(null);
+                  setUpgradeModalOpened(true);
+                }}
+                disabled={upgradeLoading}
+              >
+                Upgrade to Premium
+              </Button>
+            ) : (
+              <Button color="teal" variant="light" disabled>
+                Premium Active
+              </Button>
+            )}
+            {billingStatus?.payments?.length ? (
+              <Stack gap={4}>
+                <Text size="sm" fw={600}>
+                  Recent payments
+                </Text>
+                {billingStatus.payments.slice(0, 3).map((payment) => (
+                  <Text key={payment.id} size="xs" c="dimmed">
+                    {new Date(payment.createdAt).toLocaleString()} | {payment.status} |{' '}
+                    {payment.amount.toFixed(2)} {payment.currency}
+                    {payment.errorMessage ? ` | ${payment.errorMessage}` : ''}
+                  </Text>
+                ))}
+              </Stack>
+            ) : null}
+          </Stack>
+        </Paper>
+
+        <Paper withBorder radius="lg" p="xl" className="bg-white">
+          <Stack gap="md">
             <Title order={4}>GitHub Integration</Title>
             <Text size="sm" c="dimmed">
               Link your GitHub profile to unlock GitHub-based profile analysis
@@ -271,6 +414,15 @@ export default function Settings() {
             </Button>
           </Stack>
         </Paper>
+
+        <PremiumUpgradeModal
+          opened={upgradeModalOpened}
+          onClose={() => setUpgradeModalOpened(false)}
+          onUpgrade={handleUpgrade}
+          loading={upgradeLoading}
+          featureName="Premium billing access"
+          errorMessage={upgradeError}
+        />
       </Stack>
     </div>
   );
