@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { useParams, Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Accordion,
   Alert,
@@ -17,7 +17,8 @@ import {
   Title,
 } from '@mantine/core';
 import client from '../api/client';
-import { confirmCheckout, getBillingStatus, startPremiumCheckout } from '../api/billing';
+import { getBillingStatus, startPremiumCheckout } from '../api/billing';
+import { fetchMyPreferences } from '../api/preferences';
 import JobProgressPanel from '../components/JobProgressPanel';
 import LegalReadinessCard from '../components/LegalReadinessCard';
 import FinancialReadinessCard from '../components/FinancialReadinessCard';
@@ -32,8 +33,10 @@ import type {
   ReportSnapshotResponse,
   ReportVariant,
   TopMatchesResponse,
+  UserPreferences,
 } from '../types';
 import { usePersistentJobStream } from '../hooks/usePersistentJobStream';
+import { buildCheckoutReturnUrls, pollCheckoutStatus } from '../utils/checkout';
 import { formatEnumLabel, getJobStepLabel } from '../utils/jobProgress';
 
 const priorityLabel: Record<string, string> = {
@@ -77,6 +80,7 @@ const formatSnapshotContext = (snapshot: AnalysisHistoryItem['snapshotMetadata']
 
 export default function Dashboard() {
   const { profileId } = useParams<{ profileId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null);
@@ -99,6 +103,18 @@ export default function Dashboard() {
   const [upgradeFeatureName, setUpgradeFeatureName] = useState<string>('Premium feature');
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeError, setUpgradeError] = useState<string>('');
+  const [checkoutProcessing, setCheckoutProcessing] = useState(false);
+  const [preferredReportLanguage, setPreferredReportLanguage] = useState<'en' | 'ru'>('en');
+  const [weeklyStudyHours, setWeeklyStudyHours] = useState<number | null>(null);
+  const checkoutAction = searchParams.get('checkout');
+  const checkoutSessionId = searchParams.get('session_id');
+
+  const clearCheckoutParams = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('checkout');
+    next.delete('session_id');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const loadHistory = useCallback(async () => {
     if (!profileId) return;
@@ -220,7 +236,7 @@ export default function Dashboard() {
       if (!analysisId) return;
       const variant = payload?.variant === 'ai-summary' ? 'ai-summary' : 'snapshot';
       const response = await client.get<ReportSnapshotResponse>(`/reports/analyses/${analysisId}`, {
-        params: { variant },
+        params: { variant, locale: preferredReportLanguage },
       });
       setAiReport(response.data);
     },
@@ -266,6 +282,11 @@ export default function Dashboard() {
         setTopMatchesAccess(null);
       }
       await loadBillingStatus();
+      const preferences = (await fetchMyPreferences()) as UserPreferences | null;
+      if (preferences) {
+        setPreferredReportLanguage(preferences.preferredReportLanguage === 'ru' ? 'ru' : 'en');
+        setWeeklyStudyHours(preferences.weeklyStudyHours ?? null);
+      }
     })();
   }, [loadBillingStatus, loadHistory, profileId]);
 
@@ -293,25 +314,12 @@ export default function Dashboard() {
     setUpgradeLoading(true);
     setUpgradeError('');
     try {
-      const checkout = await startPremiumCheckout();
-      const resolved = await confirmCheckout(checkout.checkoutSessionId);
-      if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
-        setUpgradeModalOpened(false);
-        await loadBillingStatus();
-        if (profileId) {
-          const matchesResponse = await client.get<TopMatchesResponse>(
-            `/profiles/${profileId}/jobs/top-matches`,
-            { params: { limit: 20 } },
-          );
-          setTopMatches(Array.isArray(matchesResponse.data?.items) ? matchesResponse.data.items : []);
-          setTopMatchesAccess(matchesResponse.data?.access ?? null);
-        }
-      } else {
-        setUpgradeError(
-          resolved.errorMessage ??
-            'Checkout did not succeed. Development mode may intentionally simulate failures.',
-        );
+      const urls = buildCheckoutReturnUrls(window.location.pathname, searchParams);
+      const checkout = await startPremiumCheckout(urls);
+      if (!checkout.checkoutUrl) {
+        throw new Error('Checkout URL was not returned by billing provider.');
       }
+      window.location.assign(checkout.checkoutUrl);
     } catch (err: any) {
       const apiMessage = String(err?.response?.data?.message ?? '').trim();
       setUpgradeError(apiMessage || 'Upgrade failed');
@@ -319,6 +327,65 @@ export default function Dashboard() {
       setUpgradeLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!checkoutAction || !checkoutSessionId) return;
+
+    let canceled = false;
+    setCheckoutProcessing(true);
+    setPageError('');
+    setUpgradeError('');
+
+    void (async () => {
+      try {
+        const resolved = await pollCheckoutStatus(checkoutSessionId);
+        if (canceled) return;
+
+        if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
+          setUpgradeModalOpened(false);
+          await loadBillingStatus();
+          if (profileId) {
+            const matchesResponse = await client.get<TopMatchesResponse>(
+              `/profiles/${profileId}/jobs/top-matches`,
+              { params: { limit: 20 } },
+            );
+            setTopMatches(
+              Array.isArray(matchesResponse.data?.items) ? matchesResponse.data.items : [],
+            );
+            setTopMatchesAccess(matchesResponse.data?.access ?? null);
+          }
+        } else if (resolved.paymentStatus === 'CANCELED' || checkoutAction === 'cancel') {
+          setPageError('Checkout was canceled before completion.');
+        } else if (resolved.paymentStatus === 'PENDING') {
+          setPageError(
+            'Checkout is still pending webhook confirmation. Refresh shortly if status does not update.',
+          );
+        } else {
+          setPageError(
+            resolved.errorMessage ?? 'Checkout failed. Please retry with Stripe test card details.',
+          );
+        }
+      } catch (err: any) {
+        if (canceled) return;
+        const apiMessage = String(err?.response?.data?.message ?? '').trim();
+        setPageError(apiMessage || 'Failed to resolve checkout status.');
+      } finally {
+        if (canceled) return;
+        setCheckoutProcessing(false);
+        clearCheckoutParams();
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [
+    checkoutAction,
+    checkoutSessionId,
+    clearCheckoutParams,
+    loadBillingStatus,
+    profileId,
+  ]);
 
   const openHistoricalResult = async (analysisId: string) => {
     if (!profileId) return;
@@ -365,7 +432,7 @@ export default function Dashboard() {
     setPageError('');
     try {
       const response = await client.get(`/reports/analyses/${result.id}/${format}`, {
-        params: { variant: reportVariant },
+        params: { variant: reportVariant, locale: preferredReportLanguage },
         responseType: 'blob',
       });
       const suffix = reportVariant === 'ai-summary' ? 'ai-summary' : 'snapshot';
@@ -408,7 +475,7 @@ export default function Dashboard() {
         const startResponse = await client.post(
           `/jobs/reports/analyses/${result.id}/generate`,
           null,
-          { params: { variant: 'ai-summary', format: 'json' } },
+          { params: { variant: 'ai-summary', format: 'json', locale: preferredReportLanguage } },
         );
         return String(startResponse.data.jobId);
       });
@@ -425,7 +492,7 @@ export default function Dashboard() {
     setReportVariant('snapshot');
     setAiReport(null);
     setAiReportRequested(false);
-  }, [selectedAnalysisId]);
+  }, [preferredReportLanguage, selectedAnalysisId]);
 
   useEffect(() => {
     if (!selectedAnalysisId) return;
@@ -433,7 +500,7 @@ export default function Dashboard() {
       try {
         const response = await client.get<ReportSnapshotResponse>(
           `/reports/analyses/${selectedAnalysisId}`,
-          { params: { variant: 'ai-summary' } },
+          { params: { variant: 'ai-summary', locale: preferredReportLanguage } },
         );
         if (response.data?.aiSummary) {
           setAiReport(response.data);
@@ -484,6 +551,9 @@ export default function Dashboard() {
         <Title order={2}>Analysis Dashboard</Title>
         <Button onClick={runAnalysis} loading={analyzing} color="brand.7">{result ? 'Re-run Analysis' : 'Run Analysis'}</Button>
       </Group>
+      {checkoutProcessing ? (
+        <Alert color="blue">Processing Stripe checkout status...</Alert>
+      ) : null}
       {error && <Alert color="red">{error}</Alert>}
       {result?.marketConfidence?.lowVolumeDetected && result.marketConfidence.warning ? (
         <Alert color={result.marketConfidence.level === 'CRITICAL' ? 'red' : 'yellow'}>
@@ -600,6 +670,12 @@ export default function Dashboard() {
                   ) : null}
                   <SkillFitRadarChart items={result.analysisItems} />
                   {result.timeEstimate && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}><Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge></SimpleGrid>}
+                  {result.timeEstimate && weeklyStudyHours ? (
+                    <Text size="sm" c="dimmed">
+                      At {weeklyStudyHours}h/week, realistic pace is about{' '}
+                      {Math.max(1, Math.ceil(result.timeEstimate.realisticHours / weeklyStudyHours))} weeks.
+                    </Text>
+                  ) : null}
                 </Stack>
               </Tabs.Panel>
 

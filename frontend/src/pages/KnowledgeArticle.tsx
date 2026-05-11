@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -14,21 +14,45 @@ import {
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import { fetchKnowledgeArticle } from '../api/knowledge';
-import { confirmCheckout, startPremiumCheckout } from '../api/billing';
+import { startPremiumCheckout } from '../api/billing';
+import { fetchMyPreferences } from '../api/preferences';
 import PremiumUpgradeModal from '../components/PremiumUpgradeModal';
+import { buildCheckoutReturnUrls, pollCheckoutStatus } from '../utils/checkout';
 import type { KnowledgeArticleDetail } from '../types';
 
 export default function KnowledgeArticle() {
   const { slug } = useParams<{ slug: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [article, setArticle] = useState<KnowledgeArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [upgradeOpened, setUpgradeOpened] = useState(false);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeError, setUpgradeError] = useState('');
+  const [checkoutProcessing, setCheckoutProcessing] = useState(false);
+  const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'ru'>('en');
 
-  const language = (searchParams.get('language') ?? 'en').toLowerCase();
+  const urlLanguage = searchParams.get('language');
+  const checkoutAction = searchParams.get('checkout');
+  const checkoutSessionId = searchParams.get('session_id');
+  const language = (urlLanguage ?? preferredLanguage).toLowerCase();
+
+  const clearCheckoutParams = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('checkout');
+    next.delete('session_id');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (urlLanguage) return;
+    void (async () => {
+      const preferences = await fetchMyPreferences();
+      if (preferences?.preferredLanguage === 'ru') {
+        setPreferredLanguage('ru');
+      }
+    })();
+  }, [urlLanguage]);
 
   useEffect(() => {
     if (!slug) return;
@@ -49,6 +73,51 @@ export default function KnowledgeArticle() {
       }
     })();
   }, [language, slug]);
+
+  useEffect(() => {
+    if (!checkoutAction || !checkoutSessionId) return;
+
+    let canceled = false;
+    setCheckoutProcessing(true);
+    setUpgradeError('');
+
+    void (async () => {
+      try {
+        const resolved = await pollCheckoutStatus(checkoutSessionId);
+        if (canceled) return;
+
+        if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
+          setUpgradeOpened(false);
+          setLoading(true);
+          const response = await fetchKnowledgeArticle(slug ?? '', language);
+          setArticle(response);
+          setError('');
+        } else if (resolved.paymentStatus === 'CANCELED' || checkoutAction === 'cancel') {
+          setUpgradeError('Checkout was canceled before completion.');
+        } else if (resolved.paymentStatus === 'PENDING') {
+          setUpgradeError(
+            'Checkout is still pending webhook confirmation. Refresh shortly if status does not update.',
+          );
+        } else {
+          setUpgradeError(
+            resolved.errorMessage ?? 'Checkout failed. Please retry with Stripe test card details.',
+          );
+        }
+      } catch (err: any) {
+        if (canceled) return;
+        setUpgradeError(String(err?.response?.data?.message ?? 'Failed to resolve checkout status.'));
+      } finally {
+        if (canceled) return;
+        setLoading(false);
+        setCheckoutProcessing(false);
+        clearCheckoutParams();
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [checkoutAction, checkoutSessionId, clearCheckoutParams, language, slug]);
 
   if (loading) {
     return (
@@ -83,6 +152,9 @@ export default function KnowledgeArticle() {
           ) : null}
         </Alert>
       )}
+      {checkoutProcessing ? (
+        <Alert color="blue">Processing Stripe checkout status...</Alert>
+      ) : null}
 
       {!error && article && (
         <Card withBorder radius="md" p="lg">
@@ -127,25 +199,16 @@ export default function KnowledgeArticle() {
           setUpgradeLoading(true);
           setUpgradeError('');
           try {
-            const checkout = await startPremiumCheckout();
-            const resolved = await confirmCheckout(checkout.checkoutSessionId);
-            if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
-              setUpgradeOpened(false);
-              setLoading(true);
-              const response = await fetchKnowledgeArticle(slug ?? '', language);
-              setArticle(response);
-              setError('');
-            } else {
-              setUpgradeError(
-                resolved.errorMessage ??
-                  'Checkout did not succeed. Development mode may intentionally simulate failures.',
-              );
+            const urls = buildCheckoutReturnUrls(window.location.pathname, searchParams);
+            const checkout = await startPremiumCheckout(urls);
+            if (!checkout.checkoutUrl) {
+              throw new Error('Checkout URL was not returned by billing provider.');
             }
+            window.location.assign(checkout.checkoutUrl);
           } catch (err: any) {
             setUpgradeError(String(err?.response?.data?.message ?? 'Upgrade failed'));
           } finally {
             setUpgradeLoading(false);
-            setLoading(false);
           }
         }}
         loading={upgradeLoading}

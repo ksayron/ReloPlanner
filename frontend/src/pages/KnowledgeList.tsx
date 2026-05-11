@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -14,8 +14,10 @@ import {
   Title,
 } from '@mantine/core';
 import { fetchKnowledgeList } from '../api/knowledge';
-import { confirmCheckout, getBillingStatus, startPremiumCheckout } from '../api/billing';
+import { getBillingStatus, startPremiumCheckout } from '../api/billing';
+import { fetchMyPreferences } from '../api/preferences';
 import PremiumUpgradeModal from '../components/PremiumUpgradeModal';
+import { buildCheckoutReturnUrls, pollCheckoutStatus } from '../utils/checkout';
 import type { KnowledgeArticleListItem, KnowledgeCategory } from '../types';
 
 const CATEGORY_OPTIONS: Array<{ value: string; label: string }> = [
@@ -47,18 +49,59 @@ export default function KnowledgeList() {
   const [upgradeOpened, setUpgradeOpened] = useState(false);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeError, setUpgradeError] = useState('');
+  const [checkoutProcessing, setCheckoutProcessing] = useState(false);
+  const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'ru'>('en');
+  const [defaultCountry, setDefaultCountry] = useState('');
+  const [preferencesResolved, setPreferencesResolved] = useState(false);
 
   const selectedCountry = searchParams.get('country') ?? '';
   const selectedCategory = searchParams.get('category') ?? '';
+  const checkoutAction = searchParams.get('checkout');
+  const checkoutSessionId = searchParams.get('session_id');
+
+  const clearCheckoutParams = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('checkout');
+    next.delete('session_id');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const query = useMemo(() => {
     const next: { country?: string; category?: KnowledgeCategory; language: string } = {
-      language: 'en',
+      language: preferredLanguage,
     };
     if (selectedCountry) next.country = selectedCountry;
     if (selectedCategory) next.category = selectedCategory as KnowledgeCategory;
     return next;
-  }, [selectedCategory, selectedCountry]);
+  }, [preferredLanguage, selectedCategory, selectedCountry]);
+
+  useEffect(() => {
+    void (async () => {
+      const preferences = await fetchMyPreferences();
+      if (preferences?.preferredLanguage === 'ru') {
+        setPreferredLanguage('ru');
+      } else {
+        setPreferredLanguage('en');
+      }
+      setDefaultCountry(preferences?.defaultTargetCountry ?? '');
+      setPreferencesResolved(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!preferencesResolved) return;
+    if (!defaultCountry) return;
+    if (selectedCountry) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('country', defaultCountry);
+    setSearchParams(next);
+  }, [
+    defaultCountry,
+    preferencesResolved,
+    searchParams,
+    selectedCountry,
+    setSearchParams,
+  ]);
 
   useEffect(() => {
     setLoading(true);
@@ -80,26 +123,62 @@ export default function KnowledgeList() {
     setUpgradeLoading(true);
     setUpgradeError('');
     try {
-      const checkout = await startPremiumCheckout();
-      const resolved = await confirmCheckout(checkout.checkoutSessionId);
-      if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
-        const status = await getBillingStatus();
-        setCurrentPlanCode(status.plan.code);
-        const refreshed = await fetchKnowledgeList(query);
-        setItems(refreshed.items);
-        setUpgradeOpened(false);
-      } else {
-        setUpgradeError(
-          resolved.errorMessage ??
-            'Checkout did not succeed. Development mode may intentionally simulate failures.',
-        );
+      const urls = buildCheckoutReturnUrls(window.location.pathname, searchParams);
+      const checkout = await startPremiumCheckout(urls);
+      if (!checkout.checkoutUrl) {
+        throw new Error('Checkout URL was not returned by billing provider.');
       }
+      window.location.assign(checkout.checkoutUrl);
     } catch (err: any) {
       setUpgradeError(String(err?.response?.data?.message ?? 'Upgrade failed'));
     } finally {
       setUpgradeLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!checkoutAction || !checkoutSessionId) return;
+
+    let canceled = false;
+    setCheckoutProcessing(true);
+    setUpgradeError('');
+
+    void (async () => {
+      try {
+        const resolved = await pollCheckoutStatus(checkoutSessionId);
+        if (canceled) return;
+
+        if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
+          const status = await getBillingStatus();
+          setCurrentPlanCode(status.plan.code);
+          const refreshed = await fetchKnowledgeList(query);
+          setItems(refreshed.items);
+          setUpgradeOpened(false);
+        } else if (resolved.paymentStatus === 'CANCELED' || checkoutAction === 'cancel') {
+          setUpgradeError('Checkout was canceled before completion.');
+        } else if (resolved.paymentStatus === 'PENDING') {
+          setUpgradeError(
+            'Checkout is still pending webhook confirmation. Refresh shortly if status does not update.',
+          );
+        } else {
+          setUpgradeError(
+            resolved.errorMessage ?? 'Checkout failed. Please retry with Stripe test card details.',
+          );
+        }
+      } catch (err: any) {
+        if (canceled) return;
+        setUpgradeError(String(err?.response?.data?.message ?? 'Failed to resolve checkout status.'));
+      } finally {
+        if (canceled) return;
+        setCheckoutProcessing(false);
+        clearCheckoutParams();
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [checkoutAction, checkoutSessionId, clearCheckoutParams, query]);
 
   const onCountryChange = (value: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -146,6 +225,9 @@ export default function KnowledgeList() {
       </Group>
 
       {error && <Alert color="red">{error}</Alert>}
+      {checkoutProcessing ? (
+        <Alert color="blue">Processing Stripe checkout status...</Alert>
+      ) : null}
       {loading && (
         <Group justify="center" py="xl">
           <Loader color="brand.7" />

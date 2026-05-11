@@ -1,5 +1,6 @@
 import client from './client';
 import type {
+  BillingPlanSummaryResponse,
   BillingStatusResponse,
   CheckoutResolveResponse,
   CheckoutStartResponse,
@@ -10,9 +11,19 @@ export async function getBillingStatus() {
   return response.data;
 }
 
-export async function startPremiumCheckout() {
+export async function getPlanSummary() {
+  const response = await client.get<BillingPlanSummaryResponse>('/billing/plan-summary');
+  return response.data;
+}
+
+export async function startPremiumCheckout(input?: {
+  successUrl?: string;
+  cancelUrl?: string;
+}) {
   const response = await client.post<CheckoutStartResponse>('/billing/checkout', {
     planCode: 'PREMIUM',
+    successUrl: input?.successUrl,
+    cancelUrl: input?.cancelUrl,
   });
   return response.data;
 }
@@ -26,4 +37,3 @@ export async function confirmCheckout(
   );
   return response.data;
 }
-

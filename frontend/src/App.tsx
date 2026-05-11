@@ -20,6 +20,7 @@ import MarketImport from './pages/admin/MarketImport';
 import UserList from './pages/admin/UserList';
 import SyncManager from './pages/admin/SyncManager';
 import InDevelopment from './pages/InDevelopment';
+import Plan from './pages/Plan';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -49,6 +50,7 @@ function AppRoutes() {
         <Route path="knowledge" element={<KnowledgeList />} />
         <Route path="knowledge/:slug" element={<KnowledgeArticle />} />
         <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="plan" element={<ProtectedRoute><Plan /></ProtectedRoute>} />
         <Route path="profiles" element={<ProtectedRoute><Profiles /></ProtectedRoute>} />
         <Route path="wizard" element={<ProtectedRoute><ProfileWizard /></ProtectedRoute>} />
         <Route path="wizard/:profileId" element={<ProtectedRoute><ProfileWizard /></ProtectedRoute>} />
