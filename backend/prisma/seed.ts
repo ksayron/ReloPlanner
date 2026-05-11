@@ -23,6 +23,323 @@ const prisma = new PrismaClient({ adapter });
 
 const SUPPORTED_COUNTRIES = ['DE', 'NL', 'CA', 'GB', 'PL'] as const;
 
+type KnowledgeSeedItem = {
+  slug: string;
+  title: string;
+  country: string;
+  category:
+    | 'VISA'
+    | 'LEGAL'
+    | 'COST'
+    | 'JOB'
+    | 'CV'
+    | 'LANGUAGE'
+    | 'HOUSING';
+  language: string;
+  content: string;
+  topicTags: string[];
+  riskTags: string[];
+};
+
+const KNOWLEDGE_ARTICLES: KnowledgeSeedItem[] = [
+  {
+    slug: 'de-visa-checklist-it-specialists',
+    title: 'Germany Visa Checklist for IT Specialists',
+    country: 'DE',
+    category: 'VISA',
+    language: 'en',
+    content: `# Germany Visa Checklist for IT Specialists
+
+Before relocation, confirm your route and document readiness:
+
+- Verify your visa route (EU Blue Card or qualified worker pathway).
+- Prepare passport validity for the full relocation period.
+- Collect diploma and employment evidence for role fit.
+- Prepare translated copies where local offices require them.
+- Reserve buffer time for embassy and local registration steps.
+
+## Practical Tip
+Track every submitted document in one folder and note expiration dates to avoid last-minute rejections.`,
+    topicTags: ['visa', 'documents', 'timeline'],
+    riskTags: ['legal', 'completeness'],
+  },
+  {
+    slug: 'nl-legal-startup-documents',
+    title: 'Netherlands Legal Starter Documents',
+    country: 'NL',
+    category: 'LEGAL',
+    language: 'en',
+    content: `# Netherlands Legal Starter Documents
+
+When preparing for relocation, prioritize legal onboarding basics:
+
+- Active passport and entry permission evidence.
+- Employment contract details with start date and legal entity.
+- Residence registration plan for your first weeks.
+- Proof of sufficient funds for transition month.
+
+## Practical Tip
+Store scans in cloud + offline copies to speed up municipal appointments.`,
+    topicTags: ['legal', 'onboarding'],
+    riskTags: ['legal', 'adaptation'],
+  },
+  {
+    slug: 'ca-first-month-cost-plan',
+    title: 'Canada First-Month Cost Planning',
+    country: 'CA',
+    category: 'COST',
+    language: 'en',
+    content: `# Canada First-Month Cost Planning
+
+Use a conservative plan for your first month:
+
+- Budget for rent deposit and initial furniture essentials.
+- Include commuting, SIM card, and insurance setup.
+- Keep contingency for delays in payroll or account setup.
+
+## Practical Tip
+Keep 1-2 months of essential expenses liquid before the move.`,
+    topicTags: ['budget', 'cost-of-living'],
+    riskTags: ['finance'],
+  },
+  {
+    slug: 'gb-job-search-rhythm',
+    title: 'UK Job Search Rhythm for Relocation',
+    country: 'GB',
+    category: 'JOB',
+    language: 'en',
+    content: `# UK Job Search Rhythm for Relocation
+
+Build a weekly job search cadence:
+
+- 2-3 targeted applications per day.
+- Weekly CV alignment pass using current vacancy language.
+- Weekly interview practice for system design and communication.
+
+## Practical Tip
+Track response rates by role category to adjust targeting fast.`,
+    topicTags: ['job-search', 'applications'],
+    riskTags: ['job-market'],
+  },
+  {
+    slug: 'pl-cv-localization-basics',
+    title: 'Poland CV Localization Basics',
+    country: 'PL',
+    category: 'CV',
+    language: 'en',
+    content: `# Poland CV Localization Basics
+
+Local relevance improves interview conversion:
+
+- Keep role titles recognizable in local market language.
+- Highlight production impact with metrics.
+- Put language level near top section when relevant.
+- Align skill wording with live vacancy requirements.
+
+## Practical Tip
+Maintain one reusable core CV and role-specific tailored variants.`,
+    topicTags: ['cv', 'localization'],
+    riskTags: ['job-market', 'completeness'],
+  },
+  {
+    slug: 'de-language-priority-map',
+    title: 'Germany Language Priority Map',
+    country: 'DE',
+    category: 'LANGUAGE',
+    language: 'en',
+    content: `# Germany Language Priority Map
+
+Prioritize language effort by relocation stage:
+
+- Immediate stage: professional English for interviews and onboarding.
+- Settlement stage: practical German for local adaptation and paperwork.
+- Growth stage: deeper German for broader role options.
+
+## Practical Tip
+Schedule language learning in fixed weekly blocks tied to your roadmap.`,
+    topicTags: ['language', 'learning-plan'],
+    riskTags: ['adaptation'],
+  },
+  {
+    slug: 'nl-housing-search-baseline',
+    title: 'Netherlands Housing Search Baseline',
+    country: 'NL',
+    category: 'HOUSING',
+    language: 'en',
+    content: `# Netherlands Housing Search Baseline
+
+Housing search can become the main relocation blocker:
+
+- Start search early and define commute radius.
+- Prepare landlord-ready document pack in advance.
+- Track rent caps against your budget threshold.
+
+## Practical Tip
+Separate "must-have" and "nice-to-have" criteria to avoid decision deadlocks.`,
+    topicTags: ['housing', 'rent'],
+    riskTags: ['finance', 'adaptation'],
+  },
+  {
+    slug: 'general-relocation-document-control',
+    title: 'General Relocation Document Control',
+    country: 'PL',
+    category: 'LEGAL',
+    language: 'en',
+    content: `# General Relocation Document Control
+
+Independent of target market, document discipline lowers risk:
+
+- Keep a relocation checklist with statuses.
+- Store originals, notarized copies, and translations separately.
+- Add reminders for expiring certifications and IDs.
+
+## Practical Tip
+Use one master tracker shared across profile, legal, and job preparation tasks.`,
+    topicTags: ['process', 'documents'],
+    riskTags: ['legal', 'completeness'],
+  },
+  {
+    slug: 'non-eu-to-eu-relocation-checklist',
+    title: 'Non-EU to EU Relocation Checklist',
+    country: 'DE',
+    category: 'VISA',
+    language: 'en',
+    content: `# Non-EU to EU Relocation Checklist
+
+Use this checklist as informational guidance before relocation:
+
+- Confirm whether work authorization or residence permissions are required.
+- Verify whether a job offer is needed for your intended route.
+- Prepare qualification documents and translations where required.
+- Keep timeline buffer for legal processing and appointments.
+- Validate all requirements on official government websites.
+
+## Important
+This guide is informational only and not legal advice.`,
+    topicTags: ['visa', 'checklist', 'legal'],
+    riskTags: ['legal', 'timeline'],
+  },
+  {
+    slug: 'work-authorization-basics',
+    title: 'Work Authorization Basics',
+    country: 'DE',
+    category: 'LEGAL',
+    language: 'en',
+    content: `# Work Authorization Basics
+
+Before relocating for work:
+
+- Confirm country-specific work authorization requirements.
+- Check allowed job type, employer restrictions, and validity period.
+- Track renewal windows and dependent rights where relevant.
+
+## Important
+Always verify final conditions with official sources.`,
+    topicTags: ['work-authorization', 'legal'],
+    riskTags: ['legal'],
+  },
+  {
+    slug: 'germany-blue-card-overview',
+    title: 'Germany EU Blue Card Overview',
+    country: 'DE',
+    category: 'VISA',
+    language: 'en',
+    content: `# Germany EU Blue Card Overview
+
+The EU Blue Card is commonly described as a residence route for qualified employment in Germany.
+
+Typical conditions mentioned by official sources include:
+
+- a concrete job offer,
+- qualification alignment,
+- and salary-related thresholds.
+
+In some cases, official sources also mention special pathways for IT professionals without a traditional degree.
+
+## Important
+This overview is informational only and not an eligibility decision.`,
+    topicTags: ['germany', 'blue-card', 'visa'],
+    riskTags: ['legal'],
+  },
+  {
+    slug: 'germany-it-specialist-visa-options',
+    title: 'Germany IT Specialist Visa Options',
+    country: 'DE',
+    category: 'VISA',
+    language: 'en',
+    content: `# Germany IT Specialist Visa Options
+
+For IT roles, some official guidance mentions options that may apply even without a traditional degree.
+
+- Check whether your role and experience fit current published criteria.
+- Confirm job offer and salary conditions where required.
+- Validate documentary requirements early.
+
+## Important
+Treat this as directional guidance only and verify with official sources.`,
+    topicTags: ['germany', 'it', 'visa'],
+    riskTags: ['legal'],
+  },
+  {
+    slug: 'eu-internal-relocation-basics',
+    title: 'EU Internal Relocation Basics',
+    country: 'DE',
+    category: 'LEGAL',
+    language: 'en',
+    content: `# EU Internal Relocation Basics
+
+EU-to-EU relocation may have lower visa complexity, but practical legal steps can still apply:
+
+- local registration,
+- tax and social contribution setup,
+- residence and employment documentation.
+
+## Important
+Always confirm local administrative requirements.`,
+    topicTags: ['eu', 'relocation', 'admin'],
+    riskTags: ['legal', 'administrative'],
+  },
+  {
+    slug: 'family-relocation-basics',
+    title: 'Family Relocation Basics',
+    country: 'DE',
+    category: 'LEGAL',
+    language: 'en',
+    content: `# Family Relocation Basics
+
+Relocating with family can add legal complexity:
+
+- dependent residence rights,
+- document preparation for family members,
+- possible timing differences between principal and dependent applications.
+
+## Important
+Use official requirements as the final source of truth.`,
+    topicTags: ['family', 'dependents', 'legal'],
+    riskTags: ['legal', 'timeline'],
+  },
+  {
+    slug: 'official-visa-source-checklist',
+    title: 'Official Visa Source Checklist',
+    country: 'DE',
+    category: 'VISA',
+    language: 'en',
+    content: `# Official Visa Source Checklist
+
+When information is uncertain:
+
+- start from official government migration portals,
+- confirm requirements for your exact country pair,
+- verify update dates and legal references,
+- document the source links you rely on.
+
+## Important
+This product provides informational support and does not replace legal advice.`,
+    topicTags: ['official-sources', 'visa', 'verification'],
+    riskTags: ['legal', 'uncertainty'],
+  },
+];
+
 const ROLE_LIST = [
   'Frontend Developer',
   'Backend Developer',
@@ -207,11 +524,18 @@ async function main() {
   const adminHash = await bcrypt.hash('admin123', 10);
   await prisma.user.upsert({
     where: { email: 'admin@reloplanner.dev' },
-    update: { passwordHash: adminHash, role: Role.ADMIN },
+    update: {
+      passwordHash: adminHash,
+      role: Role.ADMIN,
+      emailVerifiedAt: new Date(),
+      emailVerificationTokenHash: null,
+      emailVerificationTokenExpiresAt: null,
+    },
     create: {
       email: 'admin@reloplanner.dev',
       passwordHash: adminHash,
       role: Role.ADMIN,
+      emailVerifiedAt: new Date(),
     },
   });
 
@@ -820,6 +1144,26 @@ async function main() {
         });
       }
     }
+  }
+
+  for (const article of KNOWLEDGE_ARTICLES) {
+    await (prisma as any).knowledgeArticle.upsert({
+      where: {
+        slug_language: {
+          slug: article.slug,
+          language: article.language,
+        },
+      },
+      update: {
+        title: article.title,
+        country: article.country,
+        category: article.category,
+        content: article.content,
+        topicTags: article.topicTags,
+        riskTags: article.riskTags,
+      },
+      create: article,
+    });
   }
 
   console.log('Seed completed successfully');

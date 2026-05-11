@@ -1,6 +1,16 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import { Alert, Anchor, Button, Paper, PasswordInput, Stack, TextInput, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Button,
+  Divider,
+  Paper,
+  PasswordInput,
+  Stack,
+  TextInput,
+  Title,
+} from '@mantine/core';
 import { useAuth } from '../api/AuthContext';
 
 export default function Register() {
@@ -21,6 +31,16 @@ export default function Register() {
     }
   };
 
+  const handleGithubRegister = () => {
+    const params = new URLSearchParams({ returnTo: '/wizard' });
+    window.location.assign(`/api/auth/github?${params.toString()}`);
+  };
+
+  const handleGoogleRegister = () => {
+    const params = new URLSearchParams({ returnTo: '/wizard' });
+    window.location.assign(`/api/auth/google?${params.toString()}`);
+  };
+
   return (
     <div className="mx-auto mt-8 max-w-md">
       <Paper withBorder radius="lg" p="xl" className="bg-white">
@@ -28,12 +48,48 @@ export default function Register() {
           <Stack>
             <Title order={2}>Register</Title>
             {error && <Alert color="red">{error}</Alert>}
-            <TextInput label="Email" type="email" value={email} onChange={(e) => setEmail(e.currentTarget.value)} required />
-            <PasswordInput label="Password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} required />
+            <TextInput
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.currentTarget.value)}
+              required
+            />
+            <PasswordInput
+              label="Password"
+              value={password}
+              onChange={(e) => setPassword(e.currentTarget.value)}
+              required
+            />
             <Button type="submit" loading={loading} color="brand.7" fullWidth>
               Register
             </Button>
-            <Anchor component={RouterLink} to="/login" ta="center" c="dimmed" size="sm">
+            <Divider label="or" labelPosition="center" />
+            <Button
+              type="button"
+              variant="light"
+              color="dark"
+              onClick={handleGoogleRegister}
+              fullWidth
+            >
+              Continue with Google
+            </Button>
+            <Button
+              type="button"
+              variant="light"
+              color="dark"
+              onClick={handleGithubRegister}
+              fullWidth
+            >
+              Continue with GitHub
+            </Button>
+            <Anchor
+              component={RouterLink}
+              to="/login"
+              ta="center"
+              c="dimmed"
+              size="sm"
+            >
               Already have an account? Login
             </Anchor>
           </Stack>

@@ -122,6 +122,16 @@ enum CostCategory {
   OTHER
 }
 
+enum KnowledgeCategory {
+  VISA
+  LEGAL
+  COST
+  JOB
+  CV
+  LANGUAGE
+  HOUSING
+}
+
 enum ProcessingJobType {
   PROFILE_ANALYSIS
   MARKET_SYNC
@@ -136,81 +146,122 @@ enum ProcessingJobStatus {
   FAILED
 }
 
+enum CurrencyCode {
+  USD
+  EUR
+  GBP
+  CAD
+  PLN
+  UAH
+}
+
+enum LifestyleProfile {
+  FRUGAL
+  STANDARD
+  COMFORTABLE
+}
+
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         Role     @default(USER)
-  createdAt    DateTime @default(now()) @map("created_at")
-  profiles     RelocationProfile[]
-  processingJobs ProcessingJob[]
+  id                              String              @id @default(uuid())
+  email                           String              @unique
+  passwordHash                    String?             @map("password_hash")
+  githubId                        String?             @unique @map("github_id")
+  githubLogin                     String?             @map("github_login")
+  googleId                        String?             @unique @map("google_id")
+  googleEmail                     String?             @map("google_email")
+  emailVerifiedAt                 DateTime?           @map("email_verified_at")
+  emailVerificationTokenHash      String?             @unique @map("email_verification_token_hash")
+  emailVerificationTokenExpiresAt DateTime?           @map("email_verification_token_expires_at")
+  role                            Role                @default(USER)
+  createdAt                       DateTime            @default(now()) @map("created_at")
+  profiles                        RelocationProfile[]
+  processingJobs                  ProcessingJob[]
+
   @@map("users")
 }
 
 model RelocationProfile {
-  id              String   @id @default(uuid())
-  userId          String   @map("user_id")
-  targetCountry   String   @map("target_country")
-  targetCity      String?  @map("target_city")
-  currentCountry  String   @map("current_country")
-  yearsExperience Int      @map("years_experience") @db.SmallInt
-  desiredRole     String   @map("desired_role")
-  createdAt       DateTime @default(now()) @map("created_at")
-  user            User     @relation(fields: [userId], references: [id])
-  skills          UserSkill[]
-  competencies    UserCompetency[]
-  analyses        AnalysisResult[]
+  id                           String             @id @default(uuid())
+  userId                       String             @map("user_id")
+  targetCountry                String             @map("target_country")
+  targetCity                   String?            @map("target_city")
+  currentCountry               String             @map("current_country")
+  yearsExperience              Int                @map("years_experience") @db.SmallInt
+  desiredRole                  String             @map("desired_role")
+  savingsAmount                Decimal?           @map("savings_amount") @db.Decimal(12, 2)
+  savingsCurrency              CurrencyCode?      @map("savings_currency")
+  monthlyBudgetAmount          Decimal?           @map("monthly_budget_amount") @db.Decimal(12, 2)
+  monthlyBudgetCurrency        CurrencyCode?      @map("monthly_budget_currency")
+  expectedNetSalaryAmount      Decimal?           @map("expected_net_salary_amount") @db.Decimal(12, 2)
+  expectedNetSalaryCurrency    CurrencyCode?      @map("expected_net_salary_currency")
+  dependentsCount              Int?               @map("dependents_count") @db.SmallInt
+  lifestyle                    LifestyleProfile?  @map("lifestyle")
+  jobSearchMonths              Int?               @map("job_search_months") @db.SmallInt
+  hasExistingWorkAuthorization Boolean?           @map("has_existing_work_authorization")
+  hasJobOffer                  Boolean?           @map("has_job_offer")
+  hasRecognizedDegree          Boolean?           @map("has_recognized_degree")
+  hasFormalEducation           Boolean?           @map("has_formal_education")
+  relocationWithFamily         Boolean?           @map("relocation_with_family")
+  createdAt                    DateTime           @default(now()) @map("created_at")
+  user                         User               @relation(fields: [userId], references: [id])
+  skills                       UserSkill[]
+  competencies                 UserCompetency[]
+  analyses                     AnalysisResult[]
+
   @@map("relocation_profiles")
 }
 
 model Competency {
-  id                   String                 @id @default(uuid())
-  name                 String                 @unique
+  id                   String                  @id @default(uuid())
+  name                 String                  @unique
   type                 CompetencyType
   family               String?
-  parentId             String?                @map("parent_id")
-  parent               Competency?            @relation("CompetencyHierarchy", fields: [parentId], references: [id])
-  children             Competency[]           @relation("CompetencyHierarchy")
-  legacySkillId        String?                @unique @map("legacy_skill_id")
+  parentId             String?                 @map("parent_id")
+  parent               Competency?             @relation("CompetencyHierarchy", fields: [parentId], references: [id])
+  children             Competency[]            @relation("CompetencyHierarchy")
+  legacySkillId        String?                 @unique @map("legacy_skill_id")
   userCompetencies     UserCompetency[]
   marketRequirements   MarketRequirement[]
   countryLanguageLinks CountryLanguage[]
   effortProfiles       LearningEffortProfile[]
   analysisItems        AnalysisItem[]
   roadmapSteps         RoadmapStep[]
-  createdAt            DateTime               @default(now()) @map("created_at")
-  updatedAt            DateTime               @updatedAt @map("updated_at")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
   @@map("competencies")
 }
 
 model UserCompetency {
-  id                  String              @id @default(uuid())
-  profileId           String              @map("profile_id")
-  competencyId        String              @map("competency_id")
-  hardSkillLevel      HardSkillLevel?     @map("hard_skill_level")
-  languageLevel       LanguageLevel?      @map("language_level")
+  id                  String               @id @default(uuid())
+  profileId           String               @map("profile_id")
+  competencyId        String               @map("competency_id")
+  hardSkillLevel      HardSkillLevel?      @map("hard_skill_level")
+  languageLevel       LanguageLevel?       @map("language_level")
   certificationStatus CertificationStatus? @map("certification_status")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
-  profile             RelocationProfile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  competency          Competency          @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  profile             RelocationProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  competency          Competency           @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
   @@unique([profileId, competencyId])
   @@map("user_competencies")
 }
 
 model Skill {
-  id            String          @id @default(uuid())
-  name          String          @unique
+  id            String                 @id @default(uuid())
+  name          String                 @unique
   category      SkillCategory
-  parentId      String?         @map("parent_id")
-  parent        Skill?          @relation("SkillHierarchy", fields: [parentId], references: [id])
-  children      Skill[]         @relation("SkillHierarchy")
+  parentId      String?                @map("parent_id")
+  parent        Skill?                 @relation("SkillHierarchy", fields: [parentId], references: [id])
+  children      Skill[]                @relation("SkillHierarchy")
   aliases       SkillAlias[]
   userSkills    UserSkill[]
   marketDemands MarketSkillDemand[]
   gapItems      GapItem[]
   transfersFrom SkillTransferability[] @relation("TransferSource")
   transfersTo   SkillTransferability[] @relation("TransferTarget")
+
   @@map("skills")
 }
 
@@ -219,15 +270,17 @@ model SkillAlias {
   alias   String @unique
   skillId String @map("skill_id")
   skill   Skill  @relation(fields: [skillId], references: [id])
+
   @@map("skill_aliases")
 }
 
 model SkillTransferability {
-  sourceSkillId String @map("source_skill_id")
-  targetSkillId String @map("target_skill_id")
-  coefficient   Decimal @db.Decimal(3,2)
+  sourceSkillId String  @map("source_skill_id")
+  targetSkillId String  @map("target_skill_id")
+  coefficient   Decimal @db.Decimal(3, 2)
   sourceSkill   Skill   @relation("TransferSource", fields: [sourceSkillId], references: [id])
   targetSkill   Skill   @relation("TransferTarget", fields: [targetSkillId], references: [id])
+
   @@id([sourceSkillId, targetSkillId])
   @@map("skill_transferability")
 }
@@ -235,58 +288,62 @@ model SkillTransferability {
 model UserSkill {
   profileId   String            @map("profile_id")
   skillId     String            @map("skill_id")
-  proficiency Decimal           @db.Decimal(3,2)
+  proficiency Decimal           @db.Decimal(3, 2)
   profile     RelocationProfile @relation(fields: [profileId], references: [id])
   skill       Skill             @relation(fields: [skillId], references: [id])
+
   @@id([profileId, skillId])
   @@map("user_skills")
 }
 
 model MarketSnapshot {
-  id             String   @id @default(uuid())
+  id             String              @id @default(uuid())
   country        String
   city           String?
-  snapshotDate   DateTime @map("snapshot_date") @db.Date
+  snapshotDate   DateTime            @map("snapshot_date") @db.Date
   source         String
-  totalVacancies Int      @map("total_vacancies")
+  totalVacancies Int                 @map("total_vacancies")
   skillDemands   MarketSkillDemand[]
   requirements   MarketRequirement[]
   analyses       AnalysisResult[]
+
   @@map("market_snapshots")
 }
 
 model MarketRequirement {
-  id                           String                          @id @default(uuid())
-  snapshotId                   String?                         @map("snapshot_id")
-  countryCode                  String                          @map("country_code")
-  roleName                     String                          @map("role_name")
-  competencyId                 String                          @map("competency_id")
-  competencyType               CompetencyType                  @map("competency_type")
-  hardSkillRequiredLevel       HardSkillLevel?                 @map("hard_skill_required_level")
-  languageRequiredLevel        LanguageLevel?                  @map("language_required_level")
-  certificationRequirementLevel CertificationRequirementLevel?  @map("certification_requirement_level")
-  requiredCertificationStatus  CertificationStatus?            @map("required_certification_status")
-  priority                     RequirementPriority
-  roleRelevance                RoleRelevance                   @map("role_relevance")
-  languageContext              LanguageRequirementContext?     @map("language_context")
-  frequency                    Decimal                         @db.Decimal(5,4)
-  importance                   Decimal                         @db.Decimal(5,4)
-  isActive                     Boolean                         @default(true) @map("is_active")
-  createdAt                    DateTime                        @default(now()) @map("created_at")
-  updatedAt                    DateTime                        @updatedAt @map("updated_at")
-  snapshot                     MarketSnapshot?                 @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
-  competency                   Competency                      @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+  id                            String                         @id @default(uuid())
+  snapshotId                    String?                        @map("snapshot_id")
+  countryCode                   String                         @map("country_code")
+  roleName                      String                         @map("role_name")
+  competencyId                  String                         @map("competency_id")
+  competencyType                CompetencyType                 @map("competency_type")
+  hardSkillRequiredLevel        HardSkillLevel?                @map("hard_skill_required_level")
+  languageRequiredLevel         LanguageLevel?                 @map("language_required_level")
+  certificationRequirementLevel CertificationRequirementLevel? @map("certification_requirement_level")
+  requiredCertificationStatus   CertificationStatus?           @map("required_certification_status")
+  priority                      RequirementPriority
+  roleRelevance                 RoleRelevance                  @map("role_relevance")
+  languageContext               LanguageRequirementContext?    @map("language_context")
+  frequency                     Decimal                        @db.Decimal(5, 4)
+  importance                    Decimal                        @db.Decimal(5, 4)
+  isActive                      Boolean                        @default(true) @map("is_active")
+  createdAt                     DateTime                       @default(now()) @map("created_at")
+  updatedAt                     DateTime                       @updatedAt @map("updated_at")
+  snapshot                      MarketSnapshot?                @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+  competency                    Competency                     @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
   @@unique([countryCode, roleName, competencyId])
   @@index([countryCode, roleName, isActive])
   @@map("market_requirements")
 }
 
 model CountryLanguage {
-  id                   String                    @id @default(uuid())
-  countryCode          String                    @map("country_code")
-  languageCompetencyId String                    @map("language_competency_id")
+  id                   String                   @id @default(uuid())
+  countryCode          String                   @map("country_code")
+  languageCompetencyId String                   @map("language_competency_id")
   relevance            CountryLanguageRelevance
-  languageCompetency   Competency                @relation(fields: [languageCompetencyId], references: [id], onDelete: Cascade)
+  languageCompetency   Competency               @relation(fields: [languageCompetencyId], references: [id], onDelete: Cascade)
+
   @@unique([countryCode, languageCompetencyId])
   @@map("country_languages")
 }
@@ -299,18 +356,20 @@ model RoleCompetencyRule {
   defaultPriority  RequirementPriority @map("default_priority")
   createdAt        DateTime            @default(now()) @map("created_at")
   updatedAt        DateTime            @updatedAt @map("updated_at")
+
   @@unique([roleName, competencyFamily])
   @@map("role_competency_rules")
 }
 
 model LearningEffortProfile {
-  id            String     @id @default(uuid())
-  competencyId  String     @map("competency_id")
-  targetLevel   String     @map("target_level")
-  estimatedHours Int       @map("estimated_hours")
-  createdAt     DateTime   @default(now()) @map("created_at")
-  updatedAt     DateTime   @updatedAt @map("updated_at")
-  competency    Competency @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+  id             String     @id @default(uuid())
+  competencyId   String     @map("competency_id")
+  targetLevel    String     @map("target_level")
+  estimatedHours Int        @map("estimated_hours")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  competency     Competency @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
   @@unique([competencyId, targetLevel])
   @@map("learning_effort_profiles")
 }
@@ -318,10 +377,11 @@ model LearningEffortProfile {
 model MarketSkillDemand {
   snapshotId       String         @map("snapshot_id")
   skillId          String         @map("skill_id")
-  frequency        Decimal        @db.Decimal(5,4)
-  avgRequiredLevel Decimal        @map("avg_required_level") @db.Decimal(3,2)
+  frequency        Decimal        @db.Decimal(5, 4)
+  avgRequiredLevel Decimal        @map("avg_required_level") @db.Decimal(3, 2)
   snapshot         MarketSnapshot @relation(fields: [snapshotId], references: [id])
   skill            Skill          @relation(fields: [skillId], references: [id])
+
   @@id([snapshotId, skillId])
   @@map("market_skill_demands")
 }
@@ -331,26 +391,28 @@ model CostOfLivingData {
   country       String
   city          String
   category      CostCategory
-  avgMonthlyUsd Decimal      @map("avg_monthly_usd") @db.Decimal(10,2)
+  avgMonthlyUsd Decimal      @map("avg_monthly_usd") @db.Decimal(10, 2)
   updatedAt     DateTime     @updatedAt @map("updated_at")
+
   @@map("cost_of_living_data")
 }
 
 model AnalysisResult {
-  id              String            @id @default(uuid())
-  profileId       String            @map("profile_id")
-  snapshotId      String            @map("snapshot_id")
-  fitScore        Decimal           @map("fit_score") @db.Decimal(4,3)
-  skillBreakdown  Json              @map("skill_breakdown")
-  totalPrepMonths Decimal           @map("total_prep_months") @db.Decimal(4,1)
-  timeEstimate    Json?             @map("time_estimate")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  profile         RelocationProfile @relation(fields: [profileId], references: [id])
-  snapshot        MarketSnapshot    @relation(fields: [snapshotId], references: [id])
+  id              String             @id @default(uuid())
+  profileId       String             @map("profile_id")
+  snapshotId      String             @map("snapshot_id")
+  fitScore        Decimal            @map("fit_score") @db.Decimal(4, 3)
+  skillBreakdown  Json               @map("skill_breakdown")
+  totalPrepMonths Decimal            @map("total_prep_months") @db.Decimal(4, 1)
+  timeEstimate    Json?              @map("time_estimate")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  profile         RelocationProfile  @relation(fields: [profileId], references: [id])
+  snapshot        MarketSnapshot     @relation(fields: [snapshotId], references: [id])
   gaps            GapItem[]
   analysisItems   AnalysisItem[]
   roadmapSteps    RoadmapStep[]
   aiSummary       AnalysisAiSummary?
+
   @@map("analysis_results")
 }
 
@@ -362,6 +424,7 @@ model AnalysisAiSummary {
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
   analysis    AnalysisResult @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
   @@map("analysis_ai_summaries")
 }
 
@@ -371,18 +434,19 @@ model AnalysisItem {
   competencyId            String              @map("competency_id")
   currentDisplayLevel     String              @map("current_display_level")
   requiredDisplayLevel    String              @map("required_display_level")
-  normalizedCurrentScore  Decimal             @map("normalized_current_score") @db.Decimal(4,3)
-  normalizedRequiredScore Decimal             @map("normalized_required_score") @db.Decimal(4,3)
-  matchScore              Decimal             @map("match_score") @db.Decimal(4,3)
+  normalizedCurrentScore  Decimal             @map("normalized_current_score") @db.Decimal(4, 3)
+  normalizedRequiredScore Decimal             @map("normalized_required_score") @db.Decimal(4, 3)
+  matchScore              Decimal             @map("match_score") @db.Decimal(4, 3)
   priority                RequirementPriority
   roleRelevance           RoleRelevance       @map("role_relevance")
   recommendationType      RecommendationType  @map("recommendation_type")
   includedInRoadmap       Boolean             @map("included_in_roadmap")
   reason                  String
-  weight                  Decimal             @db.Decimal(6,4)
+  weight                  Decimal             @db.Decimal(6, 4)
   createdAt               DateTime            @default(now()) @map("created_at")
   analysis                AnalysisResult      @relation(fields: [analysisId], references: [id], onDelete: Cascade)
   competency              Competency          @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
   @@index([analysisId, recommendationType])
   @@map("analysis_items")
 }
@@ -393,7 +457,7 @@ model RoadmapStep {
   competencyId         String              @map("competency_id")
   orderIndex           Int                 @map("order_index") @db.SmallInt
   estimatedHours       Int                 @map("estimated_hours")
-  estimatedMonths      Decimal             @map("estimated_months") @db.Decimal(4,1)
+  estimatedMonths      Decimal             @map("estimated_months") @db.Decimal(4, 1)
   dependsOn            String[]            @map("depends_on")
   priority             RequirementPriority
   roleRelevance        RoleRelevance       @map("role_relevance")
@@ -405,6 +469,7 @@ model RoadmapStep {
   createdAt            DateTime            @default(now()) @map("created_at")
   analysis             AnalysisResult      @relation(fields: [analysisId], references: [id], onDelete: Cascade)
   competency           Competency          @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
   @@index([analysisId, orderIndex])
   @@map("roadmap_steps")
 }
@@ -415,14 +480,15 @@ model GapItem {
   skillId         String         @map("skill_id")
   gapType         GapType        @map("gap_type")
   severity        Severity
-  currentLevel    Decimal        @map("current_level") @db.Decimal(3,2)
-  requiredLevel   Decimal        @map("required_level") @db.Decimal(3,2)
-  estimatedMonths Decimal        @map("estimated_months") @db.Decimal(3,1)
+  currentLevel    Decimal        @map("current_level") @db.Decimal(3, 2)
+  requiredLevel   Decimal        @map("required_level") @db.Decimal(3, 2)
+  estimatedMonths Decimal        @map("estimated_months") @db.Decimal(3, 1)
   dependsOn       String[]       @map("depends_on")
   orderIndex      Int            @map("order_index") @db.SmallInt
   status          GapStatus      @default(PENDING)
   analysis        AnalysisResult @relation(fields: [analysisId], references: [id])
   skill           Skill          @relation(fields: [skillId], references: [id])
+
   @@map("gap_items")
 }
 
@@ -441,28 +507,49 @@ model ProcessingJob {
   createdAt       DateTime            @default(now()) @map("created_at")
   updatedAt       DateTime            @updatedAt @map("updated_at")
   user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, createdAt])
   @@map("processing_jobs")
 }
 
 model JobPosting {
-  id                 String   @id @default(uuid())
-  countryCode        String   @map("country_code")
-  roleName           String   @map("role_name")
-  title              String
-  company            String
-  location           String
-  source             String
-  sourceUrl          String?  @map("source_url")
-  sourceExternalId   String?  @map("source_external_id")
-  salaryMinUsd       Int?     @map("salary_min_usd")
-  salaryMaxUsd       Int?     @map("salary_max_usd")
-  salaryCurrency     String?  @map("salary_currency")
-  requirements       Json
+  id                       String   @id @default(uuid())
+  countryCode              String   @map("country_code")
+  roleName                 String   @map("role_name")
+  title                    String
+  company                  String
+  location                 String
+  source                   String
+  sourceUrl                String?  @map("source_url")
+  sourceExternalId         String?  @map("source_external_id")
+  salaryMinUsd             Int?     @map("salary_min_usd")
+  salaryMaxUsd             Int?     @map("salary_max_usd")
+  salaryCurrency           String?  @map("salary_currency")
+  requirements             Json
   requirementCompetencyIds String[] @default([]) @map("requirement_competency_ids")
-  dedupKey           String   @unique @map("dedup_key")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  dedupKey                 String   @unique @map("dedup_key")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
   @@index([countryCode, roleName, createdAt])
   @@map("job_postings")
+}
+
+model KnowledgeArticle {
+  id        String            @id @default(uuid())
+  slug      String
+  title     String
+  country   String
+  category  KnowledgeCategory
+  language  String            @default("en")
+  content   String
+  topicTags String[]          @default([])
+  riskTags  String[]          @default([])
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  @@unique([slug, language])
+  @@index([country, category, language])
+  @@index([updatedAt(sort: Desc)])
+  @@map("knowledge_articles")
 }

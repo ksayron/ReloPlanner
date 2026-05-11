@@ -2,6 +2,14 @@ export type Role = 'USER' | 'PREMIUM' | 'ADMIN';
 export type GapStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 export type SkillCategory = 'HARD_SKILL' | 'LANGUAGE' | 'CERTIFICATION' | 'SOFT_SKILL';
 export type CostCategory = 'RENT' | 'FOOD' | 'TRANSPORT' | 'UTILITIES' | 'OTHER';
+export type KnowledgeCategory =
+  | 'VISA'
+  | 'LEGAL'
+  | 'COST'
+  | 'JOB'
+  | 'CV'
+  | 'LANGUAGE'
+  | 'HOUSING';
 
 export type CompetencyType =
   | 'HARD_SKILL'
@@ -21,6 +29,8 @@ export type RecommendationType =
 export type HardSkillLevel = 'NONE' | 'BASIC' | 'PRACTICAL' | 'CONFIDENT' | 'ADVANCED';
 export type LanguageLevel = 'NONE' | 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type CertificationStatus = 'NONE' | 'PLANNED' | 'IN_PROGRESS' | 'OBTAINED' | 'EXPIRED';
+export type CurrencyCode = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'PLN' | 'UAH';
+export type LifestyleProfile = 'FRUGAL' | 'STANDARD' | 'COMFORTABLE';
 
 export interface User {
   id: string;
@@ -59,10 +69,24 @@ export interface UserCompetencyInput {
 export interface RelocationProfile {
   id: string;
   targetCountry: string;
-  targetCity?: string;
+  targetCity?: string | null;
   currentCountry: string;
   yearsExperience: number;
   desiredRole: string;
+  savingsAmount?: number | null;
+  savingsCurrency?: CurrencyCode | null;
+  monthlyBudgetAmount?: number | null;
+  monthlyBudgetCurrency?: CurrencyCode | null;
+  expectedNetSalaryAmount?: number | null;
+  expectedNetSalaryCurrency?: CurrencyCode | null;
+  dependentsCount?: number | null;
+  lifestyle?: LifestyleProfile | null;
+  jobSearchMonths?: number | null;
+  hasExistingWorkAuthorization?: boolean | null;
+  hasJobOffer?: boolean | null;
+  hasRecognizedDegree?: boolean | null;
+  hasFormalEducation?: boolean | null;
+  relocationWithFamily?: boolean | null;
   competencies?: UserCompetencyInput[];
 }
 
@@ -190,6 +214,40 @@ export interface CostComparison {
   comparison: { category: CostCategory; city1Amount: number; city2Amount: number }[];
 }
 
+export interface KnowledgeArticleListItem {
+  slug: string;
+  title: string;
+  country: string;
+  category: KnowledgeCategory;
+  language: string;
+  excerpt: string;
+  topicTags: string[];
+  riskTags: string[];
+  updatedAt: string;
+}
+
+export interface KnowledgeArticleDetail {
+  slug: string;
+  title: string;
+  country: string;
+  category: KnowledgeCategory;
+  language: string;
+  content: string;
+  topicTags: string[];
+  riskTags: string[];
+  updatedAt: string;
+}
+
+export interface KnowledgeListResponse {
+  items: KnowledgeArticleListItem[];
+  filters: {
+    country: string | null;
+    category: KnowledgeCategory | null;
+    language: string;
+  };
+  total: number;
+}
+
 export interface CountryOption {
   code: string;
   name: string;
@@ -275,6 +333,101 @@ export type ReportVariant = 'snapshot' | 'ai-summary';
 export type AiProviderName = 'OPENAI' | 'OPENROUTER' | 'MOCK';
 export type AiTaskGrade = 'EASY' | 'REASONING';
 
+export type RegionType = 'EU' | 'NON_EU' | 'UNKNOWN';
+export type LegalRiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'UNKNOWN';
+
+export interface LegalQuestion {
+  key: string;
+  text: string;
+  type: 'BOOLEAN';
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface LegalRoute {
+  code: string;
+  title: string;
+  applicability: 'POSSIBLE' | 'LESS_LIKELY' | 'UNKNOWN';
+  description: string;
+}
+
+export interface LegalWarning {
+  code: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  message: string;
+}
+
+export interface LegalAdvice {
+  code: string;
+  message: string;
+}
+
+export interface TriggeredLegalRule {
+  code: string;
+  description: string;
+}
+
+export interface LegalReadinessResult {
+  sourceCountry: string;
+  targetCountry: string;
+  sourceRegion: RegionType;
+  targetRegion: RegionType;
+  visaCheckLikelyRequired: boolean;
+  overallRisk: LegalRiskLevel;
+  triggeredRules: TriggeredLegalRule[];
+  questions: LegalQuestion[];
+  possibleRoutes: LegalRoute[];
+  warnings: LegalWarning[];
+  advice: LegalAdvice[];
+  recommendedArticleSlugs: string[];
+  disclaimer: string;
+}
+
+export type FinancialRiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'UNKNOWN';
+export type CostEstimateSource = 'CITY' | 'COUNTRY' | 'GLOBAL';
+
+export interface FinancialCostCategoryEstimate {
+  category: CostCategory;
+  monthlyAmountUsd: number;
+}
+
+export interface FinancialCostEstimate {
+  source: CostEstimateSource;
+  categories: FinancialCostCategoryEstimate[];
+  totalMonthlyEstimateUsd: number;
+  appliedLifestyleMultiplier: number;
+  appliedDependentsMultiplier: number;
+}
+
+export interface FinancialWarning {
+  code: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  message: string;
+}
+
+export interface FinancialAdvice {
+  code: string;
+  message: string;
+}
+
+export interface TriggeredFinancialRule {
+  code: string;
+  description: string;
+}
+
+export interface FinancialReadinessResult {
+  targetCountry: string;
+  targetCity: string | null;
+  financialRiskLevel: FinancialRiskLevel;
+  runwayMonths: number | null;
+  recommendedSavingsAmount: number;
+  recommendedSavingsCurrency: 'USD';
+  costEstimate: FinancialCostEstimate;
+  triggeredRules: TriggeredFinancialRule[];
+  warnings: FinancialWarning[];
+  advice: FinancialAdvice[];
+  summary: string;
+}
+
 export interface ReportAiSummary {
   executiveSummary: string;
   topStrengths: string[];
@@ -317,6 +470,8 @@ export interface ReportSnapshotResponse {
       readinessLevel: 'READY' | 'NEAR_READY' | 'PREPARATION_REQUIRED';
       totalPrepMonths: number;
     };
+    legalReadiness?: LegalReadinessResult;
+    financialReadiness?: FinancialReadinessResult;
   };
   variant: ReportVariant;
   aiSummary: ReportAiSummary | null;

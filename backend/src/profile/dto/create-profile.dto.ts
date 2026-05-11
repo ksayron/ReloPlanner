@@ -6,6 +6,10 @@ import {
   ValidateNested,
   IsEnum,
   ValidateIf,
+  IsBoolean,
+  IsNumber,
+  Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -14,6 +18,11 @@ import {
   LanguageLevel,
   CertificationStatus,
 } from '@prisma/client';
+
+const CURRENCY_CODES = ['USD', 'EUR', 'GBP', 'CAD', 'PLN', 'UAH'] as const;
+type CurrencyCodeValue = (typeof CURRENCY_CODES)[number];
+const LIFESTYLE_PROFILES = ['FRUGAL', 'STANDARD', 'COMFORTABLE'] as const;
+type LifestyleProfileValue = (typeof LIFESTYLE_PROFILES)[number];
 
 export class CompetencyInput {
   @ApiProperty({
@@ -70,6 +79,83 @@ export class CreateProfileDto {
   @ApiProperty({ example: 'DevOps Engineer' })
   @IsString()
   desiredRole: string;
+
+  @ApiPropertyOptional({ example: 12000 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  savingsAmount?: number;
+
+  @ApiPropertyOptional({ enum: CURRENCY_CODES, example: 'USD' })
+  @IsOptional()
+  @IsEnum(CURRENCY_CODES)
+  savingsCurrency?: CurrencyCodeValue;
+
+  @ApiPropertyOptional({ example: 2000 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  monthlyBudgetAmount?: number;
+
+  @ApiPropertyOptional({ enum: CURRENCY_CODES, example: 'EUR' })
+  @IsOptional()
+  @IsEnum(CURRENCY_CODES)
+  monthlyBudgetCurrency?: CurrencyCodeValue;
+
+  @ApiPropertyOptional({ example: 4500 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  expectedNetSalaryAmount?: number;
+
+  @ApiPropertyOptional({ enum: CURRENCY_CODES, example: 'EUR' })
+  @IsOptional()
+  @IsEnum(CURRENCY_CODES)
+  expectedNetSalaryCurrency?: CurrencyCodeValue;
+
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  dependentsCount?: number;
+
+  @ApiPropertyOptional({ enum: LIFESTYLE_PROFILES, example: 'STANDARD' })
+  @IsOptional()
+  @IsEnum(LIFESTYLE_PROFILES)
+  lifestyle?: LifestyleProfileValue;
+
+  @ApiPropertyOptional({ example: 6 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(24)
+  jobSearchMonths?: number;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  hasExistingWorkAuthorization?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  hasJobOffer?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  hasRecognizedDegree?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  hasFormalEducation?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  relocationWithFamily?: boolean;
 
   @ApiProperty({
     type: () => CompetencyInput,

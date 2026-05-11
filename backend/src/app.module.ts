@@ -14,6 +14,9 @@ import { ReportsModule } from './reports/reports.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { AiModule } from './ai/ai.module.js';
 import { ResumeModule } from './resume/resume.module.js';
+import { KnowledgeModule } from './knowledge/knowledge.module.js';
+import { LegalReadinessModule } from './legal-readiness/legal-readiness.module.js';
+import { FinancialReadinessModule } from './financial-readiness/financial-readiness.module.js';
 
 @Module({
   imports: [
@@ -32,6 +35,9 @@ import { ResumeModule } from './resume/resume.module.js';
     JobsModule,
     AiModule,
     ResumeModule,
+    KnowledgeModule,
+    LegalReadinessModule,
+    FinancialReadinessModule,
   ],
 })
 export class AppModule {}

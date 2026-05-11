@@ -12,12 +12,16 @@ import {
 import { JSDOM } from 'jsdom';
 import htmlToPdfmake from 'html-to-pdfmake';
 import { AiReportEnrichmentService } from '../ai/ai-report-enrichment.service.js';
+import { LegalKnowledgeEngineService } from '../legal-readiness/legal-knowledge-engine.service.js';
+import { FinancialKnowledgeEngineService } from '../financial-readiness/financial-knowledge-engine.service.js';
 
 @Injectable()
 export class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiEnrichment: AiReportEnrichmentService,
+    private readonly legalReadinessEngine: LegalKnowledgeEngineService,
+    private readonly financialReadinessEngine: FinancialKnowledgeEngineService,
   ) {}
 
   async generateSnapshot(
@@ -36,7 +40,7 @@ export class ReportsService {
     try {
       generation.status = 'GENERATING';
       const analysis = await this.loadAnalysis(analysisId, userId);
-      const snapshot = this.buildSnapshot(analysis);
+      const snapshot = await this.buildSnapshot(analysis);
 
       let aiSummary: ReportAiSummary | null = null;
       let aiSummaryMeta: ReportAiSummaryMeta | null = null;
@@ -112,7 +116,7 @@ export class ReportsService {
     generation.status = 'GENERATING';
 
     const analysis = await this.loadAnalysis(analysisId, userId);
-    const snapshot = this.buildSnapshot(analysis);
+    const snapshot = await this.buildSnapshot(analysis);
     const enriched = await this.aiEnrichment.summarizeSnapshot(snapshot, 'REASONING');
 
     await (this.prisma as any).analysisAiSummary.upsert({
@@ -190,7 +194,7 @@ export class ReportsService {
     };
   }
 
-  private buildSnapshot(analysis: any): RelocationReadinessReportSnapshot {
+  private async buildSnapshot(analysis: any): Promise<RelocationReadinessReportSnapshot> {
     const fitScore = Number(analysis.fitScore);
     const totalPrepMonths = Number(analysis.totalPrepMonths);
     const skillBreakdownRaw = Array.isArray(analysis.skillBreakdown)
@@ -276,6 +280,38 @@ export class ReportsService {
         totalVacancies: analysis.snapshot.totalVacancies,
         jobMarketNote: `${analysis.snapshot.country} market snapshot from ${analysis.snapshot.source}. ${gapText}`,
       },
+      legalReadiness: this.legalReadinessEngine.evaluate({
+        sourceCountry: analysis.profile.currentCountry,
+        targetCountry: analysis.profile.targetCountry,
+        targetCity: analysis.profile.targetCity ?? undefined,
+        desiredRole: analysis.profile.desiredRole ?? undefined,
+        hasExistingWorkAuthorization:
+          analysis.profile.hasExistingWorkAuthorization ?? undefined,
+        hasJobOffer: analysis.profile.hasJobOffer ?? undefined,
+        hasRecognizedDegree: analysis.profile.hasRecognizedDegree ?? undefined,
+        hasFormalEducation: analysis.profile.hasFormalEducation ?? undefined,
+        relocationWithFamily: analysis.profile.relocationWithFamily ?? undefined,
+      }),
+      financialReadiness: await this.financialReadinessEngine.evaluate({
+        targetCountry: analysis.profile.targetCountry,
+        targetCity: analysis.profile.targetCity ?? undefined,
+        savingsAmount: analysis.profile.savingsAmount
+          ? Number(analysis.profile.savingsAmount)
+          : undefined,
+        savingsCurrency: analysis.profile.savingsCurrency ?? undefined,
+        monthlyBudgetAmount: analysis.profile.monthlyBudgetAmount
+          ? Number(analysis.profile.monthlyBudgetAmount)
+          : undefined,
+        monthlyBudgetCurrency: analysis.profile.monthlyBudgetCurrency ?? undefined,
+        expectedNetSalaryAmount: analysis.profile.expectedNetSalaryAmount
+          ? Number(analysis.profile.expectedNetSalaryAmount)
+          : undefined,
+        expectedNetSalaryCurrency:
+          analysis.profile.expectedNetSalaryCurrency ?? undefined,
+        dependentsCount: analysis.profile.dependentsCount ?? undefined,
+        lifestyle: analysis.profile.lifestyle ?? undefined,
+        jobSearchMonths: analysis.profile.jobSearchMonths ?? undefined,
+      }),
     };
   }
 
@@ -339,6 +375,36 @@ export class ReportsService {
       )
       .join('');
 
+    const legal = snapshot.legalReadiness;
+    const legalReasons = (legal?.triggeredRules ?? [])
+      .map((rule) => `<li>${this.escapeHtml(rule.description)}</li>`)
+      .join('');
+    const legalQuestions = (legal?.questions ?? [])
+      .map((question) => `<li>${this.escapeHtml(question.text)}</li>`)
+      .join('');
+    const legalRoutes = (legal?.possibleRoutes ?? [])
+      .map(
+        (route) =>
+          `<li><strong>${this.escapeHtml(route.title)}</strong>: ${this.escapeHtml(route.description)}</li>`,
+      )
+      .join('');
+    const legalWarnings = (legal?.warnings ?? [])
+      .map((warning) => `<li>${this.escapeHtml(warning.message)}</li>`)
+      .join('');
+    const legalAdvice = (legal?.advice ?? [])
+      .map((item) => `<li>${this.escapeHtml(item.message)}</li>`)
+      .join('');
+    const legalArticles = (legal?.recommendedArticleSlugs ?? [])
+      .map((slug) => `<li>${this.escapeHtml(slug)}</li>`)
+      .join('');
+    const financial = snapshot.financialReadiness;
+    const financialWarnings = (financial?.warnings ?? [])
+      .map((warning) => `<li>${this.escapeHtml(warning.message)}</li>`)
+      .join('');
+    const financialAdvice = (financial?.advice ?? [])
+      .map((item) => `<li>${this.escapeHtml(item.message)}</li>`)
+      .join('');
+
     return `<!doctype html>
 <html lang="en">
 <head>
@@ -390,6 +456,34 @@ export class ReportsService {
 
   <h2>Market Context</h2>
   <p>${this.escapeHtml(snapshot.marketContext.jobMarketNote)}</p>
+
+  <h2>Legal and Visa Readiness</h2>
+  <p><strong>Risk:</strong> ${legal?.overallRisk ?? 'UNKNOWN'}</p>
+  <p><strong>Visa/Legal Check Likely Required:</strong> ${legal?.visaCheckLikelyRequired ? 'Yes' : 'No'}</p>
+  <h3>Why</h3>
+  <ul>${legalReasons || '<li>No rule triggers available.</li>'}</ul>
+  <h3>Questions to Clarify</h3>
+  <ul>${legalQuestions || '<li>No additional clarification questions.</li>'}</ul>
+  <h3>Possible Routes to Check</h3>
+  <ul>${legalRoutes || '<li>No route hints available.</li>'}</ul>
+  <h3>Warnings</h3>
+  <ul>${legalWarnings || '<li>No specific warnings.</li>'}</ul>
+  <h3>Advice</h3>
+  <ul>${legalAdvice || '<li>No additional advice.</li>'}</ul>
+  <h3>Recommended Knowledge Slugs</h3>
+  <ul>${legalArticles || '<li>No recommended article slugs.</li>'}</ul>
+  <p class="muted">${this.escapeHtml(legal?.disclaimer ?? 'This section is informational guidance only and not legal advice.')}</p>
+
+  <h2>Financial Readiness</h2>
+  <p><strong>Risk:</strong> ${financial?.financialRiskLevel ?? 'UNKNOWN'}</p>
+  <p><strong>Monthly Cost Estimate:</strong> ${financial ? financial.costEstimate.totalMonthlyEstimateUsd.toFixed(2) : '0.00'} USD</p>
+  <p><strong>Runway:</strong> ${financial?.runwayMonths !== null && financial?.runwayMonths !== undefined ? `${financial.runwayMonths.toFixed(1)} months` : 'Unavailable'}</p>
+  <p><strong>Recommended Savings:</strong> ${financial ? financial.recommendedSavingsAmount.toFixed(2) : '0.00'} USD</p>
+  <p>${this.escapeHtml(financial?.summary ?? 'Financial readiness summary is unavailable.')}</p>
+  <h3>Warnings</h3>
+  <ul>${financialWarnings || '<li>No specific warnings.</li>'}</ul>
+  <h3>Advice</h3>
+  <ul>${financialAdvice || '<li>No additional advice.</li>'}</ul>
 </body>
 </html>`;
   }

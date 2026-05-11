@@ -18,6 +18,9 @@ import {
 } from '@mantine/core';
 import client from '../api/client';
 import JobProgressPanel from '../components/JobProgressPanel';
+import LegalReadinessCard from '../components/LegalReadinessCard';
+import FinancialReadinessCard from '../components/FinancialReadinessCard';
+import SkillFitRadarChart from '../components/SkillFitRadarChart';
 import type {
   AnalysisHistoryItem,
   AnalysisResult,
@@ -448,6 +451,8 @@ export default function Dashboard() {
           )}
         </Stack>
       </Card>
+      {profileId ? <LegalReadinessCard profileId={profileId} /> : null}
+      {profileId ? <FinancialReadinessCard profileId={profileId} /> : null}
 
       {noResults && !result && !analyzing && <Paper withBorder radius="lg" p="xl" className="bg-white text-center"><Stack align="center"><Text>No analysis results yet.</Text><Button onClick={runAnalysis} color="brand.7">Run Analysis</Button></Stack></Paper>}
 
@@ -471,6 +476,7 @@ export default function Dashboard() {
                     <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
                     <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
                   </Group>
+                  <SkillFitRadarChart items={result.analysisItems} />
                   {result.timeEstimate && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}><Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge></SimpleGrid>}
                 </Stack>
               </Tabs.Panel>
