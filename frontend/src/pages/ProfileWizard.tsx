@@ -21,6 +21,7 @@ import {
 } from '@mantine/core';
 import client from '../api/client';
 import { fetchCountriesCatalog } from '../api/countries';
+import { fetchMyPreferences } from '../api/preferences';
 import JobProgressPanel from '../components/JobProgressPanel';
 import { usePersistentJobStream } from '../hooks/usePersistentJobStream';
 import type {
@@ -229,6 +230,7 @@ export default function ProfileWizard() {
   const [cvReviewCompetencies, setCvReviewCompetencies] = useState<CvReviewCompetency[]>([]);
   const [manualSkillModalOpen, setManualSkillModalOpen] = useState(false);
   const [manualSkillSearch, setManualSkillSearch] = useState('');
+  const [preferencesPrefillDone, setPreferencesPrefillDone] = useState(false);
 
   const suggestedCitiesByCountry = useMemo(
     () =>
@@ -245,6 +247,21 @@ export default function ProfileWizard() {
     };
     void loadCountries();
   }, []);
+
+  useEffect(() => {
+    if (isEditing || preferencesPrefillDone) return;
+    void (async () => {
+      const preferences = await fetchMyPreferences();
+      if (preferences) {
+        setTargetCountry((prev) => prev || preferences.defaultTargetCountry || '');
+        setTargetCity((prev) => prev || preferences.defaultTargetCity || '');
+        setSavingsCurrency(preferences.preferredCurrency);
+        setMonthlyBudgetCurrency(preferences.preferredCurrency);
+        setExpectedNetSalaryCurrency(preferences.preferredCurrency);
+      }
+      setPreferencesPrefillDone(true);
+    })();
+  }, [isEditing, preferencesPrefillDone]);
 
   useEffect(() => {
     const loadCompetencies = async () => {

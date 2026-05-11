@@ -28,10 +28,12 @@ import {
 } from '@nestjs/swagger';
 import { Roles, RolesGuard } from '../auth/roles.guard.js';
 import { Role } from '@prisma/client';
-import { ReportVariant } from '../reports/reports.types.js';
+import { ReportLocale, ReportVariant } from '../reports/reports.types.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Express } from 'express';
 import { ResumeTextExtractionService } from '../resume/resume-text-extraction.service.js';
+import { EntitlementService } from '../billing/entitlement.service.js';
+import { FEATURE_CODES } from '../billing/billing.constants.js';
 
 @Controller('jobs')
 @UseGuards(AuthGuard('jwt'))
@@ -42,6 +44,7 @@ export class JobsController {
     private readonly jobsService: JobsService,
     private readonly jobsRunnerService: JobsRunnerService,
     private readonly resumeTextExtractionService: ResumeTextExtractionService,
+    private readonly entitlementService: EntitlementService,
   ) {}
 
   @Post('profiles/:id/analyze')
@@ -124,16 +127,39 @@ export class JobsController {
     @Req() req: any,
     @Query('variant') variantRaw?: string,
     @Query('format') formatRaw?: string,
+    @Query('locale') localeRaw?: string,
   ) {
     const variant: ReportVariant = variantRaw === 'ai-summary' ? 'ai-summary' : 'snapshot';
     const format = formatRaw === 'pdf' || formatRaw === 'html' ? formatRaw : 'json';
+    const locale: ReportLocale = localeRaw === 'ru' ? 'ru' : 'en';
+
+    if (variant === 'ai-summary') {
+      await this.entitlementService.assertFeatureAccess(
+        req.user.id,
+        FEATURE_CODES.AI_DETAILED_REPORT,
+      );
+    }
+    if (format === 'pdf') {
+      await this.entitlementService.assertFeatureAccess(
+        req.user.id,
+        FEATURE_CODES.PDF_EXPORT,
+      );
+    }
+
     const job = await this.jobsService.createJob({
       userId: req.user.id,
       type: 'REPORT_GENERATION',
-      payload: { analysisId, variant, format },
+      payload: { analysisId, variant, format, locale },
     });
 
-    this.jobsRunnerService.runReportGenerationJob(job.id, analysisId, req.user.id, variant, format);
+    this.jobsRunnerService.runReportGenerationJob(
+      job.id,
+      analysisId,
+      req.user.id,
+      variant,
+      format,
+      locale,
+    );
 
     return {
       jobId: job.id,

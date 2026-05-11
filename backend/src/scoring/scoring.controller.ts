@@ -13,6 +13,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AnalysisWorkflowService } from './analysis-workflow.service.js';
 import { JobMatchingService } from './job-matching.service.js';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { EntitlementService } from '../billing/entitlement.service.js';
+import { FEATURE_CODES } from '../billing/billing.constants.js';
 
 @Controller('profiles')
 @UseGuards(AuthGuard('jwt'))
@@ -23,6 +25,7 @@ export class ScoringController {
     private readonly prisma: PrismaService,
     private readonly analysisWorkflow: AnalysisWorkflowService,
     private readonly jobMatching: JobMatchingService,
+    private readonly entitlementService: EntitlementService,
   ) {}
 
   @Post(':id/analyze')
@@ -182,6 +185,15 @@ export class ScoringController {
     @Request() req: any,
     @Query('limit') limitRaw?: string,
   ) {
-    return this.jobMatching.getTopMatches(profileId, req.user.id, limitRaw);
+    const maxAllowedLimit = await this.entitlementService.getLimit(
+      req.user.id,
+      FEATURE_CODES.JOB_MATCH_LIMIT,
+    );
+    return this.jobMatching.getTopMatches(
+      profileId,
+      req.user.id,
+      limitRaw,
+      maxAllowedLimit,
+    );
   }
 }

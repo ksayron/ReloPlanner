@@ -1,4 +1,4 @@
-import { Card, Stack, Text, Title } from '@mantine/core';
+import { Card, Stack, Text, Title, useComputedColorScheme } from '@mantine/core';
 import type { AnalysisItem } from '../types';
 
 interface SkillFitRadarChartProps {
@@ -17,7 +17,8 @@ const clampUnit = (value: number) => Math.max(0, Math.min(1, Number.isFinite(val
 
 const formatPercent = (value: number) => `${Math.round(clampUnit(value) * 100)}%`;
 
-const shortLabel = (value: string, limit = 14) => (value.length > limit ? `${value.slice(0, limit - 1)}…` : value);
+const shortLabel = (value: string, limit = 14) =>
+  (value.length > limit ? `${value.slice(0, limit - 3)}...` : value);
 
 const toPolar = (index: number, total: number, radius: number, cx: number, cy: number) => {
   const angle = (-Math.PI / 2) + (index / total) * (2 * Math.PI);
@@ -27,7 +28,13 @@ const toPolar = (index: number, total: number, radius: number, cx: number, cy: n
   };
 };
 
-const polygonPoints = (data: RadarPoint[], selector: (item: RadarPoint) => number, cx: number, cy: number, r: number) =>
+const polygonPoints = (
+  data: RadarPoint[],
+  selector: (item: RadarPoint) => number,
+  cx: number,
+  cy: number,
+  r: number,
+) =>
   data
     .map((item, index) => {
       const p = toPolar(index, data.length, r * clampUnit(selector(item)), cx, cy);
@@ -36,6 +43,7 @@ const polygonPoints = (data: RadarPoint[], selector: (item: RadarPoint) => numbe
     .join(' ');
 
 export default function SkillFitRadarChart({ items, maxItems = 8 }: SkillFitRadarChartProps) {
+  const colorScheme = useComputedColorScheme('light');
   const data: RadarPoint[] = items
     .map((item) => ({
       id: item.competency.id,
@@ -62,6 +70,11 @@ export default function SkillFitRadarChart({ items, maxItems = 8 }: SkillFitRada
   const cy = size / 2;
   const radius = 170;
   const levels = [0.25, 0.5, 0.75, 1];
+  const gridColor = colorScheme === 'dark' ? '#334155' : '#d7dde5';
+  const labelColor = colorScheme === 'dark' ? '#e2e8f0' : '#1f2933';
+  const requiredStroke = colorScheme === 'dark' ? '#bfdbfe' : '#23395d';
+  const currentFill = colorScheme === 'dark' ? '#60A5FA66' : '#4682A955';
+  const currentStroke = colorScheme === 'dark' ? '#60A5FA' : '#4682A9';
 
   const requiredShape = polygonPoints(data, (item) => item.required, cx, cy, radius);
   const currentShape = polygonPoints(data, (item) => item.current, cx, cy, radius);
@@ -82,7 +95,7 @@ export default function SkillFitRadarChart({ items, maxItems = 8 }: SkillFitRada
                 cy={cy}
                 r={radius * level}
                 fill="none"
-                stroke="#d7dde5"
+                stroke={gridColor}
                 strokeWidth={1}
               />
             ))}
@@ -92,8 +105,8 @@ export default function SkillFitRadarChart({ items, maxItems = 8 }: SkillFitRada
               const label = toPolar(index, data.length, radius + 26, cx, cy);
               return (
                 <g key={item.id}>
-                  <line x1={cx} y1={cy} x2={end.x} y2={end.y} stroke="#d7dde5" strokeWidth={1} />
-                  <text x={label.x} y={label.y} textAnchor="middle" fontSize="11" fill="#1f2933">
+                  <line x1={cx} y1={cy} x2={end.x} y2={end.y} stroke={gridColor} strokeWidth={1} />
+                  <text x={label.x} y={label.y} textAnchor="middle" fontSize="11" fill={labelColor}>
                     <title>{item.label}</title>
                     {shortLabel(item.label)}
                   </text>
@@ -101,18 +114,18 @@ export default function SkillFitRadarChart({ items, maxItems = 8 }: SkillFitRada
               );
             })}
 
-            <polygon points={requiredShape} fill="none" stroke="#23395d" strokeWidth={2} />
-            <polygon points={currentShape} fill="#4682A955" stroke="#4682A9" strokeWidth={2} />
+            <polygon points={requiredShape} fill="none" stroke={requiredStroke} strokeWidth={2} />
+            <polygon points={currentShape} fill={currentFill} stroke={currentStroke} strokeWidth={2} />
 
             {data.map((item, index) => {
               const pCurrent = toPolar(index, data.length, radius * item.current, cx, cy);
               const pRequired = toPolar(index, data.length, radius * item.required, cx, cy);
               return (
                 <g key={`points-${item.id}`}>
-                  <circle cx={pCurrent.x} cy={pCurrent.y} r={4} fill="#4682A9">
+                  <circle cx={pCurrent.x} cy={pCurrent.y} r={4} fill={currentStroke}>
                     <title>{`${item.label}: current ${formatPercent(item.current)}, required ${formatPercent(item.required)}`}</title>
                   </circle>
-                  <circle cx={pRequired.x} cy={pRequired.y} r={3} fill="#23395d">
+                  <circle cx={pRequired.x} cy={pRequired.y} r={3} fill={requiredStroke}>
                     <title>{`${item.label}: required ${formatPercent(item.required)}`}</title>
                   </circle>
                 </g>

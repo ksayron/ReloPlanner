@@ -10,6 +10,7 @@ export type KnowledgeCategory =
   | 'CV'
   | 'LANGUAGE'
   | 'HOUSING';
+export type KnowledgeAccessLevel = 'FREE' | 'PREMIUM';
 
 export type CompetencyType =
   | 'HARD_SKILL'
@@ -36,6 +37,116 @@ export interface User {
   id: string;
   email: string;
   role: Role;
+}
+
+export type PreferredLanguage = 'en' | 'ru';
+export type PreferredTheme = 'light' | 'dark';
+
+export interface UserPreferences {
+  preferredLanguage: PreferredLanguage;
+  preferredTheme: PreferredTheme;
+  preferredCurrency: CurrencyCode;
+  defaultTargetCountry: string | null;
+  defaultTargetCity: string | null;
+  weeklyStudyHours: number;
+  preferredReportLanguage: PreferredLanguage;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type UpdateUserPreferencesPayload = Partial<{
+  preferredLanguage: PreferredLanguage;
+  preferredTheme: PreferredTheme;
+  preferredCurrency: CurrencyCode;
+  defaultTargetCountry: string | null;
+  defaultTargetCity: string | null;
+  weeklyStudyHours: number;
+  preferredReportLanguage: PreferredLanguage;
+}>;
+
+export type BillingPlanCode = 'FREE' | 'PREMIUM';
+
+export interface BillingFeatureState {
+  enabled: boolean;
+  limit: number | null;
+}
+
+export interface BillingStatusResponse {
+  plan: {
+    code: BillingPlanCode;
+    name: string;
+  };
+  subscription: {
+    id: string;
+    status: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'CANCELED';
+    startedAt: string;
+    expiresAt: string | null;
+    provider: 'STRIPE';
+  };
+  payments: Array<{
+    id: string;
+    status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
+    amount: number;
+    currency: CurrencyCode;
+    planCode: BillingPlanCode;
+    createdAt: string;
+    errorCode: string | null;
+    errorMessage: string | null;
+  }>;
+  entitlements: {
+    planCode: BillingPlanCode;
+    features: Record<string, BillingFeatureState>;
+  };
+}
+
+export interface BillingPlanSummaryResponse {
+  plan: BillingStatusResponse['plan'];
+  subscription: BillingStatusResponse['subscription'];
+  payments: BillingStatusResponse['payments'];
+  entitlements: BillingStatusResponse['entitlements'];
+  preferredCurrency: CurrencyCode;
+  premiumPricing: {
+    stripePriceId: string | null;
+    basePriceUsd: number;
+    convertedPrice: number;
+    convertedCurrency: CurrencyCode;
+  };
+  stripe: {
+    mode: 'SIMULATED' | 'LIVE';
+    subscription: {
+      id: string;
+      status: string;
+      cancelAtPeriodEnd: boolean;
+      currentPeriodEnd: string | null;
+      canceledAt: string | null;
+      latestInvoice: {
+        id: string;
+        status?: string | null;
+        paid?: boolean | null;
+        hostedInvoiceUrl?: string | null;
+      } | null;
+    } | null;
+  };
+}
+
+export interface CheckoutStartResponse {
+  paymentId: string;
+  provider: 'STRIPE';
+  mode: 'SIMULATED' | 'LIVE';
+  checkoutSessionId: string;
+  checkoutUrl: string | null;
+  status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
+  amount: number;
+  currency: CurrencyCode;
+}
+
+export interface CheckoutResolveResponse {
+  checkoutSessionId: string;
+  paymentStatus: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
+  subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'CANCELED';
+  planCode: BillingPlanCode;
+  errorCode?: string | null;
+  errorMessage?: string | null;
 }
 
 export interface AuthPayload {
@@ -219,6 +330,8 @@ export interface KnowledgeArticleListItem {
   title: string;
   country: string;
   category: KnowledgeCategory;
+  accessLevel: KnowledgeAccessLevel;
+  isLocked: boolean;
   language: string;
   excerpt: string;
   topicTags: string[];
@@ -231,6 +344,8 @@ export interface KnowledgeArticleDetail {
   title: string;
   country: string;
   category: KnowledgeCategory;
+  accessLevel: KnowledgeAccessLevel;
+  isLocked: boolean;
   language: string;
   content: string;
   topicTags: string[];
@@ -246,6 +361,9 @@ export interface KnowledgeListResponse {
     language: string;
   };
   total: number;
+  access?: {
+    planCode: 'FREE' | 'PREMIUM';
+  };
 }
 
 export interface CountryOption {
@@ -327,6 +445,16 @@ export interface JobMatchResult {
   matchedSkills: string[];
   missingSkills: string[];
   rationale: string;
+}
+
+export interface TopMatchesResponse {
+  items: JobMatchResult[];
+  limit: number;
+  access: {
+    requestedLimit: number;
+    maxAllowedLimit: number | null;
+    upgradeRequired: boolean;
+  };
 }
 
 export type ReportVariant = 'snapshot' | 'ai-summary';

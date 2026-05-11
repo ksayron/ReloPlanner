@@ -1,13 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { KnowledgeQueryDto } from './dto/knowledge-query.dto.js';
-import type { KnowledgeCategory } from './knowledge.types.js';
+import { BillingService } from '../billing/billing.service.js';
+import type { KnowledgeAccessLevel, KnowledgeCategory } from './knowledge.types.js';
 
 export interface KnowledgeArticleListItem {
   slug: string;
   title: string;
   country: string;
   category: KnowledgeCategory;
+  accessLevel: KnowledgeAccessLevel;
+  isLocked: boolean;
   language: string;
   excerpt: string;
   topicTags: string[];
@@ -20,6 +23,8 @@ export interface KnowledgeArticleDetail {
   title: string;
   country: string;
   category: KnowledgeCategory;
+  accessLevel: KnowledgeAccessLevel;
+  isLocked: boolean;
   language: string;
   content: string;
   topicTags: string[];
@@ -29,10 +34,15 @@ export interface KnowledgeArticleDetail {
 
 @Injectable()
 export class KnowledgeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly billingService: BillingService,
+  ) {}
 
-  async listArticles(query: KnowledgeQueryDto) {
+  async listArticles(query: KnowledgeQueryDto, userId?: string) {
     const language = this.normalizeLanguage(query.language);
+    const planCode = await this.resolvePlanCode(userId);
+    const isPremiumUser = planCode === 'PREMIUM';
     const where: {
       language: string;
       country?: string;
@@ -54,6 +64,7 @@ export class KnowledgeService {
         title: true,
         country: true,
         category: true,
+        accessLevel: true,
         language: true,
         content: true,
         topicTags: true,
@@ -67,6 +78,8 @@ export class KnowledgeService {
       title: row.title,
       country: row.country,
       category: row.category,
+      accessLevel: row.accessLevel,
+      isLocked: row.accessLevel === 'PREMIUM' && !isPremiumUser,
       language: row.language,
       excerpt: this.buildExcerpt(row.content),
       topicTags: Array.isArray(row.topicTags) ? row.topicTags : [],
@@ -82,16 +95,26 @@ export class KnowledgeService {
         language,
       },
       total: items.length,
+      access: {
+        planCode,
+      },
     };
   }
 
-  async getArticleBySlug(slug: string, languageRaw?: string): Promise<KnowledgeArticleDetail> {
+  async getArticleBySlug(
+    slug: string,
+    languageRaw?: string,
+    userId?: string,
+  ): Promise<KnowledgeArticleDetail> {
     const language = this.normalizeLanguage(languageRaw);
+    const planCode = await this.resolvePlanCode(userId);
+    const isPremiumUser = planCode === 'PREMIUM';
     const select = {
       slug: true,
       title: true,
       country: true,
       category: true,
+      accessLevel: true,
       language: true,
       content: true,
       topicTags: true,
@@ -123,12 +146,24 @@ export class KnowledgeService {
     if (!article) {
       throw new NotFoundException('Knowledge article not found');
     }
+    const isLocked = article.accessLevel === 'PREMIUM' && !isPremiumUser;
+    if (isLocked) {
+      throw new ForbiddenException({
+        code: 'UPGRADE_REQUIRED',
+        message: 'This knowledge article is available on PREMIUM plan.',
+        featureCode: 'FULL_KNOWLEDGE_BASE',
+        requiredPlan: 'PREMIUM',
+        currentPlan: planCode,
+      });
+    }
 
     return {
       slug: article.slug,
       title: article.title,
       country: article.country,
       category: article.category,
+      accessLevel: article.accessLevel,
+      isLocked,
       language: article.language,
       content: article.content,
       topicTags: Array.isArray(article.topicTags) ? article.topicTags : [],
@@ -150,5 +185,15 @@ export class KnowledgeService {
     const flattened = content.replace(/\r/g, '').replace(/\n+/g, ' ').trim();
     if (flattened.length <= 220) return flattened;
     return `${flattened.slice(0, 217).trimEnd()}...`;
+  }
+
+  private async resolvePlanCode(userId?: string): Promise<'FREE' | 'PREMIUM'> {
+    if (!userId) return 'FREE';
+    try {
+      const subscription = await this.billingService.getCurrentSubscriptionForUser(userId);
+      return subscription.plan.code === 'PREMIUM' ? 'PREMIUM' : 'FREE';
+    } catch {
+      return 'FREE';
+    }
   }
 }

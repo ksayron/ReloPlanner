@@ -4,6 +4,11 @@ import {
   SkillCategory,
   CostCategory,
   Role,
+  PlanCode,
+  BillingPeriod,
+  SubscriptionStatus,
+  PaymentStatus,
+  PaymentProvider,
   CompetencyType,
   RequirementPriority,
   RoleRelevance,
@@ -22,6 +27,41 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 const SUPPORTED_COUNTRIES = ['DE', 'NL', 'CA', 'GB', 'PL'] as const;
+const FREE_DEMO_EMAIL = 'demo-free@reloplanner.dev';
+const PREMIUM_DEMO_EMAIL = 'demo-premium@reloplanner.dev';
+const DEMO_PASSWORD = 'demo123';
+const PREMIUM_PRICE_USD = 19.99;
+const PREMIUM_PERIOD_DAYS = 30;
+
+const PLAN_ENTITLEMENTS: Record<
+  PlanCode,
+  Array<{ featureCode: string; isEnabled: boolean; limitValue: number | null }>
+> = {
+  FREE: [
+    { featureCode: 'BASIC_ANALYSIS', isEnabled: true, limitValue: null },
+    { featureCode: 'EXPANDED_JOB_MATCHING', isEnabled: false, limitValue: null },
+    { featureCode: 'JOB_SPECIFIC_ANALYSIS', isEnabled: true, limitValue: null },
+    { featureCode: 'AI_CV_RECOMMENDATIONS', isEnabled: false, limitValue: null },
+    { featureCode: 'AI_DETAILED_REPORT', isEnabled: false, limitValue: null },
+    { featureCode: 'PDF_EXPORT', isEnabled: false, limitValue: null },
+    { featureCode: 'FULL_KNOWLEDGE_BASE', isEnabled: false, limitValue: null },
+    { featureCode: 'ANALYSIS_HISTORY', isEnabled: true, limitValue: null },
+    { featureCode: 'SUPPORT_CHAT', isEnabled: false, limitValue: null },
+    { featureCode: 'JOB_MATCH_LIMIT', isEnabled: true, limitValue: 3 },
+  ],
+  PREMIUM: [
+    { featureCode: 'BASIC_ANALYSIS', isEnabled: true, limitValue: null },
+    { featureCode: 'EXPANDED_JOB_MATCHING', isEnabled: true, limitValue: null },
+    { featureCode: 'JOB_SPECIFIC_ANALYSIS', isEnabled: true, limitValue: null },
+    { featureCode: 'AI_CV_RECOMMENDATIONS', isEnabled: true, limitValue: null },
+    { featureCode: 'AI_DETAILED_REPORT', isEnabled: true, limitValue: null },
+    { featureCode: 'PDF_EXPORT', isEnabled: true, limitValue: null },
+    { featureCode: 'FULL_KNOWLEDGE_BASE', isEnabled: true, limitValue: null },
+    { featureCode: 'ANALYSIS_HISTORY', isEnabled: true, limitValue: null },
+    { featureCode: 'SUPPORT_CHAT', isEnabled: true, limitValue: null },
+    { featureCode: 'JOB_MATCH_LIMIT', isEnabled: true, limitValue: 20 },
+  ],
+};
 
 type KnowledgeSeedItem = {
   slug: string;
@@ -36,6 +76,7 @@ type KnowledgeSeedItem = {
     | 'LANGUAGE'
     | 'HOUSING';
   language: string;
+  accessLevel?: 'FREE' | 'PREMIUM';
   content: string;
   topicTags: string[];
   riskTags: string[];
@@ -48,6 +89,7 @@ const KNOWLEDGE_ARTICLES: KnowledgeSeedItem[] = [
     country: 'DE',
     category: 'VISA',
     language: 'en',
+    accessLevel: 'PREMIUM',
     content: `# Germany Visa Checklist for IT Specialists
 
 Before relocation, confirm your route and document readiness:
@@ -89,6 +131,7 @@ Store scans in cloud + offline copies to speed up municipal appointments.`,
     country: 'CA',
     category: 'COST',
     language: 'en',
+    accessLevel: 'PREMIUM',
     content: `# Canada First-Month Cost Planning
 
 Use a conservative plan for your first month:
@@ -127,6 +170,7 @@ Track response rates by role category to adjust targeting fast.`,
     country: 'PL',
     category: 'CV',
     language: 'en',
+    accessLevel: 'PREMIUM',
     content: `# Poland CV Localization Basics
 
 Local relevance improves interview conversion:
@@ -204,6 +248,7 @@ Use one master tracker shared across profile, legal, and job preparation tasks.`
     country: 'DE',
     category: 'VISA',
     language: 'en',
+    accessLevel: 'PREMIUM',
     content: `# Non-EU to EU Relocation Checklist
 
 Use this checklist as informational guidance before relocation:
@@ -522,6 +567,8 @@ function hardSkillLevelScore(level: HardSkillLevel | null): number {
 
 async function main() {
   const adminHash = await bcrypt.hash('admin123', 10);
+  const demoHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+
   await prisma.user.upsert({
     where: { email: 'admin@reloplanner.dev' },
     update: {
@@ -538,6 +585,240 @@ async function main() {
       emailVerifiedAt: new Date(),
     },
   });
+
+  const freeDemoUser = await prisma.user.upsert({
+    where: { email: FREE_DEMO_EMAIL },
+    update: {
+      passwordHash: demoHash,
+      role: Role.USER,
+      emailVerifiedAt: new Date(),
+    },
+    create: {
+      email: FREE_DEMO_EMAIL,
+      passwordHash: demoHash,
+      role: Role.USER,
+      emailVerifiedAt: new Date(),
+    },
+  });
+
+  const premiumDemoUser = await prisma.user.upsert({
+    where: { email: PREMIUM_DEMO_EMAIL },
+    update: {
+      passwordHash: demoHash,
+      role: Role.PREMIUM,
+      emailVerifiedAt: new Date(),
+    },
+    create: {
+      email: PREMIUM_DEMO_EMAIL,
+      passwordHash: demoHash,
+      role: Role.PREMIUM,
+      emailVerifiedAt: new Date(),
+    },
+  });
+
+  const freePlan = await (prisma as any).plan.upsert({
+    where: { code: PlanCode.FREE },
+    update: {
+      name: 'Free',
+      price: 0,
+      currency: 'USD',
+      billingPeriod: BillingPeriod.MONTHLY,
+      isActive: true,
+    },
+    create: {
+      code: PlanCode.FREE,
+      name: 'Free',
+      price: 0,
+      currency: 'USD',
+      billingPeriod: BillingPeriod.MONTHLY,
+      isActive: true,
+    },
+  });
+
+  const premiumPlan = await (prisma as any).plan.upsert({
+    where: { code: PlanCode.PREMIUM },
+    update: {
+      name: 'Premium',
+      price: PREMIUM_PRICE_USD,
+      currency: 'USD',
+      billingPeriod: BillingPeriod.MONTHLY,
+      isActive: true,
+    },
+    create: {
+      code: PlanCode.PREMIUM,
+      name: 'Premium',
+      price: PREMIUM_PRICE_USD,
+      currency: 'USD',
+      billingPeriod: BillingPeriod.MONTHLY,
+      isActive: true,
+    },
+  });
+
+  for (const [planCode, entitlements] of Object.entries(PLAN_ENTITLEMENTS) as [
+    PlanCode,
+    Array<{ featureCode: string; isEnabled: boolean; limitValue: number | null }>,
+  ][]) {
+    const planId = planCode === PlanCode.FREE ? freePlan.id : premiumPlan.id;
+    for (const entitlement of entitlements) {
+      await (prisma as any).featureEntitlement.upsert({
+        where: {
+          planId_featureCode: {
+            planId,
+            featureCode: entitlement.featureCode,
+          },
+        },
+        update: {
+          isEnabled: entitlement.isEnabled,
+          limitValue: entitlement.limitValue,
+        },
+        create: {
+          planId,
+          featureCode: entitlement.featureCode,
+          isEnabled: entitlement.isEnabled,
+          limitValue: entitlement.limitValue,
+        },
+      });
+    }
+  }
+
+  const now = new Date();
+  const premiumExpiresAt = new Date(
+    now.getTime() + PREMIUM_PERIOD_DAYS * 24 * 60 * 60 * 1000,
+  );
+
+  await (prisma as any).subscription.updateMany({
+    where: {
+      userId: freeDemoUser.id,
+      status: SubscriptionStatus.ACTIVE,
+    },
+    data: {
+      status: SubscriptionStatus.INACTIVE,
+      canceledAt: now,
+    },
+  });
+  const freeDemoSubscription = await (prisma as any).subscription.create({
+    data: {
+      userId: freeDemoUser.id,
+      planId: freePlan.id,
+      status: SubscriptionStatus.ACTIVE,
+      provider: PaymentProvider.STRIPE,
+    },
+  });
+
+  await (prisma as any).subscription.updateMany({
+    where: {
+      userId: premiumDemoUser.id,
+      status: SubscriptionStatus.ACTIVE,
+    },
+    data: {
+      status: SubscriptionStatus.INACTIVE,
+      canceledAt: now,
+    },
+  });
+  const premiumDemoSubscription = await (prisma as any).subscription.create({
+    data: {
+      userId: premiumDemoUser.id,
+      planId: premiumPlan.id,
+      status: SubscriptionStatus.ACTIVE,
+      startedAt: now,
+      expiresAt: premiumExpiresAt,
+      provider: PaymentProvider.STRIPE,
+      providerSubscriptionId: 'seed_sub_premium_demo',
+    },
+  });
+
+  await (prisma as any).payment.upsert({
+    where: {
+      providerCheckoutSessionId: `seed_checkout_${premiumDemoUser.id}`,
+    },
+    update: {
+      subscriptionId: premiumDemoSubscription.id,
+      status: PaymentStatus.SUCCEEDED,
+      amount: PREMIUM_PRICE_USD,
+      currency: 'USD',
+      providerPaymentId: 'seed_pi_premium_demo',
+      failureCode: null,
+      failureMessage: null,
+    },
+    create: {
+      userId: premiumDemoUser.id,
+      planId: premiumPlan.id,
+      subscriptionId: premiumDemoSubscription.id,
+      provider: PaymentProvider.STRIPE,
+      providerPaymentId: 'seed_pi_premium_demo',
+      providerCheckoutSessionId: `seed_checkout_${premiumDemoUser.id}`,
+      amount: PREMIUM_PRICE_USD,
+      currency: 'USD',
+      status: PaymentStatus.SUCCEEDED,
+      metadata: {
+        seeded: true,
+      },
+    },
+  });
+
+  await (prisma as any).payment.upsert({
+    where: {
+      providerCheckoutSessionId: `seed_checkout_${freeDemoUser.id}`,
+    },
+    update: {
+      subscriptionId: freeDemoSubscription.id,
+      status: PaymentStatus.FAILED,
+      amount: PREMIUM_PRICE_USD,
+      currency: 'USD',
+      providerPaymentId: 'seed_pi_free_failed_demo',
+      failureCode: 'card_declined',
+      failureMessage: 'Seeded example of failed payment for demo flows.',
+    },
+    create: {
+      userId: freeDemoUser.id,
+      planId: premiumPlan.id,
+      subscriptionId: freeDemoSubscription.id,
+      provider: PaymentProvider.STRIPE,
+      providerPaymentId: 'seed_pi_free_failed_demo',
+      providerCheckoutSessionId: `seed_checkout_${freeDemoUser.id}`,
+      amount: PREMIUM_PRICE_USD,
+      currency: 'USD',
+      status: PaymentStatus.FAILED,
+      failureCode: 'card_declined',
+      failureMessage: 'Seeded example of failed payment for demo flows.',
+      metadata: {
+        seeded: true,
+      },
+    },
+  });
+
+  const allUsers = await prisma.user.findMany({
+    select: { id: true, role: true },
+  });
+  for (const user of allUsers) {
+    const activeSubscription = await (prisma as any).subscription.findFirst({
+      where: {
+        userId: user.id,
+        status: SubscriptionStatus.ACTIVE,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { id: true },
+    });
+
+    if (!activeSubscription) {
+      await (prisma as any).subscription.create({
+        data: {
+          userId: user.id,
+          planId: freePlan.id,
+          status: SubscriptionStatus.ACTIVE,
+          provider: PaymentProvider.STRIPE,
+        },
+      });
+    }
+
+    if (user.role !== Role.ADMIN) {
+      const shouldBePremium = user.id === premiumDemoUser.id;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { role: shouldBePremium ? Role.PREMIUM : Role.USER },
+      });
+    }
+  }
 
   const skills: {
     name: string;
@@ -1158,11 +1439,15 @@ async function main() {
         title: article.title,
         country: article.country,
         category: article.category,
+        accessLevel: article.accessLevel ?? 'FREE',
         content: article.content,
         topicTags: article.topicTags,
         riskTags: article.riskTags,
       },
-      create: article,
+      create: {
+        ...article,
+        accessLevel: article.accessLevel ?? 'FREE',
+      },
     });
   }
 

@@ -3,6 +3,7 @@ import type { FinancialReadinessResult } from '../financial-readiness/financial-
 
 export type ReportGenerationStatus = 'PENDING' | 'GENERATING' | 'COMPLETED' | 'FAILED';
 export type ReportVariant = 'snapshot' | 'ai-summary';
+export type ReportLocale = 'en' | 'ru';
 
 export type GapSeverity = 'CRITICAL' | 'HIGH' | 'MODERATE' | 'MINOR';
 
