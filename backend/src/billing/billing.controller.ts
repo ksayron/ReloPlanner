@@ -34,6 +34,23 @@ export class BillingController {
     return this.entitlementService.getEntitlementsSnapshot(req.user.id);
   }
 
+  @Get('stripe-health')
+  async getStripeHealth() {
+    return this.billingService.getStripeHealth();
+  }
+
+  @Get('plan-summary')
+  async getPlanSummary(@Req() req: any) {
+    const [summary, entitlements] = await Promise.all([
+      this.billingService.getPlanSummary(req.user.id),
+      this.entitlementService.getEntitlementsSnapshot(req.user.id),
+    ]);
+    return {
+      ...summary,
+      entitlements,
+    };
+  }
+
   @Post('checkout')
   async startCheckout(@Req() req: any, @Body() dto: CreateCheckoutDto) {
     return this.billingService.startCheckout(req.user.id, dto);
@@ -70,4 +87,3 @@ export class BillingController {
     );
   }
 }
-

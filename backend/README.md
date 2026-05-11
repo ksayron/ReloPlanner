@@ -105,6 +105,33 @@ Google:
 - `GOOGLE_OAUTH_CLIENT_SECRET`
 - `GOOGLE_OAUTH_CALLBACK_URL` (default `http://localhost:3000/api/auth/google/callback`)
 
+## Stripe Billing (Test Checkout on Localhost)
+
+Hosted Stripe Checkout is enabled for premium upgrade flow.
+The app uses Checkout `subscription` mode (Premium is recurring), so `STRIPE_PRICE_ID_PREMIUM_MONTHLY` must point to a recurring Stripe price.
+
+Required environment variables for live test mode:
+- `BILLING_MODE=live` (default)
+- `STRIPE_SECRET_KEY` (test key, starts with `sk_test_...`)
+- `STRIPE_WEBHOOK_SECRET` (from Stripe CLI or dashboard endpoint secret)
+- `STRIPE_PRICE_ID_PREMIUM_MONTHLY` (test price id, e.g. `price_...`)
+- `APP_BASE_URL` (frontend origin, e.g. `http://localhost:5173`)
+
+Optional local fallback:
+- `BILLING_MODE=simulated` to disable real Stripe calls and keep mock behavior.
+- `BILLING_WEBHOOK_VERBOSE=true` to log all ignored Stripe webhook event types.
+
+Webhook endpoint:
+- `POST /api/billing/webhooks/stripe`
+- Health check (JWT required):
+  - `GET /api/billing/stripe-health`
+  - `GET /api/billing/plan-summary`
+
+Local Stripe CLI forwarding example:
+```bash
+stripe listen --forward-to http://localhost:3000/api/billing/webhooks/stripe
+```
+
 ## Scoring Tuning Config
 
 Scoring multipliers and thresholds are centrally configured and validated on startup. Defaults preserve current behavior; optional env overrides:

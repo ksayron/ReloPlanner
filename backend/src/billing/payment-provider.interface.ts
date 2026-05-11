@@ -1,6 +1,10 @@
 import { CurrencyCode, PaymentProvider, PlanCode } from '@prisma/client';
 
-export type CheckoutResolutionStatus = 'SUCCEEDED' | 'FAILED' | 'CANCELED';
+export type CheckoutResolutionStatus =
+  | 'PENDING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELED';
 
 export type ForcedCheckoutOutcome =
   | 'SUCCESS'
@@ -48,4 +52,3 @@ export interface PaymentProviderAdapter {
     input: CheckoutSessionResolveInput,
   ): Promise<CheckoutSessionResolveResult>;
 }
-
