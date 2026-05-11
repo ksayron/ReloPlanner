@@ -76,6 +76,7 @@ type KnowledgeSeedItem = {
     | 'LANGUAGE'
     | 'HOUSING';
   language: string;
+  accessLevel?: 'FREE' | 'PREMIUM';
   content: string;
   topicTags: string[];
   riskTags: string[];
@@ -88,6 +89,7 @@ const KNOWLEDGE_ARTICLES: KnowledgeSeedItem[] = [
     country: 'DE',
     category: 'VISA',
     language: 'en',
+    accessLevel: 'PREMIUM',
     content: `# Germany Visa Checklist for IT Specialists
 
 Before relocation, confirm your route and document readiness:
@@ -129,6 +131,7 @@ Store scans in cloud + offline copies to speed up municipal appointments.`,
     country: 'CA',
     category: 'COST',
     language: 'en',
+    accessLevel: 'PREMIUM',
     content: `# Canada First-Month Cost Planning
 
 Use a conservative plan for your first month:
@@ -167,6 +170,7 @@ Track response rates by role category to adjust targeting fast.`,
     country: 'PL',
     category: 'CV',
     language: 'en',
+    accessLevel: 'PREMIUM',
     content: `# Poland CV Localization Basics
 
 Local relevance improves interview conversion:
@@ -244,6 +248,7 @@ Use one master tracker shared across profile, legal, and job preparation tasks.`
     country: 'DE',
     category: 'VISA',
     language: 'en',
+    accessLevel: 'PREMIUM',
     content: `# Non-EU to EU Relocation Checklist
 
 Use this checklist as informational guidance before relocation:
@@ -1434,11 +1439,15 @@ async function main() {
         title: article.title,
         country: article.country,
         category: article.category,
+        accessLevel: article.accessLevel ?? 'FREE',
         content: article.content,
         topicTags: article.topicTags,
         riskTags: article.riskTags,
       },
-      create: article,
+      create: {
+        ...article,
+        accessLevel: article.accessLevel ?? 'FREE',
+      },
     });
   }
 

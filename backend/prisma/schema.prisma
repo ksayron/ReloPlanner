@@ -160,6 +160,11 @@ enum KnowledgeCategory {
   HOUSING
 }
 
+enum KnowledgeAccessLevel {
+  FREE
+  PREMIUM
+}
+
 enum ProcessingJobType {
   PROFILE_ANALYSIS
   MARKET_SYNC
@@ -648,6 +653,7 @@ model KnowledgeArticle {
   title     String
   country   String
   category  KnowledgeCategory
+  accessLevel KnowledgeAccessLevel @default(FREE) @map("access_level")
   language  String            @default("en")
   content   String
   topicTags String[]          @default([])

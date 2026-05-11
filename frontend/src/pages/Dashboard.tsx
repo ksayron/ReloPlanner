@@ -475,6 +475,8 @@ export default function Dashboard() {
     billingStatus?.entitlements?.features?.JOB_MATCH_LIMIT?.limit ??
     null;
   const jobMatchRequestedLimit = topMatchesAccess?.requestedLimit ?? 20;
+  const displayedTopMatches = topMatches.slice(0, 3);
+  const isPremiumPlan = billingStatus?.plan.code === 'PREMIUM';
 
   return (
     <Stack className="mx-auto max-w-6xl" gap="lg">
@@ -766,10 +768,18 @@ export default function Dashboard() {
                   </Group>
                 </Alert>
               ) : null}
+              {!topMatchesAccess?.upgradeRequired ? (
+                <Alert color="blue">
+                  Showing top 3 jobs in dashboard.
+                  {isPremiumPlan
+                    ? ' Expanded premium jobs view is in development.'
+                    : ' Upgrade to Premium to access expanded jobs (feature page in development).'}
+                </Alert>
+              ) : null}
               {topMatches.length === 0 && (
                 <Text c="dimmed">No matching vacancies found yet for your current role/country profile.</Text>
               )}
-              {topMatches.map((match) => (
+              {displayedTopMatches.map((match) => (
                 <Card key={match.posting.id} withBorder radius="md" p="sm">
                   <Stack gap={6}>
                     <Group justify="space-between" wrap="wrap">
@@ -803,6 +813,30 @@ export default function Dashboard() {
                   </Stack>
                 </Card>
               ))}
+              {topMatches.length > 0 ? (
+                <Group>
+                  {isPremiumPlan ? (
+                    <Button
+                      component={RouterLink}
+                      to="/in-development"
+                      size="sm"
+                      variant="outline"
+                      color="brand.8"
+                    >
+                      Show More Jobs (In Development)
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      color="grape"
+                      onClick={() => openUpgradeModal('Expanded job matching')}
+                    >
+                      Show More Jobs (Premium)
+                    </Button>
+                  )}
+                </Group>
+              ) : null}
             </Stack>
           </Card>
 

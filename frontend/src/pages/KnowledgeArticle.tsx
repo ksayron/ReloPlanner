@@ -14,6 +14,8 @@ import {
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import { fetchKnowledgeArticle } from '../api/knowledge';
+import { confirmCheckout, startPremiumCheckout } from '../api/billing';
+import PremiumUpgradeModal from '../components/PremiumUpgradeModal';
 import type { KnowledgeArticleDetail } from '../types';
 
 export default function KnowledgeArticle() {
@@ -22,6 +24,9 @@ export default function KnowledgeArticle() {
   const [article, setArticle] = useState<KnowledgeArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [upgradeOpened, setUpgradeOpened] = useState(false);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState('');
 
   const language = (searchParams.get('language') ?? 'en').toLowerCase();
 
@@ -33,8 +38,12 @@ export default function KnowledgeArticle() {
       try {
         const response = await fetchKnowledgeArticle(slug, language);
         setArticle(response);
-      } catch {
-        setError('Knowledge article not found or unavailable.');
+      } catch (err: any) {
+        if (err?.response?.data?.code === 'UPGRADE_REQUIRED') {
+          setError('This article is locked on Free plan.');
+        } else {
+          setError('Knowledge article not found or unavailable.');
+        }
       } finally {
         setLoading(false);
       }
@@ -55,7 +64,25 @@ export default function KnowledgeArticle() {
         Back to Knowledge Base
       </Button>
 
-      {error && <Alert color="red">{error}</Alert>}
+      {error && (
+        <Alert color="red">
+          {error}
+          {error.includes('locked') ? (
+            <Group mt="xs">
+              <Button
+                size="xs"
+                color="brand.7"
+                onClick={() => {
+                  setUpgradeError('');
+                  setUpgradeOpened(true);
+                }}
+              >
+                Upgrade
+              </Button>
+            </Group>
+          ) : null}
+        </Alert>
+      )}
 
       {!error && article && (
         <Card withBorder radius="md" p="lg">
@@ -92,6 +119,39 @@ export default function KnowledgeArticle() {
           </Stack>
         </Card>
       )}
+
+      <PremiumUpgradeModal
+        opened={upgradeOpened}
+        onClose={() => setUpgradeOpened(false)}
+        onUpgrade={async () => {
+          setUpgradeLoading(true);
+          setUpgradeError('');
+          try {
+            const checkout = await startPremiumCheckout();
+            const resolved = await confirmCheckout(checkout.checkoutSessionId);
+            if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
+              setUpgradeOpened(false);
+              setLoading(true);
+              const response = await fetchKnowledgeArticle(slug ?? '', language);
+              setArticle(response);
+              setError('');
+            } else {
+              setUpgradeError(
+                resolved.errorMessage ??
+                  'Checkout did not succeed. Development mode may intentionally simulate failures.',
+              );
+            }
+          } catch (err: any) {
+            setUpgradeError(String(err?.response?.data?.message ?? 'Upgrade failed'));
+          } finally {
+            setUpgradeLoading(false);
+            setLoading(false);
+          }
+        }}
+        loading={upgradeLoading}
+        featureName="Premium knowledge base articles"
+        errorMessage={upgradeError || null}
+      />
     </Stack>
   );
 }

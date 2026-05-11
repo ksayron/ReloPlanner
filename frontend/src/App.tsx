@@ -19,6 +19,7 @@ import TaxonomyManager from './pages/admin/TaxonomyManager';
 import MarketImport from './pages/admin/MarketImport';
 import UserList from './pages/admin/UserList';
 import SyncManager from './pages/admin/SyncManager';
+import InDevelopment from './pages/InDevelopment';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -58,6 +59,7 @@ function AppRoutes() {
         <Route path="admin/market" element={<AdminRoute><MarketImport /></AdminRoute>} />
         <Route path="admin/users" element={<AdminRoute><UserList /></AdminRoute>} />
         <Route path="admin/sync" element={<AdminRoute><SyncManager /></AdminRoute>} />
+        <Route path="in-development" element={<ProtectedRoute><InDevelopment /></ProtectedRoute>} />
       </Route>
     </Routes>
   );

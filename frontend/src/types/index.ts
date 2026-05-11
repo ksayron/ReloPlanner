@@ -10,6 +10,7 @@ export type KnowledgeCategory =
   | 'CV'
   | 'LANGUAGE'
   | 'HOUSING';
+export type KnowledgeAccessLevel = 'FREE' | 'PREMIUM';
 
 export type CompetencyType =
   | 'HARD_SKILL'
@@ -273,6 +274,8 @@ export interface KnowledgeArticleListItem {
   title: string;
   country: string;
   category: KnowledgeCategory;
+  accessLevel: KnowledgeAccessLevel;
+  isLocked: boolean;
   language: string;
   excerpt: string;
   topicTags: string[];
@@ -285,6 +288,8 @@ export interface KnowledgeArticleDetail {
   title: string;
   country: string;
   category: KnowledgeCategory;
+  accessLevel: KnowledgeAccessLevel;
+  isLocked: boolean;
   language: string;
   content: string;
   topicTags: string[];
@@ -300,6 +305,9 @@ export interface KnowledgeListResponse {
     language: string;
   };
   total: number;
+  access?: {
+    planCode: 'FREE' | 'PREMIUM';
+  };
 }
 
 export interface CountryOption {
