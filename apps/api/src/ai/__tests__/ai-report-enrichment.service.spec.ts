@@ -117,7 +117,10 @@ describe('AiReportEnrichmentService', () => {
       makeProvider('MOCK') as any,
     );
 
-    const response = await service.summarizeSnapshot(snapshotFixture, 'REASONING');
+    const response = await service.summarizeSnapshot(
+      snapshotFixture,
+      'REASONING',
+    );
     expect(response.meta.providerUsed).toBe('OPENROUTER');
     expect(response.meta.fallbackUsed).toBe(true);
     expect(response.meta.attemptedProviders).toEqual(['OPENAI', 'OPENROUTER']);
@@ -133,7 +136,10 @@ describe('AiReportEnrichmentService', () => {
       makeProvider('MOCK') as any,
     );
 
-    const response = await service.summarizeSnapshot(snapshotFixture, 'REASONING');
+    const response = await service.summarizeSnapshot(
+      snapshotFixture,
+      'REASONING',
+    );
     expect(response.meta.providerUsed).toBe('MOCK');
     expect(response.meta.fallbackUsed).toBe(true);
     expect(response.summary.executiveSummary).toContain('MOCK');

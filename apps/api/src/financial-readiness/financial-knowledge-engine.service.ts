@@ -186,7 +186,10 @@ export class FinancialKnowledgeEngineService {
         category: row.category,
         avgMonthlyUsd: Number(row._avg.avgMonthlyUsd ?? 0),
       }));
-      const fromCountry = this.buildEstimateFromAggregates(byCategory, 'COUNTRY');
+      const fromCountry = this.buildEstimateFromAggregates(
+        byCategory,
+        'COUNTRY',
+      );
       if (fromCountry) return fromCountry;
     }
 
@@ -262,7 +265,10 @@ export class FinancialKnowledgeEngineService {
     categories: FinancialCostCategoryEstimate[],
   ): FinancialCostCategoryEstimate[] {
     const byCategory = new Map(
-      categories.map((item) => [item.category, this.round(item.monthlyAmountUsd, 2)]),
+      categories.map((item) => [
+        item.category,
+        this.round(item.monthlyAmountUsd, 2),
+      ]),
     );
     return COST_CATEGORIES.map((category) => ({
       category,
@@ -284,7 +290,9 @@ export class FinancialKnowledgeEngineService {
     const raw = this.config.get<string>('FINANCIAL_LIFESTYLE_MULTIPLIERS');
     if (raw) {
       try {
-        const parsed = JSON.parse(raw) as Partial<Record<LifestyleProfile, number>>;
+        const parsed = JSON.parse(raw) as Partial<
+          Record<LifestyleProfile, number>
+        >;
         const value = parsed[lifestyle];
         if (typeof value === 'number' && value > 0) return value;
       } catch {
@@ -295,7 +303,9 @@ export class FinancialKnowledgeEngineService {
   }
 
   private getDependentCostFactor(): number {
-    const value = Number(this.config.get('FINANCIAL_DEPENDENT_COST_FACTOR') ?? 0.25);
+    const value = Number(
+      this.config.get('FINANCIAL_DEPENDENT_COST_FACTOR') ?? 0.25,
+    );
     return Number.isFinite(value) && value >= 0 ? value : 0.25;
   }
 

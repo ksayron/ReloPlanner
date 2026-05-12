@@ -33,7 +33,14 @@ export class JobsRunnerService {
     format: 'json' | 'html' | 'pdf',
     locale: ReportLocale = 'en',
   ) {
-    void this.executeReportGenerationJob(jobId, analysisId, userId, variant, format, locale);
+    void this.executeReportGenerationJob(
+      jobId,
+      analysisId,
+      userId,
+      variant,
+      format,
+      locale,
+    );
   }
 
   runResumeProfileParseJob(
@@ -44,7 +51,11 @@ export class JobsRunnerService {
     void this.executeResumeProfileParseJob(jobId, userId, extracted);
   }
 
-  private async executeProfileAnalysisJob(jobId: string, profileId: string, userId: string) {
+  private async executeProfileAnalysisJob(
+    jobId: string,
+    profileId: string,
+    userId: string,
+  ) {
     let lastStep = 'QUEUED';
     let lastProgress = 0;
 
@@ -109,7 +120,10 @@ export class JobsRunnerService {
       const results = await this.marketSyncService.syncAll('manual', {
         force: true,
         onProgress: ({ country, index, total, result }) => {
-          const progressPercent = Math.max(1, Math.min(99, Math.round((index / total) * 100)));
+          const progressPercent = Math.max(
+            1,
+            Math.min(99, Math.round((index / total) * 100)),
+          );
           const step = result
             ? `COUNTRY_DONE:${country}:${result.status}`
             : `SYNCING_COUNTRY:${country}`;
@@ -185,14 +199,32 @@ export class JobsRunnerService {
 
       if (format === 'json') {
         if (variant === 'ai-summary') {
-          await this.reportsService.generateAndPersistAiSummary(analysisId, userId);
+          await this.reportsService.generateAndPersistAiSummary(
+            analysisId,
+            userId,
+          );
         } else {
-          await this.reportsService.generateSnapshot(analysisId, userId, variant, locale);
+          await this.reportsService.generateSnapshot(
+            analysisId,
+            userId,
+            variant,
+            locale,
+          );
         }
       } else if (format === 'html') {
-        await this.reportsService.renderHtmlReport(analysisId, userId, variant, locale);
+        await this.reportsService.renderHtmlReport(
+          analysisId,
+          userId,
+          variant,
+          locale,
+        );
       } else {
-        await this.reportsService.renderPdfReport(analysisId, userId, variant, locale);
+        await this.reportsService.renderPdfReport(
+          analysisId,
+          userId,
+          variant,
+          locale,
+        );
       }
 
       lastStep = 'ARTIFACT_READY';

@@ -1,4 +1,10 @@
-import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobsEventBusService } from './jobs-event-bus.service.js';
 import {
@@ -13,7 +19,10 @@ import { takeUntil } from 'rxjs/operators';
 export class JobsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(JobsService.name);
   private readonly destroy$ = new Subject<void>();
-  private readonly streams = new Map<string, ReplaySubject<ProcessingJobSnapshot>>();
+  private readonly streams = new Map<
+    string,
+    ReplaySubject<ProcessingJobSnapshot>
+  >();
   private eventQueue: Promise<void> = Promise.resolve();
 
   constructor(
@@ -58,7 +67,10 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     return snapshot;
   }
 
-  async getJobForUser(jobId: string, userId: string): Promise<ProcessingJobSnapshot> {
+  async getJobForUser(
+    jobId: string,
+    userId: string,
+  ): Promise<ProcessingJobSnapshot> {
     const processingJobModel = (this.prisma as any).processingJob;
     const job = await processingJobModel.findFirst({
       where: { id: jobId, userId },
@@ -225,7 +237,8 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private asRecord(value: unknown): Record<string, unknown> | null {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      return null;
     return value as Record<string, unknown>;
   }
 
@@ -233,7 +246,9 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     this.getOrCreateStream(snapshot.id).next(snapshot);
   }
 
-  private getOrCreateStream(jobId: string): ReplaySubject<ProcessingJobSnapshot> {
+  private getOrCreateStream(
+    jobId: string,
+  ): ReplaySubject<ProcessingJobSnapshot> {
     let stream = this.streams.get(jobId);
     if (!stream) {
       stream = new ReplaySubject<ProcessingJobSnapshot>(1);

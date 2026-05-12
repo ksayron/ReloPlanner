@@ -15,4 +15,3 @@ export class CreateCheckoutDto {
   @MaxLength(500)
   cancelUrl?: string;
 }
-

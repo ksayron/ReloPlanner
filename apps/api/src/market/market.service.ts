@@ -13,7 +13,11 @@ export class MarketService {
   async importManual(dto: ImportMarketDto) {
     const rows = this.manualAdapter.parse(dto.skills);
 
-    const resolvedSkills: { skillId: string; frequency: number; avgRequiredLevel: number }[] = [];
+    const resolvedSkills: {
+      skillId: string;
+      frequency: number;
+      avgRequiredLevel: number;
+    }[] = [];
 
     for (const row of rows) {
       let skill = await this.prisma.skill.findFirst({
@@ -75,14 +79,18 @@ export class MarketService {
     let updated = 0;
 
     for (const item of dto.items) {
-      const requirements = (item.requirements ?? []).map((x) => x.trim()).filter(Boolean);
+      const requirements = (item.requirements ?? [])
+        .map((x) => x.trim())
+        .filter(Boolean);
       const requirementCompetencyIds = requirements
         .map((name) => competencyMap.get(name.toLowerCase()))
         .filter((x): x is string => Boolean(x));
 
       const dedupKey = this.buildDedupKey(item);
       const jobPostingModel = this.getJobPostingModel();
-      const existing = await jobPostingModel.findUnique({ where: { dedupKey } });
+      const existing = await jobPostingModel.findUnique({
+        where: { dedupKey },
+      });
 
       const payload = {
         countryCode: item.countryCode.toUpperCase(),
@@ -116,7 +124,8 @@ export class MarketService {
     return {
       inserted,
       updated,
-      deduplication: 'dedupKey = source+externalId or normalized sourceUrl or normalized title+company+location+role+country',
+      deduplication:
+        'dedupKey = source+externalId or normalized sourceUrl or normalized title+company+location+role+country',
     };
   }
 
@@ -130,7 +139,8 @@ export class MarketService {
     roleName: string;
     countryCode: string;
   }) {
-    const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
+    const normalize = (value: string) =>
+      value.trim().toLowerCase().replace(/\s+/g, ' ');
     const source = normalize(item.source);
     if (item.sourceExternalId?.trim()) {
       return `${source}|ext:${normalize(item.sourceExternalId)}`;

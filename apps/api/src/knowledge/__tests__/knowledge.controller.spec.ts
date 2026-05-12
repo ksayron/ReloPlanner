@@ -19,7 +19,10 @@ describe('KnowledgeController', () => {
 
     await controller.listArticles({ country: 'PL', language: 'en' });
 
-    expect(listArticles).toHaveBeenCalledWith({ country: 'PL', language: 'en' });
+    expect(listArticles).toHaveBeenCalledWith({
+      country: 'PL',
+      language: 'en',
+    });
   });
 
   it('passes slug and language to detail service', async () => {

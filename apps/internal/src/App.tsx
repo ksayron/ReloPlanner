@@ -2,7 +2,9 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import {
   AdminRoute,
   AuthProvider,
+  InternalRoute,
   ProtectedRoute,
+  useAuth,
 } from '@reloplanner/shared-frontend';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -16,12 +18,25 @@ import TaxonomyManager from './pages/admin/TaxonomyManager';
 import MarketImport from './pages/admin/MarketImport';
 import UserList from './pages/admin/UserList';
 import SyncManager from './pages/admin/SyncManager';
+import Cases from './pages/Cases';
+import CaseDetail from './pages/CaseDetail';
+
+function HomeRedirect() {
+  const { user } = useAuth();
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  if (user.role === 'SPECIALIST') {
+    return <Navigate to="/cases" replace />;
+  }
+  return <Navigate to="/sync" replace />;
+}
 
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
-        <Route index element={<Navigate to="/sync" replace />} />
+        <Route index element={<HomeRedirect />} />
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
         <Route path="oauth/github/callback" element={<OAuthGithubCallback />} />
@@ -76,6 +91,22 @@ function AppRoutes() {
             <AdminRoute>
               <SyncManager />
             </AdminRoute>
+          }
+        />
+        <Route
+          path="cases"
+          element={
+            <InternalRoute>
+              <Cases />
+            </InternalRoute>
+          }
+        />
+        <Route
+          path="cases/:caseId"
+          element={
+            <InternalRoute>
+              <CaseDetail />
+            </InternalRoute>
           }
         />
       </Route>

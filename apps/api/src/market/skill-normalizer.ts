@@ -4,174 +4,174 @@ import { PrismaService } from '../prisma/prisma.service.js';
 /** Extra API-variant → canonical skill name mappings beyond what's in the DB aliases table */
 const EXTRA_NORMALIZATIONS: Record<string, string> = {
   // JavaScript
-  'javascript': 'JavaScript',
-  'js': 'JavaScript',
-  'ecmascript': 'JavaScript',
-  'es6': 'JavaScript',
+  javascript: 'JavaScript',
+  js: 'JavaScript',
+  ecmascript: 'JavaScript',
+  es6: 'JavaScript',
   'vanilla js': 'JavaScript',
 
   // TypeScript
-  'typescript': 'TypeScript',
-  'ts': 'TypeScript',
+  typescript: 'TypeScript',
+  ts: 'TypeScript',
 
   // Python
-  'python': 'Python',
-  'python3': 'Python',
+  python: 'Python',
+  python3: 'Python',
   'python 3': 'Python',
 
   // Java
-  'java': 'Java',
+  java: 'Java',
   'java 8': 'Java',
   'java 11': 'Java',
   'java 17': 'Java',
   'java 21': 'Java',
-  'jvm': 'Java',
+  jvm: 'Java',
 
   // C#
   'c#': 'C#',
-  'csharp': 'C#',
+  csharp: 'C#',
   'c sharp': 'C#',
   '.net': 'C#',
-  'dotnet': 'C#',
+  dotnet: 'C#',
   'asp.net': 'C#',
 
   // Go
-  'go': 'Go',
-  'golang': 'Go',
+  go: 'Go',
+  golang: 'Go',
 
   // React
-  'react': 'React',
-  'reactjs': 'React',
+  react: 'React',
+  reactjs: 'React',
   'react.js': 'React',
   'react js': 'React',
   'react native': 'React',
 
   // Angular
-  'angular': 'Angular',
-  'angularjs': 'Angular',
+  angular: 'Angular',
+  angularjs: 'Angular',
   'angular.js': 'Angular',
 
   // Vue
-  'vue': 'Vue',
-  'vuejs': 'Vue',
+  vue: 'Vue',
+  vuejs: 'Vue',
   'vue.js': 'Vue',
   'vue js': 'Vue',
   'vue 3': 'Vue',
 
   // Node.js
   'node.js': 'Node.js',
-  'nodejs': 'Node.js',
-  'node': 'Node.js',
+  nodejs: 'Node.js',
+  node: 'Node.js',
   'node js': 'Node.js',
 
   // Express
-  'express': 'Express',
-  'expressjs': 'Express',
+  express: 'Express',
+  expressjs: 'Express',
   'express.js': 'Express',
   'express js': 'Express',
 
   // NestJS
-  'nestjs': 'NestJS',
-  'nest': 'NestJS',
+  nestjs: 'NestJS',
+  nest: 'NestJS',
   'nest.js': 'NestJS',
 
   // Django
-  'django': 'Django',
+  django: 'Django',
 
   // Spring Boot
   'spring boot': 'Spring Boot',
-  'spring': 'Spring Boot',
-  'springboot': 'Spring Boot',
+  spring: 'Spring Boot',
+  springboot: 'Spring Boot',
   'spring framework': 'Spring Boot',
   'spring mvc': 'Spring Boot',
 
   // PostgreSQL
-  'postgresql': 'PostgreSQL',
-  'postgres': 'PostgreSQL',
-  'psql': 'PostgreSQL',
+  postgresql: 'PostgreSQL',
+  postgres: 'PostgreSQL',
+  psql: 'PostgreSQL',
 
   // MySQL
-  'mysql': 'MySQL',
-  'mariadb': 'MySQL',
+  mysql: 'MySQL',
+  mariadb: 'MySQL',
 
   // MongoDB
-  'mongodb': 'MongoDB',
-  'mongo': 'MongoDB',
-  'mongoose': 'MongoDB',
+  mongodb: 'MongoDB',
+  mongo: 'MongoDB',
+  mongoose: 'MongoDB',
 
   // Redis
-  'redis': 'Redis',
+  redis: 'Redis',
   'redis cache': 'Redis',
 
   // Docker
-  'docker': 'Docker',
-  'dockerfile': 'Docker',
+  docker: 'Docker',
+  dockerfile: 'Docker',
   'docker compose': 'Docker',
   'docker-compose': 'Docker',
 
   // Kubernetes
-  'kubernetes': 'Kubernetes',
-  'k8s': 'Kubernetes',
-  'helm': 'Kubernetes',
+  kubernetes: 'Kubernetes',
+  k8s: 'Kubernetes',
+  helm: 'Kubernetes',
 
   // AWS
-  'aws': 'AWS',
+  aws: 'AWS',
   'amazon web services': 'AWS',
   'amazon aws': 'AWS',
   'aws cloud': 'AWS',
 
   // Azure
-  'azure': 'Azure',
+  azure: 'Azure',
   'microsoft azure': 'Azure',
   'azure cloud': 'Azure',
 
   // Git
-  'git': 'Git',
-  'github': 'Git',
-  'gitlab': 'Git',
-  'bitbucket': 'Git',
+  git: 'Git',
+  github: 'Git',
+  gitlab: 'Git',
+  bitbucket: 'Git',
   'version control': 'Git',
 
   // CI/CD
   'ci/cd': 'CI/CD',
   'ci cd': 'CI/CD',
-  'cicd': 'CI/CD',
-  'jenkins': 'CI/CD',
+  cicd: 'CI/CD',
+  jenkins: 'CI/CD',
   'github actions': 'CI/CD',
   'gitlab ci': 'CI/CD',
   'gitlab-ci': 'CI/CD',
   'circle ci': 'CI/CD',
-  'circleci': 'CI/CD',
-  'devops': 'CI/CD',
+  circleci: 'CI/CD',
+  devops: 'CI/CD',
 
   // REST API
-  'rest': 'REST API',
+  rest: 'REST API',
   'rest api': 'REST API',
-  'restful': 'REST API',
+  restful: 'REST API',
   'restful api': 'REST API',
   'rest apis': 'REST API',
 
   // GraphQL
-  'graphql': 'GraphQL',
+  graphql: 'GraphQL',
 
   // Linux
-  'linux': 'Linux',
-  'unix': 'Linux',
-  'bash': 'Linux',
-  'shell': 'Linux',
-  'ubuntu': 'Linux',
+  linux: 'Linux',
+  unix: 'Linux',
+  bash: 'Linux',
+  shell: 'Linux',
+  ubuntu: 'Linux',
 
   // Languages
-  'english': 'English',
+  english: 'English',
   'english language': 'English',
-  'german': 'German',
-  'deutsch': 'German',
+  german: 'German',
+  deutsch: 'German',
   'german language': 'German',
-  'french': 'French',
+  french: 'French',
   'french language': 'French',
-  'polish': 'Polish',
+  polish: 'Polish',
   'polish language': 'Polish',
-  'spanish': 'Spanish',
+  spanish: 'Spanish',
   'spanish language': 'Spanish',
 
   // Certifications
@@ -179,8 +179,8 @@ const EXTRA_NORMALIZATIONS: Record<string, string> = {
   'aws certification': 'AWS Certified',
   'azure certified': 'Azure Certified',
   'azure certification': 'Azure Certified',
-  'ielts': 'IELTS',
-  'goethe': 'Goethe-Zertifikat',
+  ielts: 'IELTS',
+  goethe: 'Goethe-Zertifikat',
   'goethe zertifikat': 'Goethe-Zertifikat',
   'goethe certificate': 'Goethe-Zertifikat',
 };
@@ -203,7 +203,9 @@ export class SkillNormalizerService implements OnModuleInit {
   }
 
   async load() {
-    const skills = await this.prisma.skill.findMany({ include: { aliases: true } });
+    const skills = await this.prisma.skill.findMany({
+      include: { aliases: true },
+    });
 
     this.nameToId.clear();
     this.variantToId.clear();

@@ -20,15 +20,17 @@ export class GoogleLinkGuard extends AuthGuard('google') {
       );
     }
 
-    const req = context.switchToHttp().getRequest<
-      Request & { user?: { id?: string } }
-    >();
+    const req = context
+      .switchToHttp()
+      .getRequest<Request & { user?: { id?: string } }>();
     const userId = req.user?.id;
     if (!userId) {
       throw new UnauthorizedException('Authentication is required');
     }
     const returnTo =
-      typeof req.query?.returnTo === 'string' ? req.query.returnTo : '/settings';
+      typeof req.query?.returnTo === 'string'
+        ? req.query.returnTo
+        : '/settings';
 
     return {
       session: false,

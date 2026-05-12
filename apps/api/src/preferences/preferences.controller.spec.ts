@@ -6,8 +6,7 @@ import { PreferencesController } from './preferences.controller.js';
 import { PreferencesService } from './preferences.service.js';
 
 jest.mock('@nestjs/passport', () => ({
-  AuthGuard:
-    () =>
+  AuthGuard: () =>
     class MockJwtGuard {
       canActivate(context: any) {
         const req = context.switchToHttp().getRequest();
@@ -35,7 +34,9 @@ describe('PreferencesController', () => {
     }).compile();
 
     app = moduleRef.createNestApplication<NestExpressApplication>();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
   });
 

@@ -29,7 +29,9 @@ export class FinancialReadinessService {
     return this.engine.evaluate({
       targetCountry: profile.targetCountry,
       targetCity: profile.targetCity ?? undefined,
-      savingsAmount: profile.savingsAmount ? Number(profile.savingsAmount) : undefined,
+      savingsAmount: profile.savingsAmount
+        ? Number(profile.savingsAmount)
+        : undefined,
       savingsCurrency: profile.savingsCurrency ?? undefined,
       monthlyBudgetAmount: profile.monthlyBudgetAmount
         ? Number(profile.monthlyBudgetAmount)

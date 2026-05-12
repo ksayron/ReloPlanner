@@ -68,7 +68,8 @@ export class AiReportEnrichmentService {
           },
         };
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Unknown provider error';
+        const message =
+          error instanceof Error ? error.message : 'Unknown provider error';
         failureReasons[providerName] = message;
         this.logger.warn(`AI provider ${providerName} failed: ${message}`);
       }

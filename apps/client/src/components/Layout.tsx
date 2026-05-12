@@ -204,6 +204,14 @@ export default function Layout() {
                   </Anchor>
                   <Anchor
                     component={RouterLink}
+                    to="/cases"
+                    className={linkClass}
+                    underline="never"
+                  >
+                    Cases
+                  </Anchor>
+                  <Anchor
+                    component={RouterLink}
                     to="/wizard"
                     className={linkClass}
                     underline="never"
@@ -323,6 +331,14 @@ export default function Layout() {
                 onClick={close}
               >
                 My Profiles
+              </Anchor>
+              <Anchor
+                component={RouterLink}
+                to="/cases"
+                underline="never"
+                onClick={close}
+              >
+                Cases
               </Anchor>
               <Anchor
                 component={RouterLink}

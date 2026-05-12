@@ -1,6 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
-import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory } from '../knowledge.types.js';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
+import {
+  KNOWLEDGE_CATEGORIES,
+  type KnowledgeCategory,
+} from '../knowledge.types.js';
 
 export class KnowledgeQueryDto {
   @ApiPropertyOptional({

@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { ILiveMarketAdapter, LiveMarketResult, MarketDataRow } from './market-data.adapter.js';
+import {
+  ILiveMarketAdapter,
+  LiveMarketResult,
+  MarketDataRow,
+} from './market-data.adapter.js';
 
 const BASE_URL = 'https://www.arbeitnow.com/api/job-board-api';
 const MAX_PAGES = 10;
@@ -39,9 +43,7 @@ export class ArbeitnowAdapter implements ILiveMarketAdapter {
 
   async fetchMarketData(countryIso: string): Promise<LiveMarketResult> {
     if (countryIso.toUpperCase() !== 'PL') {
-      throw new Error(
-        `ArbeitnowAdapter only supports PL, got "${countryIso}"`,
-      );
+      throw new Error(`ArbeitnowAdapter only supports PL, got "${countryIso}"`);
     }
 
     const allJobs: any[] = [];
@@ -53,9 +55,14 @@ export class ArbeitnowAdapter implements ILiveMarketAdapter {
 
       try {
         const resp = await firstValueFrom(
-          this.http.get(BASE_URL, { params: { page }, timeout: HTTP_TIMEOUT_MS }),
+          this.http.get(BASE_URL, {
+            params: { page },
+            timeout: HTTP_TIMEOUT_MS,
+          }),
         );
-        const jobs: any[] = Array.isArray(resp.data?.data) ? resp.data.data : [];
+        const jobs: any[] = Array.isArray(resp.data?.data)
+          ? resp.data.data
+          : [];
         if (!jobs.length) break;
 
         allJobs.push(...jobs);
@@ -64,12 +71,16 @@ export class ArbeitnowAdapter implements ILiveMarketAdapter {
         if (!resp.data?.links?.next) break;
         page++;
       } catch (err: any) {
-        this.logger.error(`ArbeitnowAdapter: error fetching page ${page} - ${err.message}`);
+        this.logger.error(
+          `ArbeitnowAdapter: error fetching page ${page} - ${err.message}`,
+        );
         break;
       }
     }
 
-    this.logger.log(`ArbeitnowAdapter: fetched ${allJobs.length} total jobs across ${pagesFetched} pages`);
+    this.logger.log(
+      `ArbeitnowAdapter: fetched ${allJobs.length} total jobs across ${pagesFetched} pages`,
+    );
 
     // Filter for Poland-based listings.
     // API location strings are inconsistent, so we match across multiple text fields.
@@ -88,7 +99,9 @@ export class ArbeitnowAdapter implements ILiveMarketAdapter {
     this.logger.log(`ArbeitnowAdapter: ${totalVacancies} Poland-matching jobs`);
 
     if (totalVacancies === 0) {
-      this.logger.warn('ArbeitnowAdapter: no Poland jobs found - returning empty result');
+      this.logger.warn(
+        'ArbeitnowAdapter: no Poland jobs found - returning empty result',
+      );
       return { totalVacancies: 0, skills: [] };
     }
 
@@ -97,7 +110,11 @@ export class ArbeitnowAdapter implements ILiveMarketAdapter {
     for (const job of polishJobs) {
       const tags: string[] = Array.isArray(job.tags) ? job.tags : [];
       // Deduplicate per job so one job doesn't inflate the same tag multiple times
-      const uniqueTags = [...new Set(tags.map((t: string) => t.toLowerCase().trim()).filter(Boolean))];
+      const uniqueTags = [
+        ...new Set(
+          tags.map((t: string) => t.toLowerCase().trim()).filter(Boolean),
+        ),
+      ];
       for (const tag of uniqueTags) {
         tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
       }
@@ -117,7 +134,9 @@ export class ArbeitnowAdapter implements ILiveMarketAdapter {
 
     // Sort by frequency descending for readability in logs
     skills.sort((a, b) => b.frequency - a.frequency);
-    this.logger.log(`ArbeitnowAdapter [PL]: ${skills.length} distinct skill tags with frequency > 0.5%`);
+    this.logger.log(
+      `ArbeitnowAdapter [PL]: ${skills.length} distinct skill tags with frequency > 0.5%`,
+    );
 
     return { totalVacancies, skills };
   }

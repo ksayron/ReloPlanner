@@ -90,14 +90,23 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
   async fetchMarketData(countryIso: string): Promise<LiveMarketResult> {
     const countryCode = ADZUNA_COUNTRY_CODES[countryIso.toUpperCase()];
     if (!countryCode) {
-      throw new Error(`AdzunaAdapter: unsupported country "${countryIso}". Supported: ${Object.keys(ADZUNA_COUNTRY_CODES).join(', ')}`);
+      throw new Error(
+        `AdzunaAdapter: unsupported country "${countryIso}". Supported: ${Object.keys(ADZUNA_COUNTRY_CODES).join(', ')}`,
+      );
     }
 
     const appId = this.config.get<string>('ADZUNA_APP_ID');
     const appKey = this.config.get<string>('ADZUNA_APP_KEY');
 
-    if (!appId || !appKey || appId === 'your_app_id' || appKey === 'your_app_key') {
-      this.logger.warn(`AdzunaAdapter: API credentials not set, skipping ${countryIso}`);
+    if (
+      !appId ||
+      !appKey ||
+      appId === 'your_app_id' ||
+      appKey === 'your_app_key'
+    ) {
+      this.logger.warn(
+        `AdzunaAdapter: API credentials not set, skipping ${countryIso}`,
+      );
       return { totalVacancies: 0, skills: [] };
     }
 
@@ -122,7 +131,9 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
         totalVacancies = 0;
       }
     } catch (err: any) {
-      this.logger.error(`AdzunaAdapter [${countryIso}]: failed to fetch total count - ${err.message}`);
+      this.logger.error(
+        `AdzunaAdapter [${countryIso}]: failed to fetch total count - ${err.message}`,
+      );
       return { totalVacancies: 0, skills: [] };
     }
 
@@ -131,7 +142,9 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
       return { totalVacancies: 0, skills: [] };
     }
 
-    this.logger.log(`AdzunaAdapter [${countryIso}]: baseline ${totalVacancies} IT jobs, fetching skill counts...`);
+    this.logger.log(
+      `AdzunaAdapter [${countryIso}]: baseline ${totalVacancies} IT jobs, fetching skill counts...`,
+    );
 
     const skills: MarketDataRow[] = [];
 
@@ -159,11 +172,15 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
           });
         }
       } catch (err: any) {
-        this.logger.warn(`AdzunaAdapter [${countryIso}]: failed for "${skillName}" - ${err.message}`);
+        this.logger.warn(
+          `AdzunaAdapter [${countryIso}]: failed for "${skillName}" - ${err.message}`,
+        );
       }
     }
 
-    this.logger.log(`AdzunaAdapter [${countryIso}]: found ${skills.length} skills with frequency > 0.5%`);
+    this.logger.log(
+      `AdzunaAdapter [${countryIso}]: found ${skills.length} skills with frequency > 0.5%`,
+    );
     return { totalVacancies, skills };
   }
 
@@ -177,11 +194,18 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
 
     const appId = this.config.get<string>('ADZUNA_APP_ID');
     const appKey = this.config.get<string>('ADZUNA_APP_KEY');
-    if (!appId || !appKey || appId === 'your_app_id' || appKey === 'your_app_key') {
+    if (
+      !appId ||
+      !appKey ||
+      appId === 'your_app_id' ||
+      appKey === 'your_app_key'
+    ) {
       return [];
     }
 
-    const maxPerRole = Number.isFinite(options.maxPerRole) ? Math.max(1, Math.min(30, Math.trunc(options.maxPerRole!))) : 12;
+    const maxPerRole = Number.isFinite(options.maxPerRole)
+      ? Math.max(1, Math.min(30, Math.trunc(options.maxPerRole!)))
+      : 12;
     const pages = Math.max(1, Math.ceil(maxPerRole / 20));
 
     const seen = new Set<string>();
@@ -204,10 +228,15 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
               timeout: HTTP_TIMEOUT_MS,
             }),
           );
-          const results = Array.isArray(response.data?.results) ? response.data.results : [];
+          const results = Array.isArray(response.data?.results)
+            ? response.data.results
+            : [];
           for (const row of results) {
             const sourceExternalId = String(row?.id ?? '').trim() || undefined;
-            const sourceUrl = typeof row?.redirect_url === 'string' ? row.redirect_url : undefined;
+            const sourceUrl =
+              typeof row?.redirect_url === 'string'
+                ? row.redirect_url
+                : undefined;
             const dedupRef = sourceExternalId ?? sourceUrl;
             if (!dedupRef || seen.has(dedupRef)) continue;
             seen.add(dedupRef);
@@ -217,14 +246,17 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
               roleName,
               title: String(row?.title ?? 'Unknown title'),
               company: String(row?.company?.display_name ?? 'Unknown company'),
-              location: String(row?.location?.display_name ?? countryIso.toUpperCase()),
+              location: String(
+                row?.location?.display_name ?? countryIso.toUpperCase(),
+              ),
               source: 'adzuna',
               sourceUrl,
               sourceExternalId,
               salaryMinUsd: this.toNullableInt(row?.salary_min),
               salaryMaxUsd: this.toNullableInt(row?.salary_max),
               salaryCurrency: null,
-              description: typeof row?.description === 'string' ? row.description : '',
+              description:
+                typeof row?.description === 'string' ? row.description : '',
             });
           }
         } catch (err: any) {

@@ -46,7 +46,10 @@ export class ScoringController {
       include: {
         snapshot: true,
         analysisItems: { include: { competency: true } },
-        roadmapSteps: { include: { competency: true }, orderBy: { orderIndex: 'asc' } },
+        roadmapSteps: {
+          include: { competency: true },
+          orderBy: { orderIndex: 'asc' },
+        },
       },
     });
     if (!analysis) throw new NotFoundException('No analysis results found');
@@ -116,7 +119,10 @@ export class ScoringController {
       include: {
         snapshot: true,
         analysisItems: { include: { competency: true } },
-        roadmapSteps: { include: { competency: true }, orderBy: { orderIndex: 'asc' } },
+        roadmapSteps: {
+          include: { competency: true },
+          orderBy: { orderIndex: 'asc' },
+        },
       },
     });
     if (!analysis) throw new NotFoundException('Analysis result not found');
@@ -135,7 +141,10 @@ export class ScoringController {
       where: { profileId },
       orderBy: { createdAt: 'desc' },
       include: {
-        roadmapSteps: { include: { competency: true }, orderBy: { orderIndex: 'asc' } },
+        roadmapSteps: {
+          include: { competency: true },
+          orderBy: { orderIndex: 'asc' },
+        },
       },
     });
     if (!analysis) throw new NotFoundException('No analysis results found');
@@ -167,7 +176,11 @@ export class ScoringController {
     @Request() req: any,
     @Query('limit') limitRaw?: string,
   ) {
-    return this.jobMatching.listPostingsForProfile(profileId, req.user.id, limitRaw);
+    return this.jobMatching.listPostingsForProfile(
+      profileId,
+      req.user.id,
+      limitRaw,
+    );
   }
 
   @Get(':id/jobs/:postingId/match')

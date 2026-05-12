@@ -13,7 +13,8 @@ import {
 
 @Injectable()
 export class ScoringTuningService {
-  private activeProfile: ScoringTuningProfileName = defaultScoringTuningProfileName;
+  private activeProfile: ScoringTuningProfileName =
+    defaultScoringTuningProfileName;
   private activeConfig: ScoringTuningConfig = cloneScoringTuningConfig(
     getScoringProfileConfig(defaultScoringTuningProfileName),
   );
@@ -26,7 +27,9 @@ export class ScoringTuningService {
 
     if (isScoringProfileName(configured)) {
       this.activeProfile = configured;
-      this.activeConfig = cloneScoringTuningConfig(getScoringProfileConfig(configured));
+      this.activeConfig = cloneScoringTuningConfig(
+        getScoringProfileConfig(configured),
+      );
     }
   }
 
@@ -43,23 +46,24 @@ export class ScoringTuningService {
   }
 
   listProfiles() {
-    return (Object.keys(scoringTuningProfiles) as ScoringTuningProfileName[]).map(
-      (name) => ({
-        name,
-        description: scoringTuningProfileDescriptions[name],
-        config: cloneScoringTuningConfig(scoringTuningProfiles[name]),
-      }),
-    );
+    return (
+      Object.keys(scoringTuningProfiles) as ScoringTuningProfileName[]
+    ).map((name) => ({
+      name,
+      description: scoringTuningProfileDescriptions[name],
+      config: cloneScoringTuningConfig(scoringTuningProfiles[name]),
+    }));
   }
 
   setActiveProfile(profile: string) {
     const next = profile.toUpperCase();
     if (!isScoringProfileName(next)) {
-      throw new BadRequestException(`Unknown scoring tuning profile: ${profile}`);
+      throw new BadRequestException(
+        `Unknown scoring tuning profile: ${profile}`,
+      );
     }
     this.activeProfile = next;
     this.activeConfig = cloneScoringTuningConfig(getScoringProfileConfig(next));
     return this.getActiveProfile();
   }
 }
-

@@ -8,7 +8,10 @@ export class UpdateSkillDto {
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional({ enum: SkillCategory, example: SkillCategory.HARD_SKILL })
+  @ApiPropertyOptional({
+    enum: SkillCategory,
+    example: SkillCategory.HARD_SKILL,
+  })
   @IsOptional()
   @IsEnum(SkillCategory)
   category?: SkillCategory;

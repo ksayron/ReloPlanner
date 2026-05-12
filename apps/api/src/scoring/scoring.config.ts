@@ -1,8 +1,14 @@
 import { ConfigService } from '@nestjs/config';
 
 export interface ScoringTuningConfig {
-  priorityMultiplier: Record<'CORE' | 'IMPORTANT' | 'OPTIONAL' | 'CONTEXTUAL', number>;
-  roleRelevanceMultiplier: Record<'CORE' | 'RELATED' | 'WEAKLY_RELATED' | 'IRRELEVANT', number>;
+  priorityMultiplier: Record<
+    'CORE' | 'IMPORTANT' | 'OPTIONAL' | 'CONTEXTUAL',
+    number
+  >;
+  roleRelevanceMultiplier: Record<
+    'CORE' | 'RELATED' | 'WEAKLY_RELATED' | 'IRRELEVANT',
+    number
+  >;
   severityImpactThresholds: {
     critical: number;
     high: number;
@@ -14,9 +20,15 @@ export interface ScoringTuningConfig {
   };
 }
 
-export type ScoringTuningProfileName = 'CONSERVATIVE' | 'STANDARD' | 'AGGRESSIVE';
+export type ScoringTuningProfileName =
+  | 'CONSERVATIVE'
+  | 'STANDARD'
+  | 'AGGRESSIVE';
 
-export const scoringTuningProfiles: Record<ScoringTuningProfileName, ScoringTuningConfig> = {
+export const scoringTuningProfiles: Record<
+  ScoringTuningProfileName,
+  ScoringTuningConfig
+> = {
   CONSERVATIVE: {
     priorityMultiplier: {
       CORE: 1.0,
@@ -88,7 +100,10 @@ export const scoringTuningProfiles: Record<ScoringTuningProfileName, ScoringTuni
   },
 };
 
-export const scoringTuningProfileDescriptions: Record<ScoringTuningProfileName, string> = {
+export const scoringTuningProfileDescriptions: Record<
+  ScoringTuningProfileName,
+  string
+> = {
   CONSERVATIVE:
     'Stricter severity thresholds and lower optional/context influence. Fewer items escalate to high severity.',
   STANDARD:
@@ -100,15 +115,19 @@ export const scoringTuningProfileDescriptions: Record<ScoringTuningProfileName, 
 export const defaultScoringTuningConfig: ScoringTuningConfig =
   scoringTuningProfiles.STANDARD;
 
-export const defaultScoringTuningProfileName: ScoringTuningProfileName = 'STANDARD';
+export const defaultScoringTuningProfileName: ScoringTuningProfileName =
+  'STANDARD';
 
 export const defaultScoringTuningProfile = {
   name: defaultScoringTuningProfileName,
-  description: scoringTuningProfileDescriptions[defaultScoringTuningProfileName],
+  description:
+    scoringTuningProfileDescriptions[defaultScoringTuningProfileName],
   config: scoringTuningProfiles[defaultScoringTuningProfileName],
 };
 
-export const isScoringProfileName = (value: string): value is ScoringTuningProfileName =>
+export const isScoringProfileName = (
+  value: string,
+): value is ScoringTuningProfileName =>
   value === 'CONSERVATIVE' || value === 'STANDARD' || value === 'AGGRESSIVE';
 
 export const getScoringProfileConfig = (
@@ -148,7 +167,9 @@ export function buildScoringTuningConfig(
 
   const cfg: ScoringTuningConfig = {
     priorityMultiplier: {
-      CORE: env('SCORING_PRIORITY_CORE') ?? defaultScoringTuningConfig.priorityMultiplier.CORE,
+      CORE:
+        env('SCORING_PRIORITY_CORE') ??
+        defaultScoringTuningConfig.priorityMultiplier.CORE,
       IMPORTANT:
         env('SCORING_PRIORITY_IMPORTANT') ??
         defaultScoringTuningConfig.priorityMultiplier.IMPORTANT,
@@ -212,7 +233,12 @@ function validateScoringTuningConfig(cfg: ScoringTuningConfig) {
   }
 
   const thresholds = cfg.severityImpactThresholds;
-  if (!(thresholds.critical > thresholds.high && thresholds.high > thresholds.moderate)) {
+  if (
+    !(
+      thresholds.critical > thresholds.high &&
+      thresholds.high > thresholds.moderate
+    )
+  ) {
     throw new Error(
       `Invalid scoring severity thresholds: expected critical > high > moderate, got ${thresholds.critical} / ${thresholds.high} / ${thresholds.moderate}`,
     );
@@ -221,11 +247,13 @@ function validateScoringTuningConfig(cfg: ScoringTuningConfig) {
     throw new Error(`Invalid SCORING_SEVERITY_MODERATE_THRESHOLD: must be > 0`);
   }
 
-  if (cfg.timeEstimation.optimisticFactor <= 0 || cfg.timeEstimation.optimisticFactor > 1) {
+  if (
+    cfg.timeEstimation.optimisticFactor <= 0 ||
+    cfg.timeEstimation.optimisticFactor > 1
+  ) {
     throw new Error(`Invalid SCORING_TIME_OPTIMISTIC_FACTOR: expected (0..1]`);
   }
   if (cfg.timeEstimation.weeksPerMonth <= 0) {
     throw new Error(`Invalid SCORING_TIME_WEEKS_PER_MONTH: must be > 0`);
   }
 }
-

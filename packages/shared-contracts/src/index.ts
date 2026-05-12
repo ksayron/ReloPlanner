@@ -1,4 +1,4 @@
-export type Role = 'USER' | 'PREMIUM' | 'ADMIN';
+export type Role = 'USER' | 'PREMIUM' | 'ADMIN' | 'SPECIALIST';
 export type GapStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 export type SkillCategory = 'HARD_SKILL' | 'LANGUAGE' | 'CERTIFICATION' | 'SOFT_SKILL';
 export type CostCategory = 'RENT' | 'FOOD' | 'TRANSPORT' | 'UTILITIES' | 'OTHER';
@@ -611,4 +611,141 @@ export interface AiRoutingPolicyResponse {
   defaults: Record<AiTaskGrade, AiProviderName>;
   orders: Record<AiTaskGrade, AiProviderName[]>;
   availableProviders: AiProviderName[];
+}
+
+export type RelocationCaseStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'IN_PROGRESS'
+  | 'NEEDS_USER_INPUT'
+  | 'ARCHIVED'
+  | 'CANCELED'
+  | 'COMPLETED';
+
+export type CaseActivityType =
+  | 'CASE_CREATED'
+  | 'CASE_SUBMITTED'
+  | 'CASE_ARCHIVED'
+  | 'CASE_CANCELED'
+  | 'CASE_STATUS_CHANGED'
+  | 'SPECIALIST_ASSIGNED'
+  | 'SPECIALIST_REASSIGNED'
+  | 'MESSAGE_POSTED'
+  | 'MESSAGE_READ';
+
+export type CaseMessageKind = 'USER' | 'SPECIALIST' | 'SYSTEM';
+
+export type NotificationType =
+  | 'CASE_ASSIGNED'
+  | 'CASE_REASSIGNED'
+  | 'CASE_STATUS_CHANGED'
+  | 'CASE_MESSAGE'
+  | 'CASE_SYSTEM';
+
+export interface RelocationCaseParticipant {
+  id: string;
+  email: string;
+  displayName?: string | null;
+  role: Role;
+}
+
+export interface CaseMessage {
+  id: string;
+  caseId: string;
+  author: RelocationCaseParticipant | null;
+  kind: CaseMessageKind;
+  content: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface CaseActivity {
+  id: string;
+  type: CaseActivityType;
+  actor: RelocationCaseParticipant | null;
+  statusFrom: RelocationCaseStatus | null;
+  statusTo: RelocationCaseStatus | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface CaseReadState {
+  user: RelocationCaseParticipant;
+  lastReadMessageId: string | null;
+  lastReadAt: string | null;
+  unreadCount: number;
+  updatedAt: string;
+}
+
+export interface RelocationCase {
+  id: string;
+  title: string;
+  description: string | null;
+  status: RelocationCaseStatus;
+  owner: RelocationCaseParticipant;
+  specialist: RelocationCaseParticipant | null;
+  unreadCount?: number;
+  submittedAt: string | null;
+  archivedAt: string | null;
+  canceledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messageCount?: number;
+  activityCount?: number;
+  lastReadAt?: string | null;
+  messages?: CaseMessage[];
+  activities?: CaseActivity[];
+  readStates?: CaseReadState[];
+}
+
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  caseId: string | null;
+  type: NotificationType;
+  title: string;
+  body: string;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+  metadata: Record<string, unknown> | null;
+}
+
+export type RealtimeEventName =
+  | 'session.ready'
+  | 'case.message.created'
+  | 'case.message.read'
+  | 'case.system.created'
+  | 'notification.created'
+  | 'notification.read';
+
+export interface RealtimeSessionReadyPayload {
+  userId: string;
+  role: Role;
+  connectedAt: string;
+}
+
+export interface RealtimeCaseMessageReadPayload {
+  caseId: string;
+  userId: string;
+  lastReadMessageId: string | null;
+  lastReadAt: string | null;
+  unreadCount: number;
+}
+
+export interface RealtimeEventPayloadMap {
+  'session.ready': RealtimeSessionReadyPayload;
+  'case.message.created': CaseMessage;
+  'case.message.read': RealtimeCaseMessageReadPayload;
+  'case.system.created': CaseMessage;
+  'notification.created': NotificationItem;
+  'notification.read': NotificationItem;
+}
+
+export interface RealtimeEnvelope<
+  TEvent extends RealtimeEventName = RealtimeEventName,
+> {
+  event: TEvent;
+  data: RealtimeEventPayloadMap[TEvent];
+  at: string;
 }

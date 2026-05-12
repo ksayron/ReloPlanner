@@ -31,11 +31,15 @@ export class WhereNextService implements OnModuleInit {
 
     for (const [key, url] of Object.entries(WHERENEXT_ENDPOINTS)) {
       try {
-        const resp = await firstValueFrom(this.http.get(url, { timeout: 15000 }));
+        const resp = await firstValueFrom(
+          this.http.get(url, { timeout: 15000 }),
+        );
         this.cache.set(key, resp.data);
         successCount++;
       } catch (err: any) {
-        this.logger.warn(`WhereNext: failed to refresh "${key}" (${url}) — ${err.message}`);
+        this.logger.warn(
+          `WhereNext: failed to refresh "${key}" (${url}) — ${err.message}`,
+        );
       }
     }
 

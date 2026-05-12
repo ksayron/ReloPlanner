@@ -36,25 +36,27 @@ describe('AuthService OAuth flow', () => {
   });
 
   it('returns exchange code for already linked githubId', async () => {
-    prisma.user.findUnique.mockImplementation(({ where }: { where: { githubId?: string; id?: string } }) => {
-      if (where.githubId) {
-        return {
-          id: 'user-1',
-          email: 'user@example.com',
-          role: 'USER',
-          githubId: 'gh-1',
-          githubLogin: 'old-login',
-        };
-      }
-      if (where.id) {
-        return {
-          id: 'user-1',
-          email: 'user@example.com',
-          role: 'USER',
-        };
-      }
-      return null;
-    });
+    prisma.user.findUnique.mockImplementation(
+      ({ where }: { where: { githubId?: string; id?: string } }) => {
+        if (where.githubId) {
+          return {
+            id: 'user-1',
+            email: 'user@example.com',
+            role: 'USER',
+            githubId: 'gh-1',
+            githubLogin: 'old-login',
+          };
+        }
+        if (where.id) {
+          return {
+            id: 'user-1',
+            email: 'user@example.com',
+            role: 'USER',
+          };
+        }
+        return null;
+      },
+    );
     prisma.user.update.mockResolvedValue({
       id: 'user-1',
       email: 'user@example.com',
@@ -75,21 +77,23 @@ describe('AuthService OAuth flow', () => {
   });
 
   it('auto-links existing user by email when githubId is not linked', async () => {
-    prisma.user.findUnique.mockImplementation(({ where }: { where: { githubId?: string; email?: string } }) => {
-      if (where.githubId) {
+    prisma.user.findUnique.mockImplementation(
+      ({ where }: { where: { githubId?: string; email?: string } }) => {
+        if (where.githubId) {
+          return null;
+        }
+        if (where.email) {
+          return {
+            id: 'user-2',
+            email: 'user@example.com',
+            role: 'USER',
+            githubId: null,
+            githubLogin: null,
+          };
+        }
         return null;
-      }
-      if (where.email) {
-        return {
-          id: 'user-2',
-          email: 'user@example.com',
-          role: 'USER',
-          githubId: null,
-          githubLogin: null,
-        };
-      }
-      return null;
-    });
+      },
+    );
     prisma.user.update.mockResolvedValue({
       id: 'user-2',
       email: 'user@example.com',
@@ -161,25 +165,27 @@ describe('AuthService OAuth flow', () => {
   });
 
   it('exchanges OAuth code once and rejects replay', async () => {
-    prisma.user.findUnique.mockImplementation(({ where }: { where: { githubId?: string; id?: string } }) => {
-      if (where.githubId) {
-        return {
-          id: 'user-5',
-          email: 'user5@example.com',
-          role: 'USER',
-          githubId: 'gh-5',
-          githubLogin: 'user5-gh',
-        };
-      }
-      if (where.id) {
-        return {
-          id: 'user-5',
-          email: 'user5@example.com',
-          role: 'USER',
-        };
-      }
-      return null;
-    });
+    prisma.user.findUnique.mockImplementation(
+      ({ where }: { where: { githubId?: string; id?: string } }) => {
+        if (where.githubId) {
+          return {
+            id: 'user-5',
+            email: 'user5@example.com',
+            role: 'USER',
+            githubId: 'gh-5',
+            githubLogin: 'user5-gh',
+          };
+        }
+        if (where.id) {
+          return {
+            id: 'user-5',
+            email: 'user5@example.com',
+            role: 'USER',
+          };
+        }
+        return null;
+      },
+    );
 
     const state = service.createGithubAuthState('/wizard');
     const resolved = await service.resolveGithubCallback(state, {
@@ -192,30 +198,36 @@ describe('AuthService OAuth flow', () => {
       throw new Error('Expected exchange code');
     }
 
-    const first = await service.exchangeOAuthCode({ code: resolved.exchangeCode });
+    const first = await service.exchangeOAuthCode({
+      code: resolved.exchangeCode,
+    });
     expect(first.accessToken).toBe('signed.jwt.token');
 
     await expect(
       service.exchangeOAuthCode({ code: resolved.exchangeCode }),
-    ).rejects.toEqual(expect.objectContaining({ code: 'oauth_exchange_invalid' }));
+    ).rejects.toEqual(
+      expect.objectContaining({ code: 'oauth_exchange_invalid' }),
+    );
   });
 
   it('rejects conflicting github identity when email is already linked elsewhere', async () => {
-    prisma.user.findUnique.mockImplementation(({ where }: { where: { githubId?: string; email?: string } }) => {
-      if (where.githubId) {
+    prisma.user.findUnique.mockImplementation(
+      ({ where }: { where: { githubId?: string; email?: string } }) => {
+        if (where.githubId) {
+          return null;
+        }
+        if (where.email) {
+          return {
+            id: 'user-6',
+            email: 'user6@example.com',
+            role: 'USER',
+            githubId: 'different-gh',
+            githubLogin: 'different-login',
+          };
+        }
         return null;
-      }
-      if (where.email) {
-        return {
-          id: 'user-6',
-          email: 'user6@example.com',
-          role: 'USER',
-          githubId: 'different-gh',
-          githubLogin: 'different-login',
-        };
-      }
-      return null;
-    });
+      },
+    );
 
     const state = service.createGithubAuthState('/wizard');
 
@@ -225,7 +237,9 @@ describe('AuthService OAuth flow', () => {
         username: 'gh6-login',
         emails: [{ value: 'user6@example.com', verified: true }],
       }),
-    ).rejects.toEqual(expect.objectContaining({ code: 'oauth_identity_conflict' }));
+    ).rejects.toEqual(
+      expect.objectContaining({ code: 'oauth_identity_conflict' }),
+    );
   });
 
   it('completes email ticket and links account by email', async () => {
@@ -383,7 +397,9 @@ describe('AuthService OAuth flow', () => {
         username: 'new-login',
         emails: [],
       }),
-    ).rejects.toEqual(expect.objectContaining({ code: 'oauth_identity_conflict' }));
+    ).rejects.toEqual(
+      expect.objectContaining({ code: 'oauth_identity_conflict' }),
+    );
   });
 
   it('returns exchange code for already linked googleId', async () => {
@@ -462,7 +478,10 @@ describe('AuthService OAuth flow', () => {
       googleEmail: 'owner@example.com',
     });
 
-    const state = service.createGoogleLinkState('user-google-link', '/settings');
+    const state = service.createGoogleLinkState(
+      'user-google-link',
+      '/settings',
+    );
     const resolved = await service.resolveGoogleCallback(state, {
       id: 'google-link',
       emails: [{ value: 'owner@example.com', verified: true }],
@@ -531,4 +550,3 @@ describe('AuthService OAuth flow', () => {
     );
   });
 });
-

@@ -99,7 +99,12 @@ export class ReportsController {
       );
     }
     const locale = this.resolveLocale(localeRaw);
-    const report = await this.reportsService.renderPdfReport(analysisId, req.user.id, variant, locale);
+    const report = await this.reportsService.renderPdfReport(
+      analysisId,
+      req.user.id,
+      variant,
+      locale,
+    );
     return new StreamableFile(report.pdf, {
       type: 'application/pdf',
       disposition: `attachment; filename="relocation-readiness-${analysisId}-${variant}-${locale}.pdf"`,

@@ -41,7 +41,7 @@ export class KnowledgeController {
     try {
       const payload = this.jwt.verify(token, {
         secret: this.config.getOrThrow<string>('JWT_SECRET'),
-      }) as { sub?: string };
+      });
       return typeof payload?.sub === 'string' ? payload.sub : undefined;
     } catch {
       return undefined;

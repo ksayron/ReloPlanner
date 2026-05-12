@@ -62,15 +62,19 @@ export default function Layout() {
   const { setColorScheme } = useMantineColorScheme();
   const computedColorScheme = useComputedColorScheme('light');
 
-  const adminLinks = useMemo(
-    () => [
+  const adminLinks = useMemo(() => {
+    const links = [
+      { to: '/cases', label: 'Cases' },
       { to: '/sync', label: 'Sync' },
       { to: '/taxonomy', label: 'Taxonomy' },
       { to: '/market', label: 'Market' },
       { to: '/users', label: 'Users' },
-    ],
-    [],
-  );
+    ];
+    if (user?.role === 'SPECIALIST') {
+      return links.filter((link) => link.to === '/cases');
+    }
+    return links;
+  }, [user?.role]);
 
   const handleLogout = () => {
     logout();

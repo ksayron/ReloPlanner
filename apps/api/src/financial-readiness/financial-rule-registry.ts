@@ -7,8 +7,7 @@ export function buildFinancialRuleRegistry(): FinancialReadinessRule[] {
   return [
     {
       code: 'NO_SAVINGS_HIGH_RISK',
-      description:
-        'Missing savings creates immediate relocation runway risk.',
+      description: 'Missing savings creates immediate relocation runway risk.',
       when: (facts) => !facts.savingsUsd || facts.savingsUsd <= 0,
       then: () => ({
         riskLevel: 'HIGH',
@@ -46,7 +45,8 @@ export function buildFinancialRuleRegistry(): FinancialReadinessRule[] {
     },
     {
       code: 'RUNWAY_THREE_TO_SIX_MONTHS',
-      description: 'A 3-6 month runway is moderate risk and should be improved.',
+      description:
+        'A 3-6 month runway is moderate risk and should be improved.',
       when: (facts) =>
         facts.runwayMonths !== null &&
         facts.runwayMonths >= 3 &&

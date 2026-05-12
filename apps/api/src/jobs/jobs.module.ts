@@ -10,7 +10,13 @@ import { JobsRunnerService } from './jobs-runner.service.js';
 import { JobsService } from './jobs.service.js';
 
 @Module({
-  imports: [ScoringModule, MarketModule, ReportsModule, ResumeModule, BillingModule],
+  imports: [
+    ScoringModule,
+    MarketModule,
+    ReportsModule,
+    ResumeModule,
+    BillingModule,
+  ],
   controllers: [JobsController],
   providers: [JobsService, JobsRunnerService, JobsEventBusService],
   exports: [JobsService],

@@ -27,6 +27,7 @@ interface UserListItem {
 
 const roleColor = (role: Role) => {
   if (role === 'ADMIN') return 'red';
+  if (role === 'SPECIALIST') return 'blue';
   if (role === 'PREMIUM') return 'yellow';
   return 'gray';
 };
@@ -172,6 +173,7 @@ export default function UserList() {
               data={[
                 { value: 'USER', label: 'USER' },
                 { value: 'PREMIUM', label: 'PREMIUM' },
+                { value: 'SPECIALIST', label: 'SPECIALIST' },
                 { value: 'ADMIN', label: 'ADMIN' },
               ]}
             />

@@ -1,5 +1,9 @@
 ﻿import { ScoringService } from '../scoring.service';
-import { CompetencyRequirement, TransferEdge, UserCompetencyState } from '../scoring.types';
+import {
+  CompetencyRequirement,
+  TransferEdge,
+  UserCompetencyState,
+} from '../scoring.types';
 
 describe('ScoringService v2', () => {
   let service: ScoringService;
@@ -8,7 +12,9 @@ describe('ScoringService v2', () => {
     service = new ScoringService();
   });
 
-  const baseReq = (overrides: Partial<CompetencyRequirement>): CompetencyRequirement => ({
+  const baseReq = (
+    overrides: Partial<CompetencyRequirement>,
+  ): CompetencyRequirement => ({
     id: 'r1',
     competencyId: 'c1',
     competencyName: 'Docker',
@@ -83,7 +89,9 @@ describe('ScoringService v2', () => {
       weeklyHours: 8,
     });
 
-    expect(result.analysisItems[0].recommendationType).toBe('EXCLUDED_AS_IRRELEVANT');
+    expect(result.analysisItems[0].recommendationType).toBe(
+      'EXCLUDED_AS_IRRELEVANT',
+    );
     expect(result.actionableGaps).toHaveLength(0);
   });
 
@@ -107,7 +115,9 @@ describe('ScoringService v2', () => {
     });
 
     expect(result.analysisItems[0].includedInRoadmap).toBe(false);
-    expect(result.analysisItems[0].recommendationType).toBe('OPTIONAL_IMPROVEMENT');
+    expect(result.analysisItems[0].recommendationType).toBe(
+      'OPTIONAL_IMPROVEMENT',
+    );
   });
 
   it('fully matched core role skill is not labeled as market context', () => {
@@ -138,7 +148,9 @@ describe('ScoringService v2', () => {
     });
 
     expect(result.analysisItems[0].matchScore).toBe(1);
-    expect(result.analysisItems[0].recommendationType).toBe('OPTIONAL_IMPROVEMENT');
+    expect(result.analysisItems[0].recommendationType).toBe(
+      'OPTIONAL_IMPROVEMENT',
+    );
   });
 
   it('returns dual time output with legacy totalPrepMonths', () => {

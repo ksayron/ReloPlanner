@@ -9,7 +9,10 @@ import { FinancialReadinessService } from './financial-readiness.service.js';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [FinancialReadinessController, ProfileFinancialReadinessController],
+  controllers: [
+    FinancialReadinessController,
+    ProfileFinancialReadinessController,
+  ],
   providers: [FinancialReadinessService, FinancialKnowledgeEngineService],
   exports: [FinancialReadinessService, FinancialKnowledgeEngineService],
 })

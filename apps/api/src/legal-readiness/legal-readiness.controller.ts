@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EvaluateLegalReadinessDto } from './legal-readiness.dto.js';
@@ -29,6 +37,9 @@ export class ProfileLegalReadinessController {
     @Param('profileId') profileId: string,
     @Req() req: { user?: { id?: string } },
   ) {
-    return this.legalReadiness.evaluateForProfile(profileId, req.user?.id ?? '');
+    return this.legalReadiness.evaluateForProfile(
+      profileId,
+      req.user?.id ?? '',
+    );
   }
 }

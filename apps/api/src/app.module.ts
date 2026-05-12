@@ -19,6 +19,9 @@ import { LegalReadinessModule } from './legal-readiness/legal-readiness.module.j
 import { FinancialReadinessModule } from './financial-readiness/financial-readiness.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { PreferencesModule } from './preferences/preferences.module.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
+import { CasesModule } from './cases/cases.module.js';
 
 @Module({
   imports: [
@@ -42,6 +45,9 @@ import { PreferencesModule } from './preferences/preferences.module.js';
     FinancialReadinessModule,
     BillingModule,
     PreferencesModule,
+    RealtimeModule,
+    NotificationsModule,
+    CasesModule,
   ],
 })
 export class AppModule {}

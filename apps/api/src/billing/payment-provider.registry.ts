@@ -7,7 +7,10 @@ export const PAYMENT_PROVIDER_ADAPTERS = Symbol('PAYMENT_PROVIDER_ADAPTERS');
 
 @Injectable()
 export class PaymentProviderRegistry {
-  private readonly providersByName: Map<PaymentProvider, PaymentProviderAdapter>;
+  private readonly providersByName: Map<
+    PaymentProvider,
+    PaymentProviderAdapter
+  >;
 
   constructor(
     private readonly config: ConfigService,

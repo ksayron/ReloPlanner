@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   TARGET_CITY_BY_COUNTRY,
@@ -8,8 +12,17 @@ import { UpdatePreferencesDto } from './dto/update-preferences.dto.js';
 
 const SUPPORTED_LANGUAGES = new Set(['en', 'ru']);
 const SUPPORTED_THEMES = new Set(['light', 'dark']);
-const SUPPORTED_CURRENCIES = new Set(['USD', 'EUR', 'GBP', 'CAD', 'PLN', 'UAH']);
-const TARGET_COUNTRY_CODES = new Set(TARGET_COUNTRIES.map((country) => country.code));
+const SUPPORTED_CURRENCIES = new Set([
+  'USD',
+  'EUR',
+  'GBP',
+  'CAD',
+  'PLN',
+  'UAH',
+]);
+const TARGET_COUNTRY_CODES = new Set(
+  TARGET_COUNTRIES.map((country) => country.code),
+);
 
 const DEFAULT_PREFERENCES = {
   preferredLanguage: 'en',
@@ -71,7 +84,9 @@ export class PreferencesService {
     return this.toResponse(updated);
   }
 
-  private async ensurePreferenceRecord(userId: string): Promise<PreferenceRecord> {
+  private async ensurePreferenceRecord(
+    userId: string,
+  ): Promise<PreferenceRecord> {
     if (!userId) {
       throw new UnauthorizedException('User not found');
     }
@@ -100,7 +115,9 @@ export class PreferencesService {
     if (dto.preferredLanguage !== undefined) {
       const value = this.normalizeLanguage(dto.preferredLanguage);
       if (!SUPPORTED_LANGUAGES.has(value)) {
-        throw new BadRequestException('preferredLanguage must be one of: en, ru');
+        throw new BadRequestException(
+          'preferredLanguage must be one of: en, ru',
+        );
       }
       patch.preferredLanguage = value;
     }
@@ -108,7 +125,9 @@ export class PreferencesService {
     if (dto.preferredTheme !== undefined) {
       const value = dto.preferredTheme.trim().toLowerCase();
       if (!SUPPORTED_THEMES.has(value)) {
-        throw new BadRequestException('preferredTheme must be one of: light, dark');
+        throw new BadRequestException(
+          'preferredTheme must be one of: light, dark',
+        );
       }
       patch.preferredTheme = value;
     }
@@ -141,7 +160,9 @@ export class PreferencesService {
         if (!value) {
           patch.defaultTargetCountry = null;
         } else if (!TARGET_COUNTRY_CODES.has(value)) {
-          throw new BadRequestException('defaultTargetCountry must be a supported target country');
+          throw new BadRequestException(
+            'defaultTargetCountry must be a supported target country',
+          );
         } else {
           patch.defaultTargetCountry = value;
         }
@@ -154,15 +175,23 @@ export class PreferencesService {
       } else {
         const value = dto.defaultTargetCity.trim();
         if (!value) {
-          throw new BadRequestException('defaultTargetCity must be non-empty when provided');
+          throw new BadRequestException(
+            'defaultTargetCity must be non-empty when provided',
+          );
         }
         patch.defaultTargetCity = value;
       }
     }
 
     if (dto.weeklyStudyHours !== undefined) {
-      if (!Number.isInteger(dto.weeklyStudyHours) || dto.weeklyStudyHours < 1 || dto.weeklyStudyHours > 40) {
-        throw new BadRequestException('weeklyStudyHours must be an integer between 1 and 40');
+      if (
+        !Number.isInteger(dto.weeklyStudyHours) ||
+        dto.weeklyStudyHours < 1 ||
+        dto.weeklyStudyHours > 40
+      ) {
+        throw new BadRequestException(
+          'weeklyStudyHours must be an integer between 1 and 40',
+        );
       }
       patch.weeklyStudyHours = dto.weeklyStudyHours;
     }

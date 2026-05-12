@@ -40,7 +40,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     profile: {
       id: string;
       displayName?: string;
-      emails?: Array<{ value?: string | null; verified?: boolean; primary?: boolean }>;
+      emails?: Array<{
+        value?: string | null;
+        verified?: boolean;
+        primary?: boolean;
+      }>;
     },
   ) {
     if (!this.oauthEnabled) {

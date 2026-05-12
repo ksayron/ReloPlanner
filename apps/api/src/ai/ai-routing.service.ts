@@ -16,8 +16,14 @@ export class AiRoutingService {
   constructor(private readonly configService: ConfigService) {
     this.policy = {
       defaults: {
-        EASY: this.readProviderFromEnv('AI_DEFAULT_PROVIDER_EASY', 'OPENROUTER'),
-        REASONING: this.readProviderFromEnv('AI_DEFAULT_PROVIDER_REASONING', 'OPENAI'),
+        EASY: this.readProviderFromEnv(
+          'AI_DEFAULT_PROVIDER_EASY',
+          'OPENROUTER',
+        ),
+        REASONING: this.readProviderFromEnv(
+          'AI_DEFAULT_PROVIDER_REASONING',
+          'OPENAI',
+        ),
       },
     };
   }
@@ -33,7 +39,10 @@ export class AiRoutingService {
     };
   }
 
-  setDefaultProvider(grade: AiTaskGrade, provider: AiProviderName): AiRoutingPolicyView {
+  setDefaultProvider(
+    grade: AiTaskGrade,
+    provider: AiProviderName,
+  ): AiRoutingPolicyView {
     this.policy.defaults[grade] = provider;
     return this.getPolicy();
   }
@@ -42,12 +51,19 @@ export class AiRoutingService {
     const primary = this.policy.defaults[grade];
     if (primary === 'MOCK') return ['MOCK'];
 
-    const alternates = AI_PROVIDERS.filter((name) => name !== primary && name !== 'MOCK');
+    const alternates = AI_PROVIDERS.filter(
+      (name) => name !== primary && name !== 'MOCK',
+    );
     return [primary, ...alternates, 'MOCK'];
   }
 
-  private readProviderFromEnv(key: string, fallback: AiProviderName): AiProviderName {
-    const raw = String(this.configService.get<string>(key) ?? fallback).trim().toUpperCase();
+  private readProviderFromEnv(
+    key: string,
+    fallback: AiProviderName,
+  ): AiProviderName {
+    const raw = String(this.configService.get<string>(key) ?? fallback)
+      .trim()
+      .toUpperCase();
     if (!isAiProviderName(raw)) {
       throw new BadRequestException(
         `${key} must be one of ${AI_PROVIDERS.join(', ')}, got "${raw}"`,

@@ -34,9 +34,15 @@ describe('EntitlementService', () => {
       },
     });
 
-    const allowed = await service.canUse('user-1', FEATURE_CODES.BASIC_ANALYSIS);
+    const allowed = await service.canUse(
+      'user-1',
+      FEATURE_CODES.BASIC_ANALYSIS,
+    );
     const denied = await service.canUse('user-1', FEATURE_CODES.PDF_EXPORT);
-    const limit = await service.getLimit('user-1', FEATURE_CODES.JOB_MATCH_LIMIT);
+    const limit = await service.getLimit(
+      'user-1',
+      FEATURE_CODES.JOB_MATCH_LIMIT,
+    );
 
     expect(allowed.allowed).toBe(true);
     expect(denied.allowed).toBe(false);
@@ -54,7 +60,10 @@ describe('EntitlementService', () => {
     });
 
     const allowed = await service.canUse('user-2', FEATURE_CODES.PDF_EXPORT);
-    const limit = await service.getLimit('user-2', FEATURE_CODES.JOB_MATCH_LIMIT);
+    const limit = await service.getLimit(
+      'user-2',
+      FEATURE_CODES.JOB_MATCH_LIMIT,
+    );
 
     expect(allowed.allowed).toBe(true);
     expect(limit).toBe(20);
@@ -82,11 +91,16 @@ describe('EntitlementService', () => {
       },
     ]);
 
-    const pdfDecision = await service.canUse('user-3', FEATURE_CODES.PDF_EXPORT);
-    const limit = await service.getLimit('user-3', FEATURE_CODES.JOB_MATCH_LIMIT);
+    const pdfDecision = await service.canUse(
+      'user-3',
+      FEATURE_CODES.PDF_EXPORT,
+    );
+    const limit = await service.getLimit(
+      'user-3',
+      FEATURE_CODES.JOB_MATCH_LIMIT,
+    );
 
     expect(pdfDecision.allowed).toBe(true);
     expect(limit).toBe(8);
   });
 });
-

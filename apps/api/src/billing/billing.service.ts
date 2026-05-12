@@ -36,7 +36,9 @@ export class BillingService {
     private readonly stripeProvider: StripePaymentProvider,
     private readonly config: ConfigService,
   ) {
-    const verbose = String(this.config.get<string>('BILLING_WEBHOOK_VERBOSE') ?? 'false')
+    const verbose = String(
+      this.config.get<string>('BILLING_WEBHOOK_VERBOSE') ?? 'false',
+    )
       .trim()
       .toLowerCase();
     this.webhookVerbose = verbose === 'true' || verbose === '1';
@@ -117,7 +119,8 @@ export class BillingService {
         data: {
           status: 'FAILED',
           failureCode: 'checkout_session_creation_failed',
-          failureMessage: error instanceof Error ? error.message : 'Unknown error',
+          failureMessage:
+            error instanceof Error ? error.message : 'Unknown error',
         },
       });
       throw error;
@@ -256,14 +259,12 @@ export class BillingService {
       payments: recentPayments.map((payment) => ({
         id: payment.id,
         status: payment.status,
-        amount:
-          payment.providerCheckoutSessionId.startsWith('invoice_')
-            ? Number(payment.plan.price)
-            : Number(payment.amount),
-        currency:
-          payment.providerCheckoutSessionId.startsWith('invoice_')
-            ? payment.plan.currency
-            : payment.currency,
+        amount: payment.providerCheckoutSessionId.startsWith('invoice_')
+          ? Number(payment.plan.price)
+          : Number(payment.amount),
+        currency: payment.providerCheckoutSessionId.startsWith('invoice_')
+          ? payment.plan.currency
+          : payment.currency,
         planCode: payment.plan.code,
         createdAt: payment.createdAt,
         errorCode: payment.failureCode,
@@ -274,15 +275,16 @@ export class BillingService {
 
   async getPlanSummary(userId: string) {
     await this.ensureCorePlans();
-    const [status, currentSubscription, premiumPlan, preferences] = await Promise.all([
-      this.getBillingStatus(userId),
-      this.getCurrentSubscriptionForUser(userId),
-      this.requirePlanByCode('PREMIUM'),
-      this.prisma.userPreference.findUnique({
-        where: { userId },
-        select: { preferredCurrency: true },
-      }),
-    ]);
+    const [status, currentSubscription, premiumPlan, preferences] =
+      await Promise.all([
+        this.getBillingStatus(userId),
+        this.getCurrentSubscriptionForUser(userId),
+        this.requirePlanByCode('PREMIUM'),
+        this.prisma.userPreference.findUnique({
+          where: { userId },
+          select: { preferredCurrency: true },
+        }),
+      ]);
 
     const preferredCurrency = (preferences?.preferredCurrency ?? 'USD') as
       | 'USD'
@@ -302,7 +304,10 @@ export class BillingService {
     );
 
     let stripeSubscription: Record<string, unknown> | null = null;
-    if (this.stripeProvider.isLiveMode() && currentSubscription.providerSubscriptionId) {
+    if (
+      this.stripeProvider.isLiveMode() &&
+      currentSubscription.providerSubscriptionId
+    ) {
       const stripeSub = await this.stripeProvider.retrieveSubscription(
         currentSubscription.providerSubscriptionId,
       );
@@ -317,7 +322,8 @@ export class BillingService {
                   hostedInvoiceUrl: stripeSub.latest_invoice.hosted_invoice_url,
                 }
               : null;
-        const currentPeriodEnd = this.resolveSubscriptionCurrentPeriodEnd(stripeSub);
+        const currentPeriodEnd =
+          this.resolveSubscriptionCurrentPeriodEnd(stripeSub);
 
         stripeSubscription = {
           id: stripeSub.id,
@@ -384,7 +390,8 @@ export class BillingService {
       };
       await this.resolveFromCheckoutSessionEvent({
         checkoutSessionId: session.id,
-        providerPaymentId: session.subscription ?? session.payment_intent ?? null,
+        providerPaymentId:
+          session.subscription ?? session.payment_intent ?? null,
         status:
           session.status === 'complete' &&
           (session.payment_status === 'paid' ||
@@ -483,12 +490,16 @@ export class BillingService {
     if (eventType === 'payment_intent.payment_failed') {
       const paymentIntent = event.data.object as {
         id: string;
-        last_payment_error?: { code?: string | null; message?: string | null } | null;
+        last_payment_error?: {
+          code?: string | null;
+          message?: string | null;
+        } | null;
       };
       await this.resolveFromPaymentIntentFailure(
         paymentIntent.id,
         paymentIntent.last_payment_error?.code ?? 'payment_intent_failed',
-        paymentIntent.last_payment_error?.message ?? 'Stripe payment intent failed.',
+        paymentIntent.last_payment_error?.message ??
+          'Stripe payment intent failed.',
       );
       return { received: true, eventType };
     }
@@ -531,7 +542,9 @@ export class BillingService {
       where: { providerSubscriptionId: input.id },
     });
     if (!local) {
-      this.logger.warn(`Stripe webhook referenced unknown subscription: ${input.id}`);
+      this.logger.warn(
+        `Stripe webhook referenced unknown subscription: ${input.id}`,
+      );
       return;
     }
 
@@ -624,7 +637,9 @@ export class BillingService {
       } else if (typeof nested === 'string') {
         const fetched = await this.stripeProvider.retrieveInvoice(nested);
         if (!fetched) {
-          this.logger.warn(`Stripe webhook referenced unknown invoice: ${nested}`);
+          this.logger.warn(
+            `Stripe webhook referenced unknown invoice: ${nested}`,
+          );
           return null;
         }
         invoice = fetched as unknown as Record<string, unknown>;
@@ -888,8 +903,7 @@ export class BillingService {
       input.planId,
       {
         provider: updatedPayment.provider,
-        providerSubscriptionId:
-          updatedPayment.providerPaymentId ?? undefined,
+        providerSubscriptionId: updatedPayment.providerPaymentId ?? undefined,
       },
     );
 
@@ -928,7 +942,8 @@ export class BillingService {
 
     const startedAt = new Date();
     const expiresAt = new Date(
-      startedAt.getTime() + BILLING_DEFAULTS.PREMIUM_BILLING_DAYS * 24 * 60 * 60 * 1000,
+      startedAt.getTime() +
+        BILLING_DEFAULTS.PREMIUM_BILLING_DAYS * 24 * 60 * 60 * 1000,
     );
 
     const created = await this.prisma.subscription.create({
@@ -971,7 +986,7 @@ export class BillingService {
       select: { id: true, role: true },
     });
     if (!user) return;
-    if (user.role === 'ADMIN') return;
+    if (user.role === 'ADMIN' || user.role === 'SPECIALIST') return;
 
     const nextRole: Role = planCode === 'PREMIUM' ? 'PREMIUM' : 'USER';
     if (user.role !== nextRole) {
@@ -1076,13 +1091,7 @@ export class BillingService {
   private normalizeCurrencyCode(candidate: string, fallback: string) {
     const normalized = String(candidate).trim().toUpperCase();
     if (this.currencyRatesToUsd[normalized]) {
-      return normalized as
-        | 'USD'
-        | 'EUR'
-        | 'GBP'
-        | 'CAD'
-        | 'PLN'
-        | 'UAH';
+      return normalized as 'USD' | 'EUR' | 'GBP' | 'CAD' | 'PLN' | 'UAH';
     }
     const fallbackNormalized = String(fallback).trim().toUpperCase();
     if (this.currencyRatesToUsd[fallbackNormalized]) {

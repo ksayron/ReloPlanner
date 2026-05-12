@@ -8,10 +8,7 @@ export class ManualAdapter implements IMarketDataAdapter {
     }
 
     return raw.map((item, index) => {
-      if (
-        typeof item.skillName !== 'string' ||
-        !item.skillName.trim()
-      ) {
+      if (typeof item.skillName !== 'string' || !item.skillName.trim()) {
         throw new BadRequestException(
           `Row ${index}: skillName must be a non-empty string`,
         );

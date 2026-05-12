@@ -64,7 +64,8 @@ export class ReportsService {
     } catch (error: unknown) {
       generation.status = 'FAILED';
       generation.completedAt = new Date();
-      generation.error = error instanceof Error ? error.message : 'Unknown error';
+      generation.error =
+        error instanceof Error ? error.message : 'Unknown error';
       throw error;
     }
   }
@@ -82,13 +83,23 @@ export class ReportsService {
     aiSummaryMeta: ReportAiSummaryMeta | null;
     html: string;
   }> {
-    const report = await this.generateSnapshot(analysisId, userId, variant, locale);
+    const report = await this.generateSnapshot(
+      analysisId,
+      userId,
+      variant,
+      locale,
+    );
     if (variant === 'ai-summary' && !report.aiSummary) {
       throw new BadRequestException(
         'AI summary has not been generated yet. Generate it first, then export.',
       );
     }
-    const html = this.renderHtml(report.snapshot, report.variant, report.aiSummary, report.aiSummaryMeta);
+    const html = this.renderHtml(
+      report.snapshot,
+      report.variant,
+      report.aiSummary,
+      report.aiSummaryMeta,
+    );
     return { ...report, html };
   }
 
@@ -106,7 +117,12 @@ export class ReportsService {
     html: string;
     pdf: Buffer;
   }> {
-    const report = await this.renderHtmlReport(analysisId, userId, variant, locale);
+    const report = await this.renderHtmlReport(
+      analysisId,
+      userId,
+      variant,
+      locale,
+    );
     const pdf = await this.renderPdfFromHtml(report.html, {
       title:
         variant === 'ai-summary'
@@ -134,7 +150,10 @@ export class ReportsService {
 
     const analysis = await this.loadAnalysis(analysisId, userId);
     const snapshot = await this.buildSnapshot(analysis, 'en');
-    const enriched = await this.aiEnrichment.summarizeSnapshot(snapshot, 'REASONING');
+    const enriched = await this.aiEnrichment.summarizeSnapshot(
+      snapshot,
+      'REASONING',
+    );
 
     await (this.prisma as any).analysisAiSummary.upsert({
       where: { analysisId: analysis.id },
@@ -221,14 +240,16 @@ export class ReportsService {
       ? analysis.skillBreakdown
       : [];
 
-    const skillBreakdown: ReportSkillBreakdownItem[] = skillBreakdownRaw.map((item: any) => ({
-      competencyId: String(item.competencyId ?? ''),
-      competencyName: String(item.competencyName ?? ''),
-      matchScore: Number(item.matchScore ?? 0),
-      weight: Number(item.weight ?? 0),
-      recommendationType: String(item.recommendationType ?? 'MARKET_CONTEXT'),
-      reason: String(item.reason ?? ''),
-    }));
+    const skillBreakdown: ReportSkillBreakdownItem[] = skillBreakdownRaw.map(
+      (item: any) => ({
+        competencyId: String(item.competencyId ?? ''),
+        competencyName: String(item.competencyName ?? ''),
+        matchScore: Number(item.matchScore ?? 0),
+        weight: Number(item.weight ?? 0),
+        recommendationType: String(item.recommendationType ?? 'MARKET_CONTEXT'),
+        reason: String(item.reason ?? ''),
+      }),
+    );
 
     const detectedGaps: ReportGapItem[] = analysis.analysisItems
       .filter((item: any) => item.recommendationType === 'ACTIONABLE_GAP')
@@ -246,20 +267,28 @@ export class ReportsService {
           reason: item.reason,
         };
       })
-      .sort((a: ReportGapItem, b: ReportGapItem) => a.matchScore - b.matchScore);
+      .sort(
+        (a: ReportGapItem, b: ReportGapItem) => a.matchScore - b.matchScore,
+      );
 
     const timeEstimate =
       analysis.timeEstimate && typeof analysis.timeEstimate === 'object'
         ? {
-            optimisticHours: Number((analysis.timeEstimate as any).optimisticHours ?? 0),
-            realisticHours: Number((analysis.timeEstimate as any).realisticHours ?? 0),
-            criticalPathHours: Number((analysis.timeEstimate as any).criticalPathHours ?? 0),
+            optimisticHours: Number(analysis.timeEstimate.optimisticHours ?? 0),
+            realisticHours: Number(analysis.timeEstimate.realisticHours ?? 0),
+            criticalPathHours: Number(
+              analysis.timeEstimate.criticalPathHours ?? 0,
+            ),
           }
         : null;
 
-    const topGapNames = detectedGaps.slice(0, 3).map((gap) => gap.competencyName);
+    const topGapNames = detectedGaps
+      .slice(0, 3)
+      .map((gap) => gap.competencyName);
     const gapText =
-      topGapNames.length > 0 ? `Top gaps: ${topGapNames.join(', ')}` : 'No major gaps detected.';
+      topGapNames.length > 0
+        ? `Top gaps: ${topGapNames.join(', ')}`
+        : 'No major gaps detected.';
 
     return {
       reportType: 'RELOCATION_READINESS_REPORT',
@@ -310,7 +339,8 @@ export class ReportsService {
         hasJobOffer: analysis.profile.hasJobOffer ?? undefined,
         hasRecognizedDegree: analysis.profile.hasRecognizedDegree ?? undefined,
         hasFormalEducation: analysis.profile.hasFormalEducation ?? undefined,
-        relocationWithFamily: analysis.profile.relocationWithFamily ?? undefined,
+        relocationWithFamily:
+          analysis.profile.relocationWithFamily ?? undefined,
       }),
       financialReadiness: await this.financialReadinessEngine.evaluate({
         targetCountry: analysis.profile.targetCountry,
@@ -322,7 +352,8 @@ export class ReportsService {
         monthlyBudgetAmount: analysis.profile.monthlyBudgetAmount
           ? Number(analysis.profile.monthlyBudgetAmount)
           : undefined,
-        monthlyBudgetCurrency: analysis.profile.monthlyBudgetCurrency ?? undefined,
+        monthlyBudgetCurrency:
+          analysis.profile.monthlyBudgetCurrency ?? undefined,
         expectedNetSalaryAmount: analysis.profile.expectedNetSalaryAmount
           ? Number(analysis.profile.expectedNetSalaryAmount)
           : undefined,
@@ -365,10 +396,16 @@ export class ReportsService {
     return this.renderSnapshotHtml(snapshot);
   }
 
-  private renderSnapshotHtml(snapshot: RelocationReadinessReportSnapshot): string {
+  private renderSnapshotHtml(
+    snapshot: RelocationReadinessReportSnapshot,
+  ): string {
     const escapedRole = this.escapeHtml(snapshot.profileSummary.desiredRole);
-    const escapedCountry = this.escapeHtml(snapshot.profileSummary.targetCountry);
-    const escapedCity = this.escapeHtml(snapshot.profileSummary.targetCity ?? 'N/A');
+    const escapedCountry = this.escapeHtml(
+      snapshot.profileSummary.targetCountry,
+    );
+    const escapedCity = this.escapeHtml(
+      snapshot.profileSummary.targetCity ?? 'N/A',
+    );
     const fitScorePct = Math.round(snapshot.readiness.fitScore * 100);
     const readinessTone =
       snapshot.readiness.readinessLevel === 'READY'
@@ -454,7 +491,8 @@ export class ReportsService {
         `,
       )
       .join('');
-    const topJobsPlaceholder = '<li>Top job matches are not attached to this snapshot yet.</li>';
+    const topJobsPlaceholder =
+      '<li>Top job matches are not attached to this snapshot yet.</li>';
     const cvAdvicePlaceholder =
       '<li>CV adaptation advice is not attached to this snapshot yet. Use issue #52 output when available.</li>';
     const marketRiskLabel =
@@ -621,7 +659,8 @@ export class ReportsService {
     aiSummaryMeta: ReportAiSummaryMeta | null,
   ): string {
     const summary = aiSummary ?? {
-      executiveSummary: 'AI summary is unavailable. Baseline snapshot data remains available.',
+      executiveSummary:
+        'AI summary is unavailable. Baseline snapshot data remains available.',
       topStrengths: ['AI output unavailable for this run.'],
       topRisks: ['AI output unavailable for this run.'],
       recommendedStrategy:
@@ -639,7 +678,9 @@ export class ReportsService {
     const strengths = summary.topStrengths
       .map((item) => `<li>${this.escapeHtml(item)}</li>`)
       .join('');
-    const risks = summary.topRisks.map((item) => `<li>${this.escapeHtml(item)}</li>`).join('');
+    const risks = summary.topRisks
+      .map((item) => `<li>${this.escapeHtml(item)}</li>`)
+      .join('');
 
     return `<!doctype html>
 <html lang="en">
@@ -693,7 +734,12 @@ export class ReportsService {
 
   private async renderPdfFromHtml(
     html: string,
-    context: { title: string; analysisId: string; generatedAtIso: string; locale: ReportLocale },
+    context: {
+      title: string;
+      analysisId: string;
+      generatedAtIso: string;
+      locale: ReportLocale;
+    },
   ): Promise<Buffer> {
     try {
       const pdfMakeModule: any = await import('pdfmake/build/pdfmake.js');
@@ -758,8 +804,11 @@ export class ReportsService {
       const buffer = await createdPdf.getBuffer();
       return Buffer.from(buffer);
     } catch (error) {
-      const reason = error instanceof Error ? error.message : 'Unknown PDF generation error';
-      throw new InternalServerErrorException(`Failed to generate PDF report: ${reason}`);
+      const reason =
+        error instanceof Error ? error.message : 'Unknown PDF generation error';
+      throw new InternalServerErrorException(
+        `Failed to generate PDF report: ${reason}`,
+      );
     }
   }
 

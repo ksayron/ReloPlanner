@@ -41,7 +41,11 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
       id: string;
       username?: string;
       displayName?: string;
-      emails?: Array<{ value?: string | null; verified?: boolean; primary?: boolean }>;
+      emails?: Array<{
+        value?: string | null;
+        verified?: boolean;
+        primary?: boolean;
+      }>;
     },
   ) {
     if (!this.oauthEnabled) {

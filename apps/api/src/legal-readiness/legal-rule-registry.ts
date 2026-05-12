@@ -61,7 +61,9 @@ export function normalizeCountryCode(value: string | undefined | null): string {
   return (value ?? '').trim().toUpperCase();
 }
 
-export function getRegionType(countryCodeRaw: string | undefined | null): RegionType {
+export function getRegionType(
+  countryCodeRaw: string | undefined | null,
+): RegionType {
   const countryCode = normalizeCountryCode(countryCodeRaw);
   if (!countryCode) return 'UNKNOWN';
   if (EU_COUNTRIES.has(countryCode)) return 'EU';
@@ -83,7 +85,8 @@ export function buildLegalRuleRegistry(): LegalKnowledgeRule[] {
       code: 'EU_INTERNAL_RELOCATION_BASELINE',
       description:
         'EU to EU relocation usually has lower visa complexity, but local administrative steps may still apply.',
-      when: (facts) => facts.sourceRegion === 'EU' && facts.targetRegion === 'EU',
+      when: (facts) =>
+        facts.sourceRegion === 'EU' && facts.targetRegion === 'EU',
       then: () => ({
         riskLevel: 'LOW',
         visaCheckLikelyRequired: false,
@@ -106,7 +109,8 @@ export function buildLegalRuleRegistry(): LegalKnowledgeRule[] {
       code: 'NON_EU_TO_EU_LEGAL_CHECK',
       description:
         'Non-EU to EU relocation usually requires legal/work authorization checks.',
-      when: (facts) => facts.sourceRegion === 'NON_EU' && facts.targetRegion === 'EU',
+      when: (facts) =>
+        facts.sourceRegion === 'NON_EU' && facts.targetRegion === 'EU',
       then: () => ({
         riskLevel: 'HIGH',
         visaCheckLikelyRequired: true,
@@ -180,7 +184,8 @@ export function buildLegalRuleRegistry(): LegalKnowledgeRule[] {
       code: 'NO_JOB_OFFER_WORK_ROUTE_UNCERTAINTY',
       description:
         'Without a confirmed job offer, work-based relocation routes may be less predictable.',
-      when: (facts) => facts.targetRegion === 'EU' && facts.hasJobOffer === false,
+      when: (facts) =>
+        facts.targetRegion === 'EU' && facts.hasJobOffer === false,
       then: () => ({
         riskShift: 1,
         warnings: [
@@ -207,7 +212,8 @@ export function buildLegalRuleRegistry(): LegalKnowledgeRule[] {
       when: (facts) =>
         normalizeCountryCode(facts.targetCountry) === 'DE' &&
         facts.hasJobOffer === true &&
-        (facts.hasRecognizedDegree === true || facts.hasFormalEducation === true),
+        (facts.hasRecognizedDegree === true ||
+          facts.hasFormalEducation === true),
       then: () => ({
         possibleRoutes: [
           {

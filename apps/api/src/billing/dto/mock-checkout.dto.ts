@@ -5,4 +5,3 @@ export class MockCheckoutDto {
   @MinLength(8)
   checkoutSessionId!: string;
 }
-

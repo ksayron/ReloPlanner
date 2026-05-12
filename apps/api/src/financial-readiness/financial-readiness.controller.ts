@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EvaluateFinancialReadinessDto } from './financial-readiness.dto.js';
@@ -29,6 +37,9 @@ export class ProfileFinancialReadinessController {
     @Param('profileId') profileId: string,
     @Req() req: { user?: { id?: string } },
   ) {
-    return this.financialReadiness.evaluateForProfile(profileId, req.user?.id ?? '');
+    return this.financialReadiness.evaluateForProfile(
+      profileId,
+      req.user?.id ?? '',
+    );
   }
 }

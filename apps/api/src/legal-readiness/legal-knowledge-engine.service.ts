@@ -42,7 +42,10 @@ export class LegalKnowledgeEngineService {
     }
 
     const overallRisk = this.resolveOverallRisk(facts, results);
-    const visaCheckLikelyRequired = this.resolveVisaCheckRequired(facts, results);
+    const visaCheckLikelyRequired = this.resolveVisaCheckRequired(
+      facts,
+      results,
+    );
 
     return {
       sourceCountry: facts.sourceCountry,
@@ -52,13 +55,22 @@ export class LegalKnowledgeEngineService {
       visaCheckLikelyRequired,
       overallRisk,
       triggeredRules,
-      questions: this.uniqueByKey(results.flatMap((x) => x.questions ?? []), (x) => x.key),
+      questions: this.uniqueByKey(
+        results.flatMap((x) => x.questions ?? []),
+        (x) => x.key,
+      ),
       possibleRoutes: this.uniqueByKey(
         results.flatMap((x) => x.possibleRoutes ?? []),
         (x) => x.code,
       ),
-      warnings: this.uniqueByKey(results.flatMap((x) => x.warnings ?? []), (x) => x.code),
-      advice: this.uniqueByKey(results.flatMap((x) => x.advice ?? []), (x) => x.code),
+      warnings: this.uniqueByKey(
+        results.flatMap((x) => x.warnings ?? []),
+        (x) => x.code,
+      ),
+      advice: this.uniqueByKey(
+        results.flatMap((x) => x.advice ?? []),
+        (x) => x.code,
+      ),
       recommendedArticleSlugs: this.uniqueValues(
         results.flatMap((x) => x.recommendedArticleSlugs ?? []),
       ),
@@ -80,13 +92,16 @@ export class LegalKnowledgeEngineService {
         typeof input.hasExistingWorkAuthorization === 'boolean'
           ? input.hasExistingWorkAuthorization
           : null,
-      hasJobOffer: typeof input.hasJobOffer === 'boolean' ? input.hasJobOffer : null,
+      hasJobOffer:
+        typeof input.hasJobOffer === 'boolean' ? input.hasJobOffer : null,
       hasRecognizedDegree:
         typeof input.hasRecognizedDegree === 'boolean'
           ? input.hasRecognizedDegree
           : null,
       hasFormalEducation:
-        typeof input.hasFormalEducation === 'boolean' ? input.hasFormalEducation : null,
+        typeof input.hasFormalEducation === 'boolean'
+          ? input.hasFormalEducation
+          : null,
       targetSalaryGrossAnnual:
         typeof input.targetSalaryGrossAnnual === 'number'
           ? input.targetSalaryGrossAnnual

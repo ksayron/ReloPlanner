@@ -76,8 +76,9 @@ export class AnalysisWorkflowService {
 
     const confidence = this.computeMarketConfidence(snapshot.totalVacancies);
     const blockOnCriticalLowVolume =
-      String(this.config.get('ANALYSIS_BLOCK_ON_CRITICAL_LOW_VOLUME') ?? 'false').toLowerCase() ===
-      'true';
+      String(
+        this.config.get('ANALYSIS_BLOCK_ON_CRITICAL_LOW_VOLUME') ?? 'false',
+      ).toLowerCase() === 'true';
     if (blockOnCriticalLowVolume && confidence.level === 'CRITICAL') {
       throw new NotFoundException(
         `Analysis blocked: market snapshot is critically sparse (${snapshot.totalVacancies} vacancies).`,
@@ -89,26 +90,28 @@ export class AnalysisWorkflowService {
       id: x.id,
       competencyId: x.competencyId,
       competencyName: x.competency.name,
-      competencyType: x.competencyType as any,
+      competencyType: x.competencyType,
       competencyFamily: x.competency.family,
-      priority: x.priority as any,
-      roleRelevance: x.roleRelevance as any,
+      priority: x.priority,
+      roleRelevance: x.roleRelevance,
       frequency: Number(x.frequency),
       importance: Number(x.importance),
-      hardSkillRequiredLevel: x.hardSkillRequiredLevel as any,
-      languageRequiredLevel: x.languageRequiredLevel as any,
-      certificationRequirementLevel: x.certificationRequirementLevel as any,
-      requiredCertificationStatus: x.requiredCertificationStatus as any,
-      languageContext: x.languageContext as any,
+      hardSkillRequiredLevel: x.hardSkillRequiredLevel,
+      languageRequiredLevel: x.languageRequiredLevel,
+      certificationRequirementLevel: x.certificationRequirementLevel,
+      requiredCertificationStatus: x.requiredCertificationStatus,
+      languageContext: x.languageContext,
     }));
 
-    const userCompetencies: UserCompetencyState[] = profile.competencies.map((x) => ({
-      competencyId: x.competencyId,
-      competencyType: x.competency.type as any,
-      hardSkillLevel: x.hardSkillLevel as any,
-      languageLevel: x.languageLevel as any,
-      certificationStatus: x.certificationStatus as any,
-    }));
+    const userCompetencies: UserCompetencyState[] = profile.competencies.map(
+      (x) => ({
+        competencyId: x.competencyId,
+        competencyType: x.competency.type,
+        hardSkillLevel: x.hardSkillLevel,
+        languageLevel: x.languageLevel,
+        certificationStatus: x.certificationStatus,
+      }),
+    );
 
     const countryLangRows = await this.prisma.countryLanguage.findMany({
       where: { countryCode: profile.targetCountry },
@@ -124,7 +127,8 @@ export class AnalysisWorkflowService {
     });
     const effortProfiles = new Map<string, Map<string, number>>();
     for (const row of effortRows) {
-      const map = effortProfiles.get(row.competencyId) ?? new Map<string, number>();
+      const map =
+        effortProfiles.get(row.competencyId) ?? new Map<string, number>();
       map.set(row.targetLevel, row.estimatedHours);
       effortProfiles.set(row.competencyId, map);
     }
@@ -191,7 +195,8 @@ export class AnalysisWorkflowService {
             competencyId: step.competencyId,
             orderIndex: step.orderIndex,
             estimatedHours: step.estimatedHours,
-            estimatedMonths: Math.round((step.estimatedHours / 8 / 4.3) * 10) / 10,
+            estimatedMonths:
+              Math.round((step.estimatedHours / 8 / 4.3) * 10) / 10,
             dependsOn: step.dependsOn,
             priority: step.priority as any,
             roleRelevance: step.roleRelevance as any,
@@ -206,7 +211,10 @@ export class AnalysisWorkflowService {
       include: {
         snapshot: true,
         analysisItems: { include: { competency: true } },
-        roadmapSteps: { include: { competency: true }, orderBy: { orderIndex: 'asc' } },
+        roadmapSteps: {
+          include: { competency: true },
+          orderBy: { orderIndex: 'asc' },
+        },
       },
     });
 
@@ -259,7 +267,7 @@ export class AnalysisWorkflowService {
       id: analysis.id,
       fitScore: Number(analysis.fitScore),
       totalPrepMonths: Number(analysis.totalPrepMonths),
-      timeEstimate: (analysis.timeEstimate as any) ?? null,
+      timeEstimate: analysis.timeEstimate ?? null,
       createdAt: analysis.createdAt,
       snapshotMetadata: analysis.snapshot
         ? {
@@ -295,7 +303,9 @@ export class AnalysisWorkflowService {
   }
 
   private async reportProgress(
-    onProgress: ((update: AnalysisProgressUpdate) => Promise<void> | void) | undefined,
+    onProgress:
+      | ((update: AnalysisProgressUpdate) => Promise<void> | void)
+      | undefined,
     step: string,
     progressPercent: number,
   ) {
@@ -308,7 +318,9 @@ export class AnalysisWorkflowService {
   }
 
   private computeMarketConfidence(totalVacanciesRaw: number): MarketConfidence {
-    const totalVacancies = Number.isFinite(totalVacanciesRaw) ? totalVacanciesRaw : 0;
+    const totalVacancies = Number.isFinite(totalVacanciesRaw)
+      ? totalVacanciesRaw
+      : 0;
     const lowVolumeThreshold = Number(
       this.config.get('ANALYSIS_LOW_VOLUME_THRESHOLD') ?? 100,
     );

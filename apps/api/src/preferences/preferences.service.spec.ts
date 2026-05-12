@@ -65,7 +65,7 @@ describe('PreferencesService', () => {
 
   it('updates partial preferences with validation', async () => {
     const { service, prisma } = makeService();
-    (prisma.userPreference.update as jest.Mock).mockResolvedValue({
+    prisma.userPreference.update.mockResolvedValue({
       ...defaultRow,
       preferredReportLanguage: 'ru',
       defaultTargetCountry: 'DE',

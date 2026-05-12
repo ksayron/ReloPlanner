@@ -53,7 +53,9 @@ export interface FinancialReadinessRule {
   code: string;
   description: string;
   when: (facts: FinancialReadinessFacts) => boolean;
-  then: (facts: FinancialReadinessFacts) => Omit<FinancialRuleResult, 'ruleCode'>;
+  then: (
+    facts: FinancialReadinessFacts,
+  ) => Omit<FinancialRuleResult, 'ruleCode'>;
 }
 
 export interface FinancialReadinessResult extends SharedFinancialReadinessResult {}

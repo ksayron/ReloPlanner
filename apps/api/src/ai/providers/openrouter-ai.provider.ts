@@ -22,16 +22,22 @@ export class OpenRouterProvider implements AiProvider {
     }
 
     const primaryModel =
-      this.configService.get<string>('OPENROUTER_MODEL') ?? 'openai/gpt-5.1-mini';
-    const fallbackModel = this.configService.get<string>('OPENROUTER_FALLBACK_MODEL');
+      this.configService.get<string>('OPENROUTER_MODEL') ??
+      'openai/gpt-5.1-mini';
+    const fallbackModel = this.configService.get<string>(
+      'OPENROUTER_FALLBACK_MODEL',
+    );
     const baseUrl =
       this.configService.get<string>('OPENROUTER_BASE_URL') ??
       'https://openrouter.ai/api/v1/chat/completions';
-    const timeoutMs = Number(this.configService.get<string>('AI_PROVIDER_TIMEOUT_MS') ?? 20000);
+    const timeoutMs = Number(
+      this.configService.get<string>('AI_PROVIDER_TIMEOUT_MS') ?? 20000,
+    );
     const timeout = Number.isFinite(timeoutMs) ? timeoutMs : 20000;
 
     const modelChain = [primaryModel, fallbackModel].filter(
-      (model, idx, arr): model is string => Boolean(model && arr.indexOf(model) === idx),
+      (model, idx, arr): model is string =>
+        Boolean(model && arr.indexOf(model) === idx),
     );
     let lastError: unknown;
 
@@ -62,7 +68,9 @@ export class OpenRouterProvider implements AiProvider {
 
         const raw = this.extractTextPayload(response.data);
         if (!raw) {
-          throw new Error(`OpenRouter returned empty response for model "${model}"`);
+          throw new Error(
+            `OpenRouter returned empty response for model "${model}"`,
+          );
         }
 
         return {
@@ -74,7 +82,8 @@ export class OpenRouterProvider implements AiProvider {
       }
     }
 
-    const reason = lastError instanceof Error ? lastError.message : 'unknown error';
+    const reason =
+      lastError instanceof Error ? lastError.message : 'unknown error';
     throw new Error(`OpenRouter failed across model chain: ${reason}`);
   }
 

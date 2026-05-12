@@ -4,7 +4,10 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SkillNormalizerService } from './skill-normalizer.js';
 import { AdzunaAdapter } from './adapters/adzuna.adapter.js';
-import { ILiveMarketAdapter, LiveJobPosting } from './adapters/market-data.adapter.js';
+import {
+  ILiveMarketAdapter,
+  LiveJobPosting,
+} from './adapters/market-data.adapter.js';
 import { TARGET_COUNTRY_CODES } from '../countries/countries.data.js';
 import { MarketService } from './market.service.js';
 
@@ -102,8 +105,10 @@ export interface AdapterHealthItem {
 export class MarketSyncService implements OnApplicationBootstrap {
   private readonly logger = new Logger(MarketSyncService.name);
   private readonly adapterMap: Map<string, ILiveMarketAdapter> = new Map();
-  private readonly lastSyncOutcome: Map<string, SyncResult & { updatedAt: Date }> =
-    new Map();
+  private readonly lastSyncOutcome: Map<
+    string,
+    SyncResult & { updatedAt: Date }
+  > = new Map();
   private readonly runHistory: MarketSyncRun[] = [];
 
   constructor(
@@ -300,7 +305,8 @@ export class MarketSyncService implements OnApplicationBootstrap {
         totalVacancies: result.totalVacancies,
         skillsImported: 0,
         postingsImported,
-        message: 'Adapter returned empty result (check API credentials or coverage)',
+        message:
+          'Adapter returned empty result (check API credentials or coverage)',
         attempts: attempt,
         errorKind: null,
         failureStage: null,
@@ -416,7 +422,10 @@ export class MarketSyncService implements OnApplicationBootstrap {
   private shouldRetry(outcome: SyncResult, attempt: number): boolean {
     if (attempt > MAX_SYNC_RETRIES) return false;
     if (outcome.status !== 'error') return false;
-    if (!outcome.errorKind || (outcome.errorKind !== 'adapter' && outcome.errorKind !== 'db')) {
+    if (
+      !outcome.errorKind ||
+      (outcome.errorKind !== 'adapter' && outcome.errorKind !== 'db')
+    ) {
       return false;
     }
 
@@ -438,11 +447,17 @@ export class MarketSyncService implements OnApplicationBootstrap {
       'rate limit',
     ];
 
-    return transientHints.some((hint) => message.includes(hint)) || outcome.errorKind === 'db';
+    return (
+      transientHints.some((hint) => message.includes(hint)) ||
+      outcome.errorKind === 'db'
+    );
   }
 
   private rememberSyncOutcome(result: SyncResult) {
-    this.lastSyncOutcome.set(result.country, { ...result, updatedAt: new Date() });
+    this.lastSyncOutcome.set(result.country, {
+      ...result,
+      updatedAt: new Date(),
+    });
   }
 
   private rememberRun(run: MarketSyncRun) {
@@ -498,13 +513,23 @@ export class MarketSyncService implements OnApplicationBootstrap {
       })
       .map((outcome) => outcome.country);
 
-    const errors = outcomes.filter((outcome) => outcome.status === 'error').length;
-    const synced = outcomes.filter((outcome) => outcome.status === 'synced').length;
-    const skipped = outcomes.filter((outcome) => outcome.status === 'skipped').length;
+    const errors = outcomes.filter(
+      (outcome) => outcome.status === 'error',
+    ).length;
+    const synced = outcomes.filter(
+      (outcome) => outcome.status === 'synced',
+    ).length;
+    const skipped = outcomes.filter(
+      (outcome) => outcome.status === 'skipped',
+    ).length;
 
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
     if (!lastRun || lastRun.status === 'failed') status = 'unhealthy';
-    else if (lastRun.status === 'partial' || errors > 0 || staleCountries.length > 0) {
+    else if (
+      lastRun.status === 'partial' ||
+      errors > 0 ||
+      staleCountries.length > 0
+    ) {
       status = 'degraded';
     }
 
@@ -525,7 +550,10 @@ export class MarketSyncService implements OnApplicationBootstrap {
   private buildAdapterHealth(): AdapterHealthItem[] {
     const countries = Array.from(this.adapterMap.keys()).sort();
     const adapterByCountry = new Map<string, string>(
-      countries.map((country) => [country, this.adapterMap.get(country)?.constructor?.name ?? 'UnknownAdapter']),
+      countries.map((country) => [
+        country,
+        this.adapterMap.get(country)?.constructor?.name ?? 'UnknownAdapter',
+      ]),
     );
 
     return countries.map((country) => {
@@ -536,8 +564,10 @@ export class MarketSyncService implements OnApplicationBootstrap {
           .map((result) => ({ result, finishedAt: run.finishedAt })),
       );
       const latest = outcomes[0] ?? null;
-      const lastSuccess = outcomes.find((entry) => entry.result.status === 'synced') ?? null;
-      const lastFailure = outcomes.find((entry) => entry.result.status === 'error') ?? null;
+      const lastSuccess =
+        outcomes.find((entry) => entry.result.status === 'synced') ?? null;
+      const lastFailure =
+        outcomes.find((entry) => entry.result.status === 'error') ?? null;
 
       const lastCheckedAt = latest?.finishedAt ?? null;
       const ageMinutes =
@@ -550,7 +580,8 @@ export class MarketSyncService implements OnApplicationBootstrap {
       if (!lastCheckedAt) {
         itemStatus = 'unhealthy';
       } else if (latest?.result.status === 'error' || stale) {
-        itemStatus = latest?.result.status === 'error' && stale ? 'unhealthy' : 'degraded';
+        itemStatus =
+          latest?.result.status === 'error' && stale ? 'unhealthy' : 'degraded';
       }
 
       return {
@@ -572,7 +603,10 @@ export class MarketSyncService implements OnApplicationBootstrap {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private async syncLivePostings(iso: string, adapter: ILiveMarketAdapter): Promise<number> {
+  private async syncLivePostings(
+    iso: string,
+    adapter: ILiveMarketAdapter,
+  ): Promise<number> {
     if (!adapter.fetchJobPostings) return 0;
 
     try {
@@ -581,15 +615,24 @@ export class MarketSyncService implements OnApplicationBootstrap {
         select: { roleName: true },
         distinct: ['roleName'],
       });
-      const roleNames = roleRows.map((x) => x.roleName).filter(Boolean).slice(0, 10);
+      const roleNames = roleRows
+        .map((x) => x.roleName)
+        .filter(Boolean)
+        .slice(0, 10);
       if (roleNames.length === 0) return 0;
 
-      const liveRows = await adapter.fetchJobPostings(iso, roleNames, { maxPerRole: 8 });
+      const liveRows = await adapter.fetchJobPostings(iso, roleNames, {
+        maxPerRole: 8,
+      });
       if (liveRows.length === 0) return 0;
 
       const competencyLookup = await this.buildCompetencyLookup();
-      const importItems = liveRows.map((row) => this.toPostingImportItem(row, competencyLookup));
-      const imported = await this.marketService.importJobPostings({ items: importItems });
+      const importItems = liveRows.map((row) =>
+        this.toPostingImportItem(row, competencyLookup),
+      );
+      const imported = await this.marketService.importJobPostings({
+        items: importItems,
+      });
       return Number(imported.inserted ?? 0) + Number(imported.updated ?? 0);
     } catch (err: any) {
       this.logger.warn(

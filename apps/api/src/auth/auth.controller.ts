@@ -117,7 +117,8 @@ export class AuthController {
     },
   ) {
     const flow = typeof req.query?.flow === 'string' ? req.query.flow : 'auth';
-    const errorRoute = flow === 'link' ? '/settings' : options.authCallbackRoute;
+    const errorRoute =
+      flow === 'link' ? '/settings' : options.authCallbackRoute;
     const payload = req.user as OAuthCallbackGuardPayload;
     if (payload?.type === 'error') {
       return res.redirect(
@@ -186,9 +187,7 @@ export class AuthController {
   @Post('email/resend-verification')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  resendVerification(
-    @Req() req: Request & { user?: { id?: string } },
-  ) {
+  resendVerification(@Req() req: Request & { user?: { id?: string } }) {
     return this.auth.resendVerificationEmail(req.user?.id ?? '');
   }
 

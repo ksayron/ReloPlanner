@@ -1,8 +1,15 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { KnowledgeQueryDto } from './dto/knowledge-query.dto.js';
 import { BillingService } from '../billing/billing.service.js';
-import type { KnowledgeAccessLevel, KnowledgeCategory } from './knowledge.types.js';
+import type {
+  KnowledgeAccessLevel,
+  KnowledgeCategory,
+} from './knowledge.types.js';
 
 export interface KnowledgeArticleListItem {
   slug: string;
@@ -190,7 +197,8 @@ export class KnowledgeService {
   private async resolvePlanCode(userId?: string): Promise<'FREE' | 'PREMIUM'> {
     if (!userId) return 'FREE';
     try {
-      const subscription = await this.billingService.getCurrentSubscriptionForUser(userId);
+      const subscription =
+        await this.billingService.getCurrentSubscriptionForUser(userId);
       return subscription.plan.code === 'PREMIUM' ? 'PREMIUM' : 'FREE';
     } catch {
       return 'FREE';

@@ -13,7 +13,9 @@ export class BillingDevOutcomeService {
   private readonly randomSimulationEnabled: boolean;
 
   constructor(private readonly config: ConfigService) {
-    const nodeEnv = String(this.config.get<string>('NODE_ENV') ?? '').toLowerCase();
+    const nodeEnv = String(
+      this.config.get<string>('NODE_ENV') ?? '',
+    ).toLowerCase();
     this.isDevelopment = nodeEnv !== 'production';
     const configured = String(
       this.config.get<string>('BILLING_DEV_RANDOM_OUTCOME') ??
@@ -71,7 +73,8 @@ export class BillingDevOutcomeService {
           status: 'FAILED',
           providerPaymentId: `pi_${checkoutSessionId}`,
           errorCode: 'provider_timeout',
-          errorMessage: 'Stripe provider timeout simulated in development mode.',
+          errorMessage:
+            'Stripe provider timeout simulated in development mode.',
         };
       case 'FAIL_CARD_DECLINED':
       default:
@@ -136,4 +139,3 @@ export class BillingDevOutcomeService {
     return resolved;
   }
 }
-

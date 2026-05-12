@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ScoringService } from './scoring.service.js';
 
@@ -9,13 +13,23 @@ export class JobMatchingService {
     private readonly scoring: ScoringService,
   ) {}
 
-  async listPostingsForProfile(profileId: string, userId: string, limitRaw?: string) {
+  async listPostingsForProfile(
+    profileId: string,
+    userId: string,
+    limitRaw?: string,
+  ) {
     const profile = await this.requireProfile(profileId, userId);
     const parsedLimit = Number(limitRaw ?? 20);
-    const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(100, Math.trunc(parsedLimit))) : 20;
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.max(1, Math.min(100, Math.trunc(parsedLimit)))
+      : 20;
 
     const jobPostingModel = this.getJobPostingModel();
-    const postings = await this.fetchCandidatePostings(jobPostingModel, profile, limit);
+    const postings = await this.fetchCandidatePostings(
+      jobPostingModel,
+      profile,
+      limit,
+    );
 
     return {
       items: postings.map((posting: any) => this.toPostingResponse(posting)),
@@ -34,10 +48,10 @@ export class JobMatchingService {
     const requirements = await this.loadRequirements(posting);
     const userCompetencies = profile.competencies.map((x: any) => ({
       competencyId: x.competencyId,
-      competencyType: x.competency.type as any,
-      hardSkillLevel: x.hardSkillLevel as any,
-      languageLevel: x.languageLevel as any,
-      certificationStatus: x.certificationStatus as any,
+      competencyType: x.competency.type,
+      hardSkillLevel: x.hardSkillLevel,
+      languageLevel: x.languageLevel,
+      certificationStatus: x.certificationStatus,
     }));
 
     const computed = this.scoring.computeAnalysis({
@@ -66,7 +80,11 @@ export class JobMatchingService {
       score: computed.fitScore,
       matchedSkills: topMatched,
       missingSkills,
-      rationale: this.buildRationale(computed.fitScore, topMatched.length, missingSkills.length),
+      rationale: this.buildRationale(
+        computed.fitScore,
+        topMatched.length,
+        missingSkills.length,
+      ),
     };
   }
 
@@ -88,10 +106,16 @@ export class JobMatchingService {
     const limit = Math.max(1, Math.min(20, clampedByPlan));
 
     const jobPostingModel = this.getJobPostingModel();
-    const postings = await this.fetchCandidatePostings(jobPostingModel, profile, 60);
+    const postings = await this.fetchCandidatePostings(
+      jobPostingModel,
+      profile,
+      60,
+    );
 
     const scored = await Promise.all(
-      postings.map(async (posting: any) => this.matchPosting(profileId, posting.id, userId)),
+      postings.map(async (posting: any) =>
+        this.matchPosting(profileId, posting.id, userId),
+      ),
     );
 
     return {
@@ -102,8 +126,8 @@ export class JobMatchingService {
         maxAllowedLimit: maxAllowedLimit ?? null,
         upgradeRequired: Boolean(
           maxAllowedLimit &&
-            Number.isFinite(maxAllowedLimit) &&
-            requestedLimit > Math.trunc(maxAllowedLimit),
+          Number.isFinite(maxAllowedLimit) &&
+          requestedLimit > Math.trunc(maxAllowedLimit),
         ),
       },
     };
@@ -120,7 +144,9 @@ export class JobMatchingService {
 
   private async loadRequirements(posting: any) {
     const requirementIds = Array.isArray(posting.requirementCompetencyIds)
-      ? posting.requirementCompetencyIds.filter((x: unknown) => typeof x === 'string')
+      ? posting.requirementCompetencyIds.filter(
+          (x: unknown) => typeof x === 'string',
+        )
       : [];
 
     const competencies = await this.prisma.competency.findMany({
@@ -131,17 +157,19 @@ export class JobMatchingService {
       id: `posting:${posting.id}:${c.id}`,
       competencyId: c.id,
       competencyName: c.name,
-      competencyType: c.type as any,
+      competencyType: c.type,
       competencyFamily: c.family,
       priority: 'IMPORTANT' as const,
       roleRelevance: 'CORE' as const,
       frequency: 1,
       importance: 1,
       hardSkillRequiredLevel: 'PRACTICAL' as const,
-      languageRequiredLevel: c.type === 'LANGUAGE' ? 'B1' as const : null,
-      certificationRequirementLevel: c.type === 'CERTIFICATION' ? 'PREFERRED' as const : null,
-      requiredCertificationStatus: c.type === 'CERTIFICATION' ? 'OBTAINED' as const : null,
-      languageContext: c.type === 'LANGUAGE' ? 'JOB_MARKET' as const : null,
+      languageRequiredLevel: c.type === 'LANGUAGE' ? ('B1' as const) : null,
+      certificationRequirementLevel:
+        c.type === 'CERTIFICATION' ? ('PREFERRED' as const) : null,
+      requiredCertificationStatus:
+        c.type === 'CERTIFICATION' ? ('OBTAINED' as const) : null,
+      languageContext: c.type === 'LANGUAGE' ? ('JOB_MARKET' as const) : null,
     }));
   }
 
@@ -158,12 +186,18 @@ export class JobMatchingService {
       salaryMinUsd: posting.salaryMinUsd,
       salaryMaxUsd: posting.salaryMaxUsd,
       salaryCurrency: posting.salaryCurrency,
-      requirements: Array.isArray(posting.requirements) ? posting.requirements : [],
+      requirements: Array.isArray(posting.requirements)
+        ? posting.requirements
+        : [],
       createdAt: posting.createdAt,
     };
   }
 
-  private buildRationale(score: number, matchedCount: number, missingCount: number) {
+  private buildRationale(
+    score: number,
+    matchedCount: number,
+    missingCount: number,
+  ) {
     const pct = Math.round(score * 100);
     if (pct >= 80) {
       return `Strong match (${pct}%). Most key requirements are already covered (${matchedCount} matched, ${missingCount} gaps).`;

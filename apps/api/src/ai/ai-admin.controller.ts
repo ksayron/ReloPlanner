@@ -1,10 +1,22 @@
-import { BadRequestException, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Role } from '@prisma/client';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles, RolesGuard } from '../auth/roles.guard.js';
 import { AiRoutingService } from './ai-routing.service.js';
-import { AiProviderName, AiTaskGrade, isAiProviderName, isAiTaskGrade } from './ai.types.js';
+import {
+  AiProviderName,
+  AiTaskGrade,
+  isAiProviderName,
+  isAiTaskGrade,
+} from './ai.types.js';
 
 @Controller('admin/ai')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -32,6 +44,6 @@ export class AiAdminController {
     if (!isAiProviderName(provider)) {
       throw new BadRequestException(`Unknown AI provider: ${providerRaw}`);
     }
-    return this.routing.setDefaultProvider(grade as AiTaskGrade, provider as AiProviderName);
+    return this.routing.setDefaultProvider(grade, provider);
   }
 }

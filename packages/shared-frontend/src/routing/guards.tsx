@@ -13,3 +13,12 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
   if (user.role !== 'ADMIN') return <Navigate to="/" />;
   return <>{children}</>;
 }
+
+export function InternalRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" />;
+  if (user.role !== 'ADMIN' && user.role !== 'SPECIALIST') {
+    return <Navigate to="/" />;
+  }
+  return <>{children}</>;
+}

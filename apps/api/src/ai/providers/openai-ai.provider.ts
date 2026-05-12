@@ -24,7 +24,9 @@ export class OpenAiProvider implements AiProvider {
     const model =
       this.configService.get<string>('OPENAI_MODEL') ??
       (request.grade === 'REASONING' ? 'gpt-5.1' : 'gpt-5.1-mini');
-    const timeoutMs = Number(this.configService.get<string>('AI_PROVIDER_TIMEOUT_MS') ?? 20000);
+    const timeoutMs = Number(
+      this.configService.get<string>('AI_PROVIDER_TIMEOUT_MS') ?? 20000,
+    );
 
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
@@ -50,7 +52,9 @@ export class OpenAiProvider implements AiProvider {
       },
     );
 
-    const raw = String(response.data?.choices?.[0]?.message?.content ?? '').trim();
+    const raw = String(
+      response.data?.choices?.[0]?.message?.content ?? '',
+    ).trim();
     if (!raw) {
       throw new Error('OpenAI returned empty response');
     }

@@ -26,20 +26,19 @@ describe('ResumeTextExtractionService', () => {
 
   const makeFile = (
     overrides: Partial<Express.Multer.File> = {},
-  ): Express.Multer.File =>
-    ({
-      fieldname: 'file',
-      originalname: 'resume.txt',
-      encoding: '7bit',
-      mimetype: 'text/plain',
-      size: 12,
-      destination: '',
-      filename: 'resume.txt',
-      path: '',
-      stream: null as any,
-      buffer: Buffer.from('Hello\n\n\nworld  '),
-      ...overrides,
-    }) as Express.Multer.File;
+  ): Express.Multer.File => ({
+    fieldname: 'file',
+    originalname: 'resume.txt',
+    encoding: '7bit',
+    mimetype: 'text/plain',
+    size: 12,
+    destination: '',
+    filename: 'resume.txt',
+    path: '',
+    stream: null as any,
+    buffer: Buffer.from('Hello\n\n\nworld  '),
+    ...overrides,
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();

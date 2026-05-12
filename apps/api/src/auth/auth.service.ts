@@ -101,7 +101,10 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly oauthStates = new Map<string, OAuthStateRecord>();
   private readonly oauthExchanges = new Map<string, OAuthExchangeRecord>();
-  private readonly oauthEmailTickets = new Map<string, OAuthEmailTicketRecord>();
+  private readonly oauthEmailTickets = new Map<
+    string,
+    OAuthEmailTicketRecord
+  >();
   private readonly frontendBaseUrl: string;
   private readonly backendBaseUrl: string;
   private readonly githubOauthEnabled: boolean;
@@ -116,10 +119,12 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {
-    const githubClientId = this.config.get<string>('GITHUB_OAUTH_CLIENT_ID') ?? '';
+    const githubClientId =
+      this.config.get<string>('GITHUB_OAUTH_CLIENT_ID') ?? '';
     const githubClientSecret =
       this.config.get<string>('GITHUB_OAUTH_CLIENT_SECRET') ?? '';
-    const googleClientId = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID') ?? '';
+    const googleClientId =
+      this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID') ?? '';
     const googleClientSecret =
       this.config.get<string>('GOOGLE_OAUTH_CLIENT_SECRET') ?? '';
     this.frontendBaseUrl = (
@@ -180,7 +185,9 @@ export class AuthService {
     const email = this.normalizeEmail(dto.email);
     const displayName = this.normalizeDisplayName(dto.displayName);
     if (!displayName || displayName.length < 2) {
-      throw new BadRequestException('Display name must be at least 2 characters');
+      throw new BadRequestException(
+        'Display name must be at least 2 characters',
+      );
     }
     const existing = await this.prisma.user.findUnique({
       where: { email },
@@ -445,7 +452,9 @@ export class AuthService {
       throw new OAuthFlowError('oauth_provider_failure');
     }
 
-    const oauthDisplayName = this.normalizeDisplayName(profile.displayName ?? null);
+    const oauthDisplayName = this.normalizeDisplayName(
+      profile.displayName ?? null,
+    );
     const providerEmail = this.pickProviderEmail(profile.emails);
     if (!providerEmail) {
       throw new OAuthFlowError('oauth_provider_failure');

@@ -22,14 +22,22 @@ export class ColService {
     ]);
 
     if (data1.length === 0) {
-      throw new NotFoundException(`No cost-of-living data found for city: ${city1}`);
+      throw new NotFoundException(
+        `No cost-of-living data found for city: ${city1}`,
+      );
     }
     if (data2.length === 0) {
-      throw new NotFoundException(`No cost-of-living data found for city: ${city2}`);
+      throw new NotFoundException(
+        `No cost-of-living data found for city: ${city2}`,
+      );
     }
 
-    const city1Map = new Map(data1.map((d: any) => [d.category, d.avgMonthlyUsd]));
-    const city2Map = new Map(data2.map((d: any) => [d.category, d.avgMonthlyUsd]));
+    const city1Map = new Map(
+      data1.map((d: any) => [d.category, d.avgMonthlyUsd]),
+    );
+    const city2Map = new Map(
+      data2.map((d: any) => [d.category, d.avgMonthlyUsd]),
+    );
 
     const allCategories = new Set([...city1Map.keys(), ...city2Map.keys()]);
 

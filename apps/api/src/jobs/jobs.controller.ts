@@ -20,12 +20,7 @@ import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { JobsRunnerService } from './jobs-runner.service.js';
 import { JobsService } from './jobs.service.js';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiConsumes,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { Roles, RolesGuard } from '../auth/roles.guard.js';
 import { Role } from '@prisma/client';
 import { ReportLocale, ReportVariant } from '../reports/reports.types.js';
@@ -49,14 +44,21 @@ export class JobsController {
 
   @Post('profiles/:id/analyze')
   @HttpCode(HttpStatus.ACCEPTED)
-  async createProfileAnalysisJob(@Param('id') profileId: string, @Req() req: any) {
+  async createProfileAnalysisJob(
+    @Param('id') profileId: string,
+    @Req() req: any,
+  ) {
     const job = await this.jobsService.createJob({
       userId: req.user.id,
       type: 'PROFILE_ANALYSIS',
       payload: { profileId },
     });
 
-    this.jobsRunnerService.runProfileAnalysisJob(job.id, profileId, req.user.id);
+    this.jobsRunnerService.runProfileAnalysisJob(
+      job.id,
+      profileId,
+      req.user.id,
+    );
 
     return {
       jobId: job.id,
@@ -113,7 +115,10 @@ export class JobsController {
   }
 
   @Get('profiles/:id/active-analysis')
-  async getActiveProfileAnalysisJob(@Param('id') profileId: string, @Req() req: any) {
+  async getActiveProfileAnalysisJob(
+    @Param('id') profileId: string,
+    @Req() req: any,
+  ) {
     return this.jobsService.findActiveProfileAnalysisJobForUser({
       userId: req.user.id,
       profileId,
@@ -129,8 +134,10 @@ export class JobsController {
     @Query('format') formatRaw?: string,
     @Query('locale') localeRaw?: string,
   ) {
-    const variant: ReportVariant = variantRaw === 'ai-summary' ? 'ai-summary' : 'snapshot';
-    const format = formatRaw === 'pdf' || formatRaw === 'html' ? formatRaw : 'json';
+    const variant: ReportVariant =
+      variantRaw === 'ai-summary' ? 'ai-summary' : 'snapshot';
+    const format =
+      formatRaw === 'pdf' || formatRaw === 'html' ? formatRaw : 'json';
     const locale: ReportLocale = localeRaw === 'ru' ? 'ru' : 'en';
 
     if (variant === 'ai-summary') {
@@ -192,7 +199,8 @@ export class JobsController {
     @Req() req: any,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    const extracted = await this.resumeTextExtractionService.extractFromUpload(file);
+    const extracted =
+      await this.resumeTextExtractionService.extractFromUpload(file);
     const job = await this.jobsService.createJob({
       userId: req.user.id,
       type: 'RESUME_PROFILE_PARSE',
@@ -203,7 +211,11 @@ export class JobsController {
       },
     });
 
-    this.jobsRunnerService.runResumeProfileParseJob(job.id, req.user.id, extracted);
+    this.jobsRunnerService.runResumeProfileParseJob(
+      job.id,
+      req.user.id,
+      extracted,
+    );
 
     return {
       jobId: job.id,

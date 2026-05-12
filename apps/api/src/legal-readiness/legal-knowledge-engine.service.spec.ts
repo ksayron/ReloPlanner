@@ -78,9 +78,13 @@ describe('LegalKnowledgeEngineService', () => {
     });
 
     expect(
-      result.possibleRoutes.some((route) => route.code === 'EU_BLUE_CARD_CANDIDATE'),
+      result.possibleRoutes.some(
+        (route) => route.code === 'EU_BLUE_CARD_CANDIDATE',
+      ),
     ).toBe(true);
-    expect(result.recommendedArticleSlugs).toContain('germany-blue-card-overview');
+    expect(result.recommendedArticleSlugs).toContain(
+      'germany-blue-card-overview',
+    );
     expect(result.disclaimer.length).toBeGreaterThan(0);
   });
 
@@ -92,7 +96,9 @@ describe('LegalKnowledgeEngineService', () => {
     });
 
     expect(
-      result.warnings.some((warning) => warning.code === 'NO_JOB_OFFER_WARNING'),
+      result.warnings.some(
+        (warning) => warning.code === 'NO_JOB_OFFER_WARNING',
+      ),
     ).toBe(true);
   });
 

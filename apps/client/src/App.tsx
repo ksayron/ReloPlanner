@@ -17,6 +17,8 @@ import KnowledgeList from './pages/KnowledgeList';
 import KnowledgeArticle from './pages/KnowledgeArticle';
 import InDevelopment from './pages/InDevelopment';
 import Plan from './pages/Plan';
+import Cases from './pages/Cases';
+import CaseDetail from './pages/CaseDetail';
 
 function AppRoutes() {
   return (
@@ -36,6 +38,8 @@ function AppRoutes() {
         <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="plan" element={<ProtectedRoute><Plan /></ProtectedRoute>} />
         <Route path="profiles" element={<ProtectedRoute><Profiles /></ProtectedRoute>} />
+        <Route path="cases" element={<ProtectedRoute><Cases /></ProtectedRoute>} />
+        <Route path="cases/:caseId" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
         <Route path="wizard" element={<ProtectedRoute><ProfileWizard /></ProtectedRoute>} />
         <Route path="wizard/:profileId" element={<ProtectedRoute><ProfileWizard /></ProtectedRoute>} />
         <Route path="dashboard/:profileId" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

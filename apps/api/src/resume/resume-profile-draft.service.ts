@@ -15,7 +15,12 @@ import {
 interface CompetencyCatalogItem {
   id: string;
   name: string;
-  type: 'HARD_SKILL' | 'LANGUAGE' | 'CERTIFICATION' | 'DOMAIN_KNOWLEDGE' | 'SOFT_SKILL';
+  type:
+    | 'HARD_SKILL'
+    | 'LANGUAGE'
+    | 'CERTIFICATION'
+    | 'DOMAIN_KNOWLEDGE'
+    | 'SOFT_SKILL';
 }
 
 interface ResumeExtraction {
@@ -51,13 +56,17 @@ export class ResumeProfileDraftService {
     const heuristic = this.extractHeuristic(text, catalog);
 
     const merged: ResumeExtraction = {
-      desiredRole: ai?.desiredRole.value ? ai.desiredRole : heuristic.desiredRole,
+      desiredRole: ai?.desiredRole.value
+        ? ai.desiredRole
+        : heuristic.desiredRole,
       yearsExperience:
         ai?.yearsExperience.value !== null &&
         ai?.yearsExperience.value !== undefined
           ? ai.yearsExperience
           : heuristic.yearsExperience,
-      currentCountry: ai?.currentCountry.value ? ai.currentCountry : heuristic.currentCountry,
+      currentCountry: ai?.currentCountry.value
+        ? ai.currentCountry
+        : heuristic.currentCountry,
       skills: this.mergeSkillCandidates(ai?.skills ?? [], heuristic.skills),
     };
 
@@ -102,9 +111,13 @@ export class ResumeProfileDraftService {
     }));
   }
 
-  private async tryAiExtraction(text: string): Promise<ResumeExtraction | null> {
+  private async tryAiExtraction(
+    text: string,
+  ): Promise<ResumeExtraction | null> {
     const prompt = this.buildExtractionPrompt(text);
-    const timeoutMs = Number(this.configService.get<string>('AI_PROVIDER_TIMEOUT_MS') ?? 20000);
+    const timeoutMs = Number(
+      this.configService.get<string>('AI_PROVIDER_TIMEOUT_MS') ?? 20000,
+    );
     const timeout = Number.isFinite(timeoutMs) ? timeoutMs : 20000;
 
     const openRouterKey = this.configService.get<string>('OPENROUTER_API_KEY');
@@ -177,7 +190,9 @@ export class ResumeProfileDraftService {
             },
           },
         );
-        const raw = String(response.data?.choices?.[0]?.message?.content ?? '').trim();
+        const raw = String(
+          response.data?.choices?.[0]?.message?.content ?? '',
+        ).trim();
         const parsed = this.parseJsonPayload(raw);
         if (parsed) return parsed;
       } catch {
@@ -241,7 +256,9 @@ export class ResumeProfileDraftService {
 
     return {
       desiredRole: {
-        value: desiredRole.value ? this.mapRole(desiredRole.value) ?? desiredRole.value : null,
+        value: desiredRole.value
+          ? (this.mapRole(desiredRole.value) ?? desiredRole.value)
+          : null,
         confidence: desiredRole.confidence,
       },
       yearsExperience: {
@@ -252,7 +269,9 @@ export class ResumeProfileDraftService {
         confidence: yearsExperience.confidence,
       },
       currentCountry: {
-        value: currentCountry.value ? this.mapCountryToIso(currentCountry.value) : null,
+        value: currentCountry.value
+          ? this.mapCountryToIso(currentCountry.value)
+          : null,
         confidence: currentCountry.confidence,
       },
       skills,
@@ -276,22 +295,31 @@ export class ResumeProfileDraftService {
     }
   }
 
-  private readStringField(input: object, key: string): ResumeDraftField<string> {
+  private readStringField(
+    input: object,
+    key: string,
+  ): ResumeDraftField<string> {
     const raw = (input as Record<string, unknown>)[key];
     if (typeof raw === 'string') {
       return { value: raw.trim() || null, confidence: 0.65 };
     }
     if (raw && typeof raw === 'object') {
       const candidate = raw as { value?: unknown; confidence?: unknown };
-      const value = typeof candidate.value === 'string' ? candidate.value.trim() : '';
+      const value =
+        typeof candidate.value === 'string' ? candidate.value.trim() : '';
       const confidence =
-        typeof candidate.confidence === 'number' ? this.clamp(candidate.confidence) : 0.65;
+        typeof candidate.confidence === 'number'
+          ? this.clamp(candidate.confidence)
+          : 0.65;
       return { value: value || null, confidence };
     }
     return { value: null, confidence: 0 };
   }
 
-  private readNumberField(input: object, key: string): ResumeDraftField<number> {
+  private readNumberField(
+    input: object,
+    key: string,
+  ): ResumeDraftField<number> {
     const raw = (input as Record<string, unknown>)[key];
     if (typeof raw === 'number' && Number.isFinite(raw)) {
       return { value: raw, confidence: 0.65 };
@@ -304,7 +332,9 @@ export class ResumeProfileDraftService {
           : Number(String(candidate.value ?? ''));
       const value = Number.isFinite(numeric) ? numeric : null;
       const confidence =
-        typeof candidate.confidence === 'number' ? this.clamp(candidate.confidence) : 0.65;
+        typeof candidate.confidence === 'number'
+          ? this.clamp(candidate.confidence)
+          : 0.65;
       return { value, confidence };
     }
     return { value: null, confidence: 0 };
@@ -321,7 +351,11 @@ export class ResumeProfileDraftService {
         continue;
       }
       if (!item || typeof item !== 'object') continue;
-      const data = item as { name?: unknown; confidence?: unknown; levelHint?: unknown };
+      const data = item as {
+        name?: unknown;
+        confidence?: unknown;
+        levelHint?: unknown;
+      };
       const name = String(data.name ?? '').trim();
       if (!name) continue;
       const confidence =
@@ -375,11 +409,20 @@ export class ResumeProfileDraftService {
         return { value: role, confidence: 0.9 };
       }
     }
-    const keywordMap: Array<{ pattern: RegExp; role: (typeof ROLE_OPTIONS)[number] }> = [
+    const keywordMap: Array<{
+      pattern: RegExp;
+      role: (typeof ROLE_OPTIONS)[number];
+    }> = [
       { pattern: /\bbackend\b|\bnode\.?js\b/i, role: 'Backend Developer' },
-      { pattern: /\bfrontend\b|\breact\b|\bangular\b/i, role: 'Frontend Developer' },
+      {
+        pattern: /\bfrontend\b|\breact\b|\bangular\b/i,
+        role: 'Frontend Developer',
+      },
       { pattern: /\bfull[\s-]?stack\b/i, role: 'Full-Stack Developer' },
-      { pattern: /\bdevops\b|\bkubernetes\b|\bterraform\b/i, role: 'DevOps Engineer' },
+      {
+        pattern: /\bdevops\b|\bkubernetes\b|\bterraform\b/i,
+        role: 'DevOps Engineer',
+      },
       { pattern: /\bdata scientist\b/i, role: 'Data Scientist' },
       { pattern: /\bdata engineer\b/i, role: 'Data Engineer' },
       { pattern: /\bqa\b|\btest automation\b/i, role: 'QA Engineer' },
@@ -401,7 +444,7 @@ export class ResumeProfileDraftService {
     let best: number | null = null;
     for (const regex of regexes) {
       let match: RegExpExecArray | null;
-      // eslint-disable-next-line no-cond-assign
+
       while ((match = regex.exec(text)) !== null) {
         const value = Number(match[1]);
         if (!Number.isFinite(value)) continue;
@@ -415,10 +458,16 @@ export class ResumeProfileDraftService {
 
   private extractCountryHeuristic(text: string): ResumeDraftField<string> {
     const byCode = new Map(
-      SOURCE_COUNTRIES.map((country) => [country.code.toUpperCase(), country.code]),
+      SOURCE_COUNTRIES.map((country) => [
+        country.code.toUpperCase(),
+        country.code,
+      ]),
     );
     const byName = new Map(
-      SOURCE_COUNTRIES.map((country) => [country.name.toLowerCase(), country.code]),
+      SOURCE_COUNTRIES.map((country) => [
+        country.name.toLowerCase(),
+        country.code,
+      ]),
     );
 
     const codeMatch = text.match(/\b([A-Z]{2})\b/);
@@ -537,7 +586,9 @@ export class ResumeProfileDraftService {
       } else if (resolved.type === 'LANGUAGE') {
         mapped.languageLevel = this.toLanguageLevel(candidate.levelHint);
       } else if (resolved.type === 'CERTIFICATION') {
-        mapped.certificationStatus = this.toCertificationStatus(candidate.levelHint);
+        mapped.certificationStatus = this.toCertificationStatus(
+          candidate.levelHint,
+        );
       }
 
       const existing = mappedById.get(resolved.id);

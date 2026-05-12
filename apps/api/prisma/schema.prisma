@@ -11,6 +11,7 @@ enum Role {
   USER
   PREMIUM
   ADMIN
+  SPECIALIST
 }
 
 enum PlanCode {
@@ -194,6 +195,42 @@ enum LifestyleProfile {
   COMFORTABLE
 }
 
+enum RelocationCaseStatus {
+  DRAFT
+  SUBMITTED
+  IN_PROGRESS
+  NEEDS_USER_INPUT
+  ARCHIVED
+  CANCELED
+  COMPLETED
+}
+
+enum CaseActivityType {
+  CASE_CREATED
+  CASE_SUBMITTED
+  CASE_ARCHIVED
+  CASE_CANCELED
+  CASE_STATUS_CHANGED
+  SPECIALIST_ASSIGNED
+  SPECIALIST_REASSIGNED
+  MESSAGE_POSTED
+  MESSAGE_READ
+}
+
+enum CaseMessageKind {
+  USER
+  SPECIALIST
+  SYSTEM
+}
+
+enum NotificationType {
+  CASE_ASSIGNED
+  CASE_REASSIGNED
+  CASE_STATUS_CHANGED
+  CASE_MESSAGE
+  CASE_SYSTEM
+}
+
 model User {
   id                              String              @id @default(uuid())
   email                           String              @unique
@@ -214,6 +251,12 @@ model User {
   subscriptions                   Subscription[]
   payments                        Payment[]
   preferences                     UserPreference?
+  ownedCases                      RelocationCase[]   @relation("CaseOwner")
+  assignedCases                   RelocationCase[]   @relation("CaseSpecialist")
+  caseActivities                  CaseActivity[]
+  caseMessages                    CaseMessage[]
+  caseReadStates                  CaseReadState[]
+  notifications                   Notification[]
 
   @@map("users")
 }
@@ -665,6 +708,99 @@ model JobPosting {
 
   @@index([countryCode, roleName, createdAt])
   @@map("job_postings")
+}
+
+model RelocationCase {
+  id               String               @id @default(uuid())
+  ownerUserId      String               @map("owner_user_id")
+  specialistUserId String?              @map("specialist_user_id")
+  title            String
+  description      String?
+  status           RelocationCaseStatus @default(DRAFT)
+  submittedAt      DateTime?            @map("submitted_at")
+  archivedAt       DateTime?            @map("archived_at")
+  canceledAt       DateTime?            @map("canceled_at")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  owner            User                 @relation("CaseOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  specialist       User?                @relation("CaseSpecialist", fields: [specialistUserId], references: [id], onDelete: SetNull)
+  activities       CaseActivity[]
+  messages         CaseMessage[]
+  readStates       CaseReadState[]
+  notifications    Notification[]
+
+  @@index([ownerUserId, status, updatedAt])
+  @@index([specialistUserId, status, updatedAt])
+  @@map("relocation_cases")
+}
+
+model CaseActivity {
+  id          String           @id @default(uuid())
+  caseId      String           @map("case_id")
+  actorUserId String?          @map("actor_user_id")
+  type        CaseActivityType
+  statusFrom  RelocationCaseStatus? @map("status_from")
+  statusTo    RelocationCaseStatus? @map("status_to")
+  metadata    Json?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  case        RelocationCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  actor       User?            @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([caseId, createdAt])
+  @@map("case_activities")
+}
+
+model CaseMessage {
+  id           String          @id @default(uuid())
+  caseId       String          @map("case_id")
+  authorUserId String?         @map("author_user_id")
+  kind         CaseMessageKind
+  content      String
+  metadata     Json?
+  createdAt    DateTime        @default(now()) @map("created_at")
+  case         RelocationCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author       User?           @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  readStates   CaseReadState[] @relation("ReadStateLastMessage")
+
+  @@index([caseId, createdAt])
+  @@map("case_messages")
+}
+
+model CaseReadState {
+  id                String         @id @default(uuid())
+  caseId            String         @map("case_id")
+  userId            String         @map("user_id")
+  lastReadMessageId String?        @map("last_read_message_id")
+  lastReadAt        DateTime?      @map("last_read_at")
+  unreadCount       Int            @default(0) @map("unread_count")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  case              RelocationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadMessage   CaseMessage?   @relation("ReadStateLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([caseId, userId])
+  @@index([userId, unreadCount, updatedAt])
+  @@map("case_read_states")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  caseId    String?          @map("case_id")
+  type      NotificationType
+  title     String
+  body      String
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  metadata  Json?
+  createdAt DateTime         @default(now()) @map("created_at")
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  case      RelocationCase?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead, createdAt])
+  @@index([caseId, createdAt])
+  @@map("notifications")
 }
 
 model KnowledgeArticle {

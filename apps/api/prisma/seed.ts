@@ -29,6 +29,7 @@ const prisma = new PrismaClient({ adapter });
 const SUPPORTED_COUNTRIES = ['DE', 'NL', 'CA', 'GB', 'PL'] as const;
 const FREE_DEMO_EMAIL = 'demo-free@reloplanner.dev';
 const PREMIUM_DEMO_EMAIL = 'demo-premium@reloplanner.dev';
+const SPECIALIST_DEMO_EMAIL = 'demo-specialist@reloplanner.dev';
 const DEMO_PASSWORD = 'demo123';
 const PREMIUM_PRICE_USD = 19.99;
 const PREMIUM_PERIOD_DAYS = 30;
@@ -616,6 +617,21 @@ async function main() {
     },
   });
 
+  await prisma.user.upsert({
+    where: { email: SPECIALIST_DEMO_EMAIL },
+    update: {
+      passwordHash: demoHash,
+      role: Role.SPECIALIST,
+      emailVerifiedAt: new Date(),
+    },
+    create: {
+      email: SPECIALIST_DEMO_EMAIL,
+      passwordHash: demoHash,
+      role: Role.SPECIALIST,
+      emailVerifiedAt: new Date(),
+    },
+  });
+
   const freePlan = await (prisma as any).plan.upsert({
     where: { code: PlanCode.FREE },
     update: {
@@ -811,7 +827,7 @@ async function main() {
       });
     }
 
-    if (user.role !== Role.ADMIN) {
+    if (user.role !== Role.ADMIN && user.role !== Role.SPECIALIST) {
       const shouldBePremium = user.id === premiumDemoUser.id;
       await prisma.user.update({
         where: { id: user.id },

@@ -87,7 +87,9 @@ export class ColSyncService {
       );
 
       if (!countryData) {
-        this.logger.warn(`ColSync: no WhereNext data for country "${countryIso}"`);
+        this.logger.warn(
+          `ColSync: no WhereNext data for country "${countryIso}"`,
+        );
         skipped.push({
           countryIso,
           city: cityName,
@@ -113,7 +115,9 @@ export class ColSyncService {
 
       const amounts: Record<string, number> = {
         RENT: Math.round(((rent_index ?? 25) / total) * monthly_estimate_usd),
-        FOOD: Math.round(((grocery_index ?? 25) / total) * monthly_estimate_usd),
+        FOOD: Math.round(
+          ((grocery_index ?? 25) / total) * monthly_estimate_usd,
+        ),
         UTILITIES: Math.round(
           ((utilities_index ?? 25) / total) * monthly_estimate_usd,
         ),
@@ -141,7 +145,10 @@ export class ColSyncService {
           break;
         } catch (err: any) {
           lastDbMessage = err?.message ?? 'Unknown DB sync error';
-          if (attempt <= MAX_SYNC_RETRIES && this.isTransientDbError(lastDbMessage)) {
+          if (
+            attempt <= MAX_SYNC_RETRIES &&
+            this.isTransientDbError(lastDbMessage)
+          ) {
             const delayMs = RETRY_BASE_DELAY_MS * attempt;
             this.logger.warn(
               `ColSync [${countryIso}/${cityName}]: transient DB error, retry ${attempt}/${MAX_SYNC_RETRIES} in ${delayMs}ms`,
@@ -186,7 +193,8 @@ export class ColSyncService {
       durationMs: finishedAt.getTime() - startedAt.getTime(),
       status,
       failureKind: hardErrors > 0 ? 'db' : null,
-      message: hardErrors > 0 ? `${hardErrors} city sync operations failed` : null,
+      message:
+        hardErrors > 0 ? `${hardErrors} city sync operations failed` : null,
       updatedCount: updated.length,
       skippedCount: skipped.length,
       result,

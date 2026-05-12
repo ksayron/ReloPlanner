@@ -1,7 +1,9 @@
 import { RelocationReadinessReportSnapshot } from '../reports/reports.types.js';
 import { AiReportSummary } from './ai.types.js';
 
-export function buildAiSummaryPrompt(snapshot: RelocationReadinessReportSnapshot): string {
+export function buildAiSummaryPrompt(
+  snapshot: RelocationReadinessReportSnapshot,
+): string {
   const payload = JSON.stringify(snapshot);
   const persona = [
     `Target role: ${snapshot.profileSummary.desiredRole}`,
@@ -58,7 +60,9 @@ export function parseAiSummaryJson(raw: string): AiReportSummary {
     topStrengths:
       topStrengths.length > 0
         ? topStrengths
-        : ['Core profile data is available but strengths could not be expanded.'],
+        : [
+            'Core profile data is available but strengths could not be expanded.',
+          ],
     topRisks:
       topRisks.length > 0
         ? topRisks
@@ -68,13 +72,18 @@ export function parseAiSummaryJson(raw: string): AiReportSummary {
   };
 }
 
-export function buildMockSummary(snapshot: RelocationReadinessReportSnapshot): AiReportSummary {
+export function buildMockSummary(
+  snapshot: RelocationReadinessReportSnapshot,
+): AiReportSummary {
   const fitScorePct = Math.round(snapshot.readiness.fitScore * 100);
   const topStrengths = snapshot.skillBreakdown
     .slice()
     .sort((a, b) => b.matchScore - a.matchScore)
     .slice(0, 3)
-    .map((item) => `${item.competencyName} (${Math.round(item.matchScore * 100)}% match)`);
+    .map(
+      (item) =>
+        `${item.competencyName} (${Math.round(item.matchScore * 100)}% match)`,
+    );
   const topRisks = snapshot.detectedGaps
     .slice()
     .sort((a, b) => a.matchScore - b.matchScore)

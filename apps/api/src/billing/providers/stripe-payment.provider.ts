@@ -25,24 +25,31 @@ export class StripePaymentProvider implements PaymentProviderAdapter {
     private readonly devOutcome: BillingDevOutcomeService,
     private readonly config: ConfigService,
   ) {
-    const configuredMode = String(this.config.get<string>('BILLING_MODE') ?? 'live')
+    const configuredMode = String(
+      this.config.get<string>('BILLING_MODE') ?? 'live',
+    )
       .trim()
       .toLowerCase();
     this.billingMode = configuredMode === 'simulated' ? 'SIMULATED' : 'LIVE';
 
-    const secretKey = String(this.config.get<string>('STRIPE_SECRET_KEY') ?? '').trim();
+    const secretKey = String(
+      this.config.get<string>('STRIPE_SECRET_KEY') ?? '',
+    ).trim();
     this.stripe = secretKey ? new Stripe(secretKey) : null;
-    this.webhookSecret = String(this.config.get<string>('STRIPE_WEBHOOK_SECRET') ?? '').trim() || null;
+    this.webhookSecret =
+      String(this.config.get<string>('STRIPE_WEBHOOK_SECRET') ?? '').trim() ||
+      null;
     this.premiumPriceId =
-      String(this.config.get<string>('STRIPE_PRICE_ID_PREMIUM_MONTHLY') ?? '').trim() || null;
-    this.appBaseUrl =
       String(
-        this.config.get<string>('APP_BASE_URL') ??
-          this.config.get<string>('FRONTEND_BASE_URL') ??
-          'http://localhost:5173',
-      )
-        .trim()
-        .replace(/\/+$/, '');
+        this.config.get<string>('STRIPE_PRICE_ID_PREMIUM_MONTHLY') ?? '',
+      ).trim() || null;
+    this.appBaseUrl = String(
+      this.config.get<string>('APP_BASE_URL') ??
+        this.config.get<string>('FRONTEND_BASE_URL') ??
+        'http://localhost:5173',
+    )
+      .trim()
+      .replace(/\/+$/, '');
   }
 
   getMode(): 'LIVE' | 'SIMULATED' {
@@ -81,12 +88,20 @@ export class StripePaymentProvider implements PaymentProviderAdapter {
 
   constructWebhookEvent(payload: Buffer, signature: string) {
     if (!this.stripe) {
-      throw new Error('STRIPE_SECRET_KEY is required for live Stripe webhook verification.');
+      throw new Error(
+        'STRIPE_SECRET_KEY is required for live Stripe webhook verification.',
+      );
     }
     if (!this.webhookSecret) {
-      throw new Error('STRIPE_WEBHOOK_SECRET is required for live Stripe webhook verification.');
+      throw new Error(
+        'STRIPE_WEBHOOK_SECRET is required for live Stripe webhook verification.',
+      );
     }
-    return this.stripe.webhooks.constructEvent(payload, signature, this.webhookSecret);
+    return this.stripe.webhooks.constructEvent(
+      payload,
+      signature,
+      this.webhookSecret,
+    );
   }
 
   async retrieveSubscription(subscriptionId: string) {
@@ -236,7 +251,10 @@ export class StripePaymentProvider implements PaymentProviderAdapter {
 
     const providerCurrency = String(price.currency ?? '').toLowerCase();
     const providerUnitAmount = Number(price.unit_amount);
-    if (providerCurrency !== expectedCurrency || providerUnitAmount !== expectedUnitAmount) {
+    if (
+      providerCurrency !== expectedCurrency ||
+      providerUnitAmount !== expectedUnitAmount
+    ) {
       throw new Error(
         `Stripe price mismatch for PREMIUM. Local=${input.amount.toFixed(2)} ${String(
           input.currency,

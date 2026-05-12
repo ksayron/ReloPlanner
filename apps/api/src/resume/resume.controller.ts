@@ -10,12 +10,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiConsumes,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import type { Express } from 'express';
 import { EntitlementService } from '../billing/entitlement.service.js';
 import { FEATURE_CODES } from '../billing/billing.constants.js';

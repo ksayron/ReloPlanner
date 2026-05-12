@@ -2,19 +2,28 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class UpdatePreferencesDto {
-  @ApiPropertyOptional({ example: 'en', description: 'Preferred UI language: en or ru.' })
+  @ApiPropertyOptional({
+    example: 'en',
+    description: 'Preferred UI language: en or ru.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(8)
   preferredLanguage?: string;
 
-  @ApiPropertyOptional({ example: 'light', description: 'Preferred theme: light or dark.' })
+  @ApiPropertyOptional({
+    example: 'light',
+    description: 'Preferred theme: light or dark.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(16)
   preferredTheme?: string;
 
-  @ApiPropertyOptional({ example: 'USD', description: 'Preferred currency code.' })
+  @ApiPropertyOptional({
+    example: 'USD',
+    description: 'Preferred currency code.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(8)
@@ -50,7 +59,10 @@ export class UpdatePreferencesDto {
   @Min(1)
   weeklyStudyHours?: number;
 
-  @ApiPropertyOptional({ example: 'en', description: 'Preferred report locale: en or ru.' })
+  @ApiPropertyOptional({
+    example: 'en',
+    description: 'Preferred report locale: en or ru.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(8)

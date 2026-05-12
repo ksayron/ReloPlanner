@@ -26,4 +26,3 @@ export class ScoringAdminController {
     return this.scoringTuning.setActiveProfile(name);
   }
 }
-

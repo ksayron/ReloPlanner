@@ -18,4 +18,3 @@ export const BILLING_DEFAULTS = {
   PREMIUM_PLAN_CODE: 'PREMIUM',
   PREMIUM_BILLING_DAYS: 30,
 } as const;
-

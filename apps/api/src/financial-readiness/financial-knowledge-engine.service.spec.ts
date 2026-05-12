@@ -120,7 +120,9 @@ describe('FinancialKnowledgeEngineService', () => {
 
     expect(['LOW', 'MODERATE']).toContain(result.financialRiskLevel);
     expect(
-      result.advice.some((item) => item.code === 'VERIFY_SALARY_NET_ASSUMPTIONS'),
+      result.advice.some(
+        (item) => item.code === 'VERIFY_SALARY_NET_ASSUMPTIONS',
+      ),
     ).toBe(true);
   });
 
@@ -144,8 +146,8 @@ describe('FinancialKnowledgeEngineService', () => {
     });
 
     expect(result.financialRiskLevel).toBe('HIGH');
-    expect(result.warnings.some((item) => item.code === 'DEPENDENTS_COST_PRESSURE')).toBe(
-      true,
-    );
+    expect(
+      result.warnings.some((item) => item.code === 'DEPENDENTS_COST_PRESSURE'),
+    ).toBe(true);
   });
 });

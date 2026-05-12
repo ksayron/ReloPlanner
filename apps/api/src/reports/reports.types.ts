@@ -1,7 +1,11 @@
 import type { LegalReadinessResult } from '../legal-readiness/legal-readiness.types.js';
 import type { FinancialReadinessResult } from '../financial-readiness/financial-readiness.types.js';
 
-export type ReportGenerationStatus = 'PENDING' | 'GENERATING' | 'COMPLETED' | 'FAILED';
+export type ReportGenerationStatus =
+  | 'PENDING'
+  | 'GENERATING'
+  | 'COMPLETED'
+  | 'FAILED';
 export type ReportVariant = 'snapshot' | 'ai-summary';
 export type ReportLocale = 'en' | 'ru';
 

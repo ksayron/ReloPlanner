@@ -10,7 +10,10 @@ import {
   TimeEstimate,
   RecommendationType,
 } from './scoring.types.js';
-import { buildScoringTuningConfig, ScoringTuningConfig } from './scoring.config.js';
+import {
+  buildScoringTuningConfig,
+  ScoringTuningConfig,
+} from './scoring.config.js';
 import { ScoringTuningService } from './scoring-tuning.service.js';
 
 const HARD_SKILL_LEVEL_SCORE: Record<string, number> = {
@@ -72,7 +75,11 @@ export class ScoringService {
 
     const hardScoreMap = new Map<string, number>();
     for (const user of userCompetencies) {
-      if (user.competencyType !== 'HARD_SKILL' && user.competencyType !== 'SOFT_SKILL') continue;
+      if (
+        user.competencyType !== 'HARD_SKILL' &&
+        user.competencyType !== 'SOFT_SKILL'
+      )
+        continue;
       hardScoreMap.set(user.competencyId, this.getCurrentScore(user));
     }
 
@@ -92,17 +99,20 @@ export class ScoringService {
       const user = userByCompetency.get(req.competencyId) ?? null;
       const filteredByCountry =
         req.competencyType === 'LANGUAGE' &&
-        (countryLanguageRelevance.get(req.competencyId) ?? 'IRRELEVANT') === 'IRRELEVANT';
+        (countryLanguageRelevance.get(req.competencyId) ?? 'IRRELEVANT') ===
+          'IRRELEVANT';
       const filteredByRole = req.roleRelevance === 'IRRELEVANT';
       const excluded = filteredByCountry || filteredByRole;
 
       const requiredScore = this.getRequiredScore(req);
       const directScore = user ? this.getCurrentScore(user) : 0;
       const currentScore =
-        req.competencyType === 'HARD_SKILL' || req.competencyType === 'SOFT_SKILL'
+        req.competencyType === 'HARD_SKILL' ||
+        req.competencyType === 'SOFT_SKILL'
           ? Math.max(directScore, hardScoreMap.get(req.competencyId) ?? 0)
           : directScore;
-      const matchScore = requiredScore > 0 ? Math.min(currentScore / requiredScore, 1) : 1;
+      const matchScore =
+        requiredScore > 0 ? Math.min(currentScore / requiredScore, 1) : 1;
 
       const weight =
         req.frequency *
@@ -133,9 +143,21 @@ export class ScoringService {
       const currentLevel = this.displayCurrentLevel(req, user, currentScore);
       const requiredLevel = this.displayRequiredLevel(req);
       const estimatedHours = includedInRoadmap
-        ? this.estimateHoursByTransition(req.competencyType, currentLevel, requiredLevel)
+        ? this.estimateHoursByTransition(
+            req.competencyType,
+            currentLevel,
+            requiredLevel,
+          )
         : 0;
-      const estimatedMonths = estimatedHours > 0 ? round(estimatedHours / weeklyHours / tuning.timeEstimation.weeksPerMonth, 1) : 0;
+      const estimatedMonths =
+        estimatedHours > 0
+          ? round(
+              estimatedHours /
+                weeklyHours /
+                tuning.timeEstimation.weeksPerMonth,
+              1,
+            )
+          : 0;
 
       analysisItems.push({
         competency: {
@@ -195,7 +217,12 @@ export class ScoringService {
           x.recommendationType === 'EXCLUDED_AS_IRRELEVANT',
       ),
       roadmapSteps,
-      totalPrepMonths: round(timeEstimate.criticalPathHours / weeklyHours / tuning.timeEstimation.weeksPerMonth, 1),
+      totalPrepMonths: round(
+        timeEstimate.criticalPathHours /
+          weeklyHours /
+          tuning.timeEstimation.weeksPerMonth,
+        1,
+      ),
       timeEstimate,
     };
   }
@@ -290,7 +317,8 @@ export class ScoringService {
   ): string {
     if (!user) return 'NONE';
     if (req.competencyType === 'LANGUAGE') return user.languageLevel ?? 'NONE';
-    if (req.competencyType === 'CERTIFICATION') return user.certificationStatus ?? 'NONE';
+    if (req.competencyType === 'CERTIFICATION')
+      return user.certificationStatus ?? 'NONE';
 
     if (user.hardSkillLevel) return user.hardSkillLevel;
     if (score >= 0.75) return 'CONFIDENT';
@@ -300,8 +328,10 @@ export class ScoringService {
   }
 
   private displayRequiredLevel(req: CompetencyRequirement): string {
-    if (req.competencyType === 'LANGUAGE') return req.languageRequiredLevel ?? 'NONE';
-    if (req.competencyType === 'CERTIFICATION') return req.requiredCertificationStatus ?? 'OBTAINED';
+    if (req.competencyType === 'LANGUAGE')
+      return req.languageRequiredLevel ?? 'NONE';
+    if (req.competencyType === 'CERTIFICATION')
+      return req.requiredCertificationStatus ?? 'OBTAINED';
     return req.hardSkillRequiredLevel ?? 'NONE';
   }
 
@@ -370,7 +400,9 @@ export class ScoringService {
   }
 
   private attachDependencies(actionable: AnalysisItemResult[]) {
-    const byName = new Map(actionable.map((x) => [x.competency.name, x.competency.id]));
+    const byName = new Map(
+      actionable.map((x) => [x.competency.name, x.competency.id]),
+    );
 
     for (const item of actionable) {
       const deps: string[] = [];
@@ -421,8 +453,8 @@ export class ScoringService {
         recommendationType: cur.recommendationType,
         currentDisplayLevel: cur.currentLevel,
         requiredDisplayLevel: cur.requiredLevel,
-          estimatedHours: cur.estimatedHours,
-          orderIndex: index++,
+        estimatedHours: cur.estimatedHours,
+        orderIndex: index++,
         dependsOn: cur.dependsOnCompetencyIds,
         reason: cur.reason,
         status: 'PENDING',
@@ -464,9 +496,15 @@ export class ScoringService {
 
   private buildTimeEstimate(roadmapSteps: RoadmapStepResult[]): TimeEstimate {
     const tuning = this.getTuning();
-    const totalHours = roadmapSteps.reduce((acc, x) => acc + x.estimatedHours, 0);
+    const totalHours = roadmapSteps.reduce(
+      (acc, x) => acc + x.estimatedHours,
+      0,
+    );
     const realisticHours = totalHours;
-    const optimisticHours = totalHours > 0 ? round(totalHours * tuning.timeEstimation.optimisticFactor, 1) : 0;
+    const optimisticHours =
+      totalHours > 0
+        ? round(totalHours * tuning.timeEstimation.optimisticFactor, 1)
+        : 0;
     const criticalPathHours = this.computeCriticalPathHours(roadmapSteps);
 
     return {
@@ -510,6 +548,3 @@ export class ScoringService {
     return round(max, 1);
   }
 }
-
-
-

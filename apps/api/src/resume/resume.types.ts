@@ -14,7 +14,12 @@ export interface ResumeDraftField<T> {
   confidence: number;
 }
 
-export type ResumeLevelHint = 'NONE' | 'BASIC' | 'PRACTICAL' | 'CONFIDENT' | 'ADVANCED';
+export type ResumeLevelHint =
+  | 'NONE'
+  | 'BASIC'
+  | 'PRACTICAL'
+  | 'CONFIDENT'
+  | 'ADVANCED';
 
 export interface ResumeSkillCandidate {
   name: string;
@@ -41,7 +46,12 @@ export interface ResumeMappedCompetency {
   confidence: number;
   hardSkillLevel?: 'NONE' | 'BASIC' | 'PRACTICAL' | 'CONFIDENT' | 'ADVANCED';
   languageLevel?: 'NONE' | 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
-  certificationStatus?: 'NONE' | 'PLANNED' | 'IN_PROGRESS' | 'OBTAINED' | 'EXPIRED';
+  certificationStatus?:
+    | 'NONE'
+    | 'PLANNED'
+    | 'IN_PROGRESS'
+    | 'OBTAINED'
+    | 'EXPIRED';
 }
 
 export interface ResumeProfileDraft {

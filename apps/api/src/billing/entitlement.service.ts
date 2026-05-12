@@ -12,28 +12,108 @@ type EntitlementRow = {
 
 const DEFAULT_ENTITLEMENTS: Record<PlanCode, EntitlementRow[]> = {
   FREE: [
-    { featureCode: FEATURE_CODES.BASIC_ANALYSIS, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.EXPANDED_JOB_MATCHING, isEnabled: false, limitValue: null },
-    { featureCode: FEATURE_CODES.JOB_SPECIFIC_ANALYSIS, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.AI_CV_RECOMMENDATIONS, isEnabled: false, limitValue: null },
-    { featureCode: FEATURE_CODES.AI_DETAILED_REPORT, isEnabled: false, limitValue: null },
-    { featureCode: FEATURE_CODES.PDF_EXPORT, isEnabled: false, limitValue: null },
-    { featureCode: FEATURE_CODES.FULL_KNOWLEDGE_BASE, isEnabled: false, limitValue: null },
-    { featureCode: FEATURE_CODES.ANALYSIS_HISTORY, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.SUPPORT_CHAT, isEnabled: false, limitValue: null },
-    { featureCode: FEATURE_CODES.JOB_MATCH_LIMIT, isEnabled: true, limitValue: 3 },
+    {
+      featureCode: FEATURE_CODES.BASIC_ANALYSIS,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.EXPANDED_JOB_MATCHING,
+      isEnabled: false,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.JOB_SPECIFIC_ANALYSIS,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.AI_CV_RECOMMENDATIONS,
+      isEnabled: false,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.AI_DETAILED_REPORT,
+      isEnabled: false,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.PDF_EXPORT,
+      isEnabled: false,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.FULL_KNOWLEDGE_BASE,
+      isEnabled: false,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.ANALYSIS_HISTORY,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.SUPPORT_CHAT,
+      isEnabled: false,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.JOB_MATCH_LIMIT,
+      isEnabled: true,
+      limitValue: 3,
+    },
   ],
   PREMIUM: [
-    { featureCode: FEATURE_CODES.BASIC_ANALYSIS, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.EXPANDED_JOB_MATCHING, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.JOB_SPECIFIC_ANALYSIS, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.AI_CV_RECOMMENDATIONS, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.AI_DETAILED_REPORT, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.PDF_EXPORT, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.FULL_KNOWLEDGE_BASE, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.ANALYSIS_HISTORY, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.SUPPORT_CHAT, isEnabled: true, limitValue: null },
-    { featureCode: FEATURE_CODES.JOB_MATCH_LIMIT, isEnabled: true, limitValue: 20 },
+    {
+      featureCode: FEATURE_CODES.BASIC_ANALYSIS,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.EXPANDED_JOB_MATCHING,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.JOB_SPECIFIC_ANALYSIS,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.AI_CV_RECOMMENDATIONS,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.AI_DETAILED_REPORT,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.PDF_EXPORT,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.FULL_KNOWLEDGE_BASE,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.ANALYSIS_HISTORY,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.SUPPORT_CHAT,
+      isEnabled: true,
+      limitValue: null,
+    },
+    {
+      featureCode: FEATURE_CODES.JOB_MATCH_LIMIT,
+      isEnabled: true,
+      limitValue: 20,
+    },
   ],
 };
 
@@ -45,7 +125,10 @@ export class EntitlementService {
   ) {}
 
   async canUse(userId: string, featureCode: FeatureCode) {
-    const { planCode, entitlement } = await this.resolveFeature(userId, featureCode);
+    const { planCode, entitlement } = await this.resolveFeature(
+      userId,
+      featureCode,
+    );
     if (!entitlement?.isEnabled) {
       return {
         allowed: false,
@@ -65,7 +148,10 @@ export class EntitlementService {
     };
   }
 
-  async getLimit(userId: string, featureCode: FeatureCode): Promise<number | null> {
+  async getLimit(
+    userId: string,
+    featureCode: FeatureCode,
+  ): Promise<number | null> {
     const { entitlement } = await this.resolveFeature(userId, featureCode);
     return entitlement?.limitValue ?? null;
   }
@@ -84,9 +170,13 @@ export class EntitlementService {
   }
 
   async getEntitlementsSnapshot(userId: string) {
-    const subscription = await this.billingService.getCurrentSubscriptionForUser(userId);
+    const subscription =
+      await this.billingService.getCurrentSubscriptionForUser(userId);
     const planCode = subscription.plan.code;
-    const rows = await this.getEntitlementsForPlan(subscription.plan.id, planCode);
+    const rows = await this.getEntitlementsForPlan(
+      subscription.plan.id,
+      planCode,
+    );
     const byFeature = Object.fromEntries(
       rows.map((row) => [
         row.featureCode,
@@ -104,10 +194,15 @@ export class EntitlementService {
   }
 
   private async resolveFeature(userId: string, featureCode: FeatureCode) {
-    const subscription = await this.billingService.getCurrentSubscriptionForUser(userId);
+    const subscription =
+      await this.billingService.getCurrentSubscriptionForUser(userId);
     const planCode = subscription.plan.code;
-    const rows = await this.getEntitlementsForPlan(subscription.plan.id, planCode);
-    const entitlement = rows.find((row) => row.featureCode === featureCode) ?? null;
+    const rows = await this.getEntitlementsForPlan(
+      subscription.plan.id,
+      planCode,
+    );
+    const entitlement =
+      rows.find((row) => row.featureCode === featureCode) ?? null;
     return {
       planCode,
       entitlement,
@@ -129,4 +224,3 @@ export class EntitlementService {
     return DEFAULT_ENTITLEMENTS[planCode];
   }
 }
-

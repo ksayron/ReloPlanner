@@ -32,7 +32,10 @@ export class CompetencyInput {
   @IsString()
   competencyId: string;
 
-  @ApiPropertyOptional({ enum: HardSkillLevel, example: HardSkillLevel.PRACTICAL })
+  @ApiPropertyOptional({
+    enum: HardSkillLevel,
+    example: HardSkillLevel.PRACTICAL,
+  })
   @IsOptional()
   @IsEnum(HardSkillLevel)
   hardSkillLevel?: HardSkillLevel;
@@ -161,8 +164,14 @@ export class CreateProfileDto {
     type: () => CompetencyInput,
     isArray: true,
     example: [
-      { competencyId: '3f53f6e2-8fcb-4d82-a43f-6efd57b4e709', hardSkillLevel: 'PRACTICAL' },
-      { competencyId: '8c558f95-60f8-4f03-8fe8-5ab2f2f14a4a', languageLevel: 'B1' },
+      {
+        competencyId: '3f53f6e2-8fcb-4d82-a43f-6efd57b4e709',
+        hardSkillLevel: 'PRACTICAL',
+      },
+      {
+        competencyId: '8c558f95-60f8-4f03-8fe8-5ab2f2f14a4a',
+        languageLevel: 'B1',
+      },
     ],
   })
   @IsArray()

@@ -89,7 +89,9 @@ describe('KnowledgeService', () => {
       updatedAt: new Date('2026-05-10T00:00:00Z'),
     });
 
-    const result = await service.getArticleBySlug('de-visa-checklist-it-specialists');
+    const result = await service.getArticleBySlug(
+      'de-visa-checklist-it-specialists',
+    );
 
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -107,8 +109,8 @@ describe('KnowledgeService', () => {
   it('throws not found when article slug/language does not exist', async () => {
     findUnique.mockResolvedValue(null);
 
-    await expect(service.getArticleBySlug('missing', 'en')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.getArticleBySlug('missing', 'en'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
