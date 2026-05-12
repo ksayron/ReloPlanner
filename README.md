@@ -6,22 +6,26 @@ Web application for planning international relocation with IT job market analysi
 
 - **Backend**: NestJS + TypeScript + Prisma ORM
 - **Database**: PostgreSQL 16
-- **Frontend**: React + TypeScript + Vite
+- **Frontends**: React + TypeScript + Vite (`client` + `internal`)
 - **Infrastructure**: Docker Compose + Nginx
+- **Workspace**: pnpm workspaces
 
 ## Quick Start
 
 ### With Docker
 
 ```bash
-# Build frontend first
-cd frontend && npm install && npm run build && cd ..
-
-# Start all services
+corepack pnpm install
+corepack pnpm --filter @reloplanner/client run build
+corepack pnpm --filter @reloplanner/internal run build
 docker compose up --build
 ```
 
-App runs at http://localhost. Default admin: `admin@reloplanner.dev` / `admin123`.
+App runs at http://localhost.  
+Client app: `/`  
+Internal app: `/internal/`
+
+Default admin: `admin@reloplanner.dev` / `admin123`.
 
 ### Local Development
 
@@ -29,48 +33,46 @@ App runs at http://localhost. Default admin: `admin@reloplanner.dev` / `admin123
 # Start PostgreSQL (via Docker or local install)
 docker compose up postgres -d
 
-# Backend
-cd backend
-npm install
-npx prisma generate
-npx prisma migrate dev
-npx prisma db seed
-npm run start:dev
+# Install workspace dependencies
+corepack pnpm install
 
-# Frontend (separate terminal)
-cd frontend
-npm install
-npm run dev
+# Prisma client for API app
+corepack pnpm --filter @reloplanner/api exec prisma generate
+
+# API
+corepack pnpm --filter @reloplanner/api run start:dev
+
+# Client app (separate terminal)
+corepack pnpm --filter @reloplanner/client run dev
+
+# Internal app (separate terminal)
+corepack pnpm --filter @reloplanner/internal run dev
 ```
 
-Backend: http://localhost:3000, Frontend: http://localhost:5173
+Backend: http://localhost:3000  
+Client: http://localhost:5173  
+Internal: http://localhost:5174
 
 ## Project Structure
 
-```
-├── backend/          # NestJS API
-│   ├── prisma/       # Schema + migrations + seed
-│   └── src/
-│       ├── auth/     # JWT authentication
-│       ├── profile/  # User relocation profiles
-│       ├── scoring/  # Algorithmic core (fit score, gap analysis, roadmap)
-│       ├── taxonomy/ # Skill taxonomy management
-│       ├── market/   # Market data import
-│       ├── cost-of-living/
-│       └── progress/ # Gap status tracking
-├── frontend/         # React SPA
-│   └── src/
-│       ├── pages/    # Route pages
-│       └── components/
-├── nginx/            # Reverse proxy config
-└── docker-compose.yml
+```text
+apps/
+  api/                    # NestJS API
+    prisma/               # Schema + migrations + seed
+    src/
+  client/                 # User-facing React SPA
+  internal/               # Admin/internal React SPA
+packages/
+  shared-contracts/       # Cross-app DTOs/enums/types
+  shared-frontend/        # Shared auth/routing/api primitives
+nginx/                    # Reverse proxy config
+docker-compose.yml
 ```
 
 ## Running Tests
 
 ```bash
-cd backend
-npm test
+corepack pnpm --filter @reloplanner/api run test
 ```
 
 ## Product Roadmap (V1 -> V3)

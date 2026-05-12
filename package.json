@@ -1,0 +1,13 @@
+{
+  "name": "reloplanner-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.12.1",
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "dev": "pnpm --filter @reloplanner/shared-contracts --if-present run build && pnpm --parallel --filter @reloplanner/api --filter @reloplanner/client --filter @reloplanner/internal run dev",
+    "lint": "pnpm -r --if-present run lint && node scripts/check-boundaries.mjs",
+    "test": "pnpm -r --if-present run test",
+    "check:boundaries": "node scripts/check-boundaries.mjs"
+  }
+}

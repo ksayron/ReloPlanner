@@ -11,7 +11,9 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   api:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
     environment:
       DATABASE_URL: postgresql://reloplanner:reloplanner_dev@postgres:5432/reloplanner
       JWT_SECRET: dev-secret-change-in-production
@@ -43,7 +45,8 @@ services:
       - "80:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./frontend/dist:/usr/share/nginx/html
+      - ./apps/client/dist:/usr/share/nginx/html/client
+      - ./apps/internal/dist:/usr/share/nginx/html/internal
     depends_on:
       - api
 

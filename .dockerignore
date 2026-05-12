@@ -1,0 +1,10 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+**/dist
+**/coverage
+**/.turbo
+.codex
+.claude
+tmp_git_test

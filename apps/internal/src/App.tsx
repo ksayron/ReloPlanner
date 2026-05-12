@@ -1,0 +1,95 @@
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import {
+  AdminRoute,
+  AuthProvider,
+  ProtectedRoute,
+} from '@reloplanner/shared-frontend';
+import Layout from './components/Layout';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import OAuthGithubCallback from './pages/OAuthGithubCallback';
+import OAuthGoogleCallback from './pages/OAuthGoogleCallback';
+import OAuthGithubCompleteEmail from './pages/OAuthGithubCompleteEmail';
+import Settings from './pages/Settings';
+import Plan from './pages/Plan';
+import TaxonomyManager from './pages/admin/TaxonomyManager';
+import MarketImport from './pages/admin/MarketImport';
+import UserList from './pages/admin/UserList';
+import SyncManager from './pages/admin/SyncManager';
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Navigate to="/sync" replace />} />
+        <Route path="login" element={<Login />} />
+        <Route path="register" element={<Register />} />
+        <Route path="oauth/github/callback" element={<OAuthGithubCallback />} />
+        <Route path="oauth/google/callback" element={<OAuthGoogleCallback />} />
+        <Route
+          path="oauth/github/complete-email"
+          element={<OAuthGithubCompleteEmail />}
+        />
+        <Route
+          path="settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="plan"
+          element={
+            <ProtectedRoute>
+              <Plan />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="taxonomy"
+          element={
+            <AdminRoute>
+              <TaxonomyManager />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="market"
+          element={
+            <AdminRoute>
+              <MarketImport />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="users"
+          element={
+            <AdminRoute>
+              <UserList />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="sync"
+          element={
+            <AdminRoute>
+              <SyncManager />
+            </AdminRoute>
+          }
+        />
+      </Route>
+    </Routes>
+  );
+}
+
+export default function App() {
+  const basename = import.meta.env.DEV ? '/' : '/internal';
+  return (
+    <BrowserRouter basename={basename}>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
