@@ -84,7 +84,8 @@ function AppRoutes() {
 }
 
 export default function App() {
-  const basename = import.meta.env.DEV ? '/' : '/internal';
+  const isInternalPath = window.location.pathname.startsWith('/internal');
+  const basename = !import.meta.env.DEV || isInternalPath ? '/internal' : '/';
   return (
     <BrowserRouter basename={basename}>
       <AuthProvider>

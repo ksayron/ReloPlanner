@@ -1,13 +1,17 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
+  Patch,
   Post,
   Query,
   Req,
   Res,
   UnauthorizedException,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Role } from '@prisma/client';
@@ -18,6 +22,8 @@ import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { OAuthExchangeDto } from './dto/oauth-exchange.dto.js';
 import { OAuthCompleteEmailDto } from './dto/oauth-complete-email.dto.js';
+import { AdminUsersQueryDto } from './dto/admin-users-query.dto.js';
+import { UpdateUserBlockStatusDto } from './dto/update-user-block-status.dto.js';
 import { Roles, RolesGuard } from './roles.guard.js';
 import { GithubAuthGuard } from './github-auth.guard.js';
 import { GithubLinkGuard } from './github-link.guard.js';
@@ -232,7 +238,24 @@ export class AdminUsersController {
   constructor(private readonly auth: AuthService) {}
 
   @Get()
-  listUsers() {
-    return this.auth.listUsers();
+  listUsers(@Query() query: AdminUsersQueryDto) {
+    return this.auth.listUsers(query);
+  }
+
+  @Patch(':id/block')
+  setBlocked(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateUserBlockStatusDto,
+    @Req() req: Request & { user?: { id?: string } },
+  ) {
+    return this.auth.setUserBlocked(id, dto.blocked, req.user?.id ?? '');
+  }
+
+  @Delete(':id')
+  deleteUser(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: Request & { user?: { id?: string } },
+  ) {
+    return this.auth.deleteUser(id, req.user?.id ?? '');
   }
 }

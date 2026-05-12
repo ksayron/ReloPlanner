@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useLocation, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
   Anchor,
@@ -19,6 +19,19 @@ export default function Login() {
   const [error, setError] = useState('');
   const { login, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const lockoutMessage = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const reason = params.get('lockout');
+    if (reason === 'blocked') {
+      return 'Your account is blocked. Contact support or an administrator.';
+    }
+    if (reason === 'session_expired') {
+      return 'Your session expired or is no longer valid. Please log in again.';
+    }
+    return '';
+  }, [location.search]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +60,7 @@ export default function Login() {
         <form onSubmit={handleSubmit}>
           <Stack>
             <Title order={2}>Login</Title>
+            {lockoutMessage && <Alert color="orange">{lockoutMessage}</Alert>}
             {error && <Alert color="red">{error}</Alert>}
             <TextInput
               label="Email"

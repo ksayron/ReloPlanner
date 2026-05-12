@@ -25,6 +25,12 @@ import { fetchMyPreferences, updateMyPreferences } from '../api/preferences';
 import type { BillingPlanCode } from '../types';
 
 const linkClass = 'text-[var(--app-nav-link)] hover:text-[var(--app-nav-link-hover)]';
+const colorSchemeStorageKey = 'reloplanner-color-scheme';
+
+const readStoredColorScheme = (): 'light' | 'dark' | null => {
+  const value = localStorage.getItem(colorSchemeStorageKey);
+  return value === 'light' || value === 'dark' ? value : null;
+};
 
 function SunIcon() {
   return (
@@ -94,6 +100,18 @@ export default function Layout() {
       try {
         const preferences = await fetchMyPreferences();
         if (!alive || !preferences) return;
+
+        const localColorScheme = readStoredColorScheme();
+        if (localColorScheme) {
+          setColorScheme(localColorScheme);
+          if (preferences.preferredTheme !== localColorScheme) {
+            void updateMyPreferences({ preferredTheme: localColorScheme }).catch(() => {
+              // Ignore preference sync failures to avoid blocking navigation.
+            });
+          }
+          return;
+        }
+
         setColorScheme(preferences.preferredTheme);
       } catch {
         // Ignore preference sync failures to avoid blocking navigation.
@@ -127,6 +145,9 @@ export default function Layout() {
   const effectivePlan = user?.role === 'ADMIN' ? null : planCode;
   const planColor = effectivePlan === 'PREMIUM' ? 'teal' : 'gray';
   const planLabel = effectivePlan === 'PREMIUM' ? 'Premium' : 'Free';
+  const internalAppUrl = import.meta.env.DEV
+    ? 'http://localhost:5174/internal/sync'
+    : '/internal/sync';
 
   return (
     <>
@@ -216,7 +237,7 @@ export default function Layout() {
                     <Menu.Dropdown>
                       <Menu.Label>Account</Menu.Label>
                       {user.role === 'ADMIN' ? (
-                        <Menu.Item component="a" href="/internal/sync">
+                        <Menu.Item component="a" href={internalAppUrl}>
                           Open Internal Workspace
                         </Menu.Item>
                       ) : null}
@@ -335,7 +356,7 @@ export default function Layout() {
               <Text size="xs" c="dimmed" fw={700} tt="uppercase">
                 Internal Workspace
               </Text>
-              <Anchor component="a" href="/internal/sync" underline="never" onClick={close}>
+              <Anchor component="a" href={internalAppUrl} underline="never" onClick={close}>
                 Open Internal App
               </Anchor>
             </>

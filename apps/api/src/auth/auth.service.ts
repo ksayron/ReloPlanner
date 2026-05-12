@@ -3,11 +3,13 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { Prisma, Role } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { createTransport, type Transporter } from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -15,6 +17,7 @@ import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { OAuthExchangeDto } from './dto/oauth-exchange.dto.js';
 import { OAuthCompleteEmailDto } from './dto/oauth-complete-email.dto.js';
+import { AdminUsersQueryDto } from './dto/admin-users-query.dto.js';
 
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const OAUTH_EXCHANGE_TTL_MS = 2 * 60 * 1000;
@@ -175,6 +178,10 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     const email = this.normalizeEmail(dto.email);
+    const displayName = this.normalizeDisplayName(dto.displayName);
+    if (!displayName || displayName.length < 2) {
+      throw new BadRequestException('Display name must be at least 2 characters');
+    }
     const existing = await this.prisma.user.findUnique({
       where: { email },
     });
@@ -186,7 +193,7 @@ export class AuthService {
     const hash = await bcrypt.hash(dto.password, 10);
 
     const user = await this.prisma.user.create({
-      data: { email, passwordHash: hash },
+      data: { email, displayName, passwordHash: hash },
     });
 
     await this.issueEmailVerification(user.id, user.email, {
@@ -206,6 +213,10 @@ export class AuthService {
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Account is blocked');
     }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
@@ -313,6 +324,9 @@ export class AuthService {
     const githubLogin = this.normalizeGithubLogin(
       profile.username ?? profile.displayName ?? null,
     );
+    const oauthDisplayName = this.normalizeDisplayName(
+      profile.displayName ?? profile.username ?? null,
+    );
 
     if (stateRecord.mode === 'link') {
       return this.resolveGithubLinkCallback(
@@ -399,6 +413,7 @@ export class AuthService {
     const created = await this.prisma.user.create({
       data: {
         email: providerEmail.email,
+        displayName: oauthDisplayName,
         passwordHash: null,
         githubId,
         githubLogin,
@@ -430,6 +445,7 @@ export class AuthService {
       throw new OAuthFlowError('oauth_provider_failure');
     }
 
+    const oauthDisplayName = this.normalizeDisplayName(profile.displayName ?? null);
     const providerEmail = this.pickProviderEmail(profile.emails);
     if (!providerEmail) {
       throw new OAuthFlowError('oauth_provider_failure');
@@ -503,6 +519,7 @@ export class AuthService {
     const created = await this.prisma.user.create({
       data: {
         email: providerEmail.email,
+        displayName: oauthDisplayName,
         passwordHash: null,
         googleId,
         googleEmail: providerEmail.email,
@@ -662,6 +679,7 @@ export class AuthService {
     const created = await this.prisma.user.create({
       data: {
         email,
+        displayName: this.normalizeDisplayName(ticket.githubLogin),
         passwordHash: null,
         githubId: ticket.githubId,
         githubLogin: ticket.githubLogin,
@@ -689,6 +707,10 @@ export class AuthService {
 
     if (!user) {
       throw new OAuthFlowError('oauth_exchange_invalid');
+    }
+
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Account is blocked');
     }
 
     return {
@@ -835,7 +857,9 @@ export class AuthService {
       select: {
         id: true,
         email: true,
+        displayName: true,
         role: true,
+        isBlocked: true,
         githubId: true,
         githubLogin: true,
         googleId: true,
@@ -848,9 +872,14 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Account is blocked');
+    }
+
     return {
       id: user.id,
       email: user.email,
+      displayName: user.displayName,
       role: user.role,
       githubLinked: Boolean(user.githubId),
       githubLogin: user.githubLogin,
@@ -861,13 +890,36 @@ export class AuthService {
     };
   }
 
-  listUsers() {
+  listUsers(query: AdminUsersQueryDto) {
+    const where: Prisma.UserWhereInput = {};
+    if (query.displayName?.trim()) {
+      where.displayName = {
+        contains: query.displayName.trim(),
+        mode: Prisma.QueryMode.insensitive,
+      };
+    }
+    if (query.email?.trim()) {
+      where.email = {
+        contains: query.email.trim(),
+        mode: Prisma.QueryMode.insensitive,
+      };
+    }
+    if (query.role) {
+      where.role = query.role;
+    }
+    if (typeof query.isBlocked === 'boolean') {
+      where.isBlocked = query.isBlocked;
+    }
+
     return this.prisma.user.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         email: true,
+        displayName: true,
         role: true,
+        isBlocked: true,
         githubId: true,
         githubLogin: true,
         googleId: true,
@@ -876,6 +928,120 @@ export class AuthService {
         createdAt: true,
       },
     });
+  }
+
+  async setUserBlocked(userId: string, blocked: boolean, actorUserId: string) {
+    if (!actorUserId) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (actorUserId === userId) {
+      throw new BadRequestException('You cannot block your own account');
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, isBlocked: true },
+    });
+
+    if (!target) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (target.role === Role.ADMIN) {
+      throw new BadRequestException('Admin accounts cannot be blocked');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { isBlocked: blocked },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        isBlocked: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      message: blocked ? 'User blocked' : 'User unblocked',
+      user: updated,
+    };
+  }
+
+  async deleteUser(userId: string, actorUserId: string) {
+    if (!actorUserId) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (actorUserId === userId) {
+      throw new BadRequestException('You cannot delete your own account');
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    if (!target) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (target.role === Role.ADMIN) {
+      throw new BadRequestException('Admin accounts cannot be deleted');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const profiles = await tx.relocationProfile.findMany({
+        where: { userId },
+        select: { id: true },
+      });
+      const profileIds = profiles.map((item) => item.id);
+
+      if (profileIds.length > 0) {
+        const analyses = await tx.analysisResult.findMany({
+          where: { profileId: { in: profileIds } },
+          select: { id: true },
+        });
+        const analysisIds = analyses.map((item) => item.id);
+
+        if (analysisIds.length > 0) {
+          await tx.analysisAiSummary.deleteMany({
+            where: { analysisId: { in: analysisIds } },
+          });
+          await tx.analysisItem.deleteMany({
+            where: { analysisId: { in: analysisIds } },
+          });
+          await tx.roadmapStep.deleteMany({
+            where: { analysisId: { in: analysisIds } },
+          });
+          await tx.gapItem.deleteMany({
+            where: { analysisId: { in: analysisIds } },
+          });
+          await tx.analysisResult.deleteMany({
+            where: { id: { in: analysisIds } },
+          });
+        }
+
+        await tx.userSkill.deleteMany({
+          where: { profileId: { in: profileIds } },
+        });
+        await tx.userCompetency.deleteMany({
+          where: { profileId: { in: profileIds } },
+        });
+        await tx.relocationProfile.deleteMany({
+          where: { id: { in: profileIds } },
+        });
+      }
+
+      await tx.user.delete({
+        where: { id: userId },
+      });
+    });
+
+    return { message: 'User deleted' };
   }
 
   private async issueEmailVerification(
@@ -954,6 +1120,14 @@ export class AuthService {
 
   private normalizeEmail(email: string) {
     return email.trim().toLowerCase();
+  }
+
+  private normalizeDisplayName(value: string | null | undefined) {
+    if (!value) {
+      return null;
+    }
+    const normalized = value.trim().replace(/\s+/g, ' ');
+    return normalized.length > 0 ? normalized : null;
   }
 
   private normalizeGithubLogin(value: string | null) {

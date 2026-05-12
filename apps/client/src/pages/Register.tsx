@@ -8,14 +8,20 @@ import {
   Paper,
   PasswordInput,
   Stack,
+  Text,
   TextInput,
   Title,
 } from '@mantine/core';
 import { useAuth } from '../api/AuthContext';
 
+const passwordPolicy =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+
 export default function Register() {
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const { register, loading } = useAuth();
   const navigate = useNavigate();
@@ -23,11 +29,30 @@ export default function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!passwordPolicy.test(password)) {
+      setError(
+        'Password must be at least 8 chars and include uppercase, lowercase, number, and symbol.',
+      );
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Password confirmation does not match.');
+      return;
+    }
     try {
-      await register(email, password);
+      await register(email, displayName, password);
       navigate('/wizard');
-    } catch {
-      setError('Registration failed');
+    } catch (err) {
+      const message =
+        typeof err === 'object' &&
+        err !== null &&
+        'response' in err &&
+        typeof (err as { response?: { data?: { message?: string } } }).response
+          ?.data?.message === 'string'
+          ? (err as { response?: { data?: { message?: string } } }).response!
+              .data!.message!
+          : 'Registration failed';
+      setError(message);
     }
   };
 
@@ -49,6 +74,13 @@ export default function Register() {
             <Title order={2}>Register</Title>
             {error && <Alert color="red">{error}</Alert>}
             <TextInput
+              label="Display name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.currentTarget.value)}
+              description="How specialists should refer to you."
+              required
+            />
+            <TextInput
               label="Email"
               type="email"
               value={email}
@@ -59,8 +91,19 @@ export default function Register() {
               label="Password"
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
+              description="Min 8 chars, uppercase, lowercase, number, special symbol."
               required
             />
+            <PasswordInput
+              label="Confirm password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.currentTarget.value)}
+              required
+            />
+            <Text size="xs" c="dimmed">
+              Password policy: 8+ characters, at least one uppercase, one lowercase, one number,
+              and one special symbol.
+            </Text>
             <Button type="submit" loading={loading} color="brand.7" fullWidth>
               Register
             </Button>

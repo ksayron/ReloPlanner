@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, displayName: string, password: string) => Promise<void>;
   exchangeOAuthCode: (code: string) => Promise<void>;
   completeOAuthEmail: (
     ticket: string,
@@ -64,10 +64,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const register = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, displayName: string, password: string) => {
       setLoading(true);
       try {
-        const res = await client.post('/auth/register', { email, password });
+        const res = await client.post('/auth/register', {
+          email,
+          displayName,
+          password,
+        });
         applyAccessToken(res.data.accessToken);
       } finally {
         setLoading(false);

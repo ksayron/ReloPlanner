@@ -197,7 +197,9 @@ enum LifestyleProfile {
 model User {
   id                              String              @id @default(uuid())
   email                           String              @unique
+  displayName                     String?             @map("display_name")
   passwordHash                    String?             @map("password_hash")
+  isBlocked                       Boolean             @default(false) @map("is_blocked")
   githubId                        String?             @unique @map("github_id")
   githubLogin                     String?             @map("github_login")
   googleId                        String?             @unique @map("google_id")
