@@ -21,6 +21,7 @@ import type {
 } from '@reloplanner/shared-contracts';
 import { useAuth, useRealtimeCase } from '@reloplanner/shared-frontend';
 import {
+  assignCaseToSelf,
   assignSpecialist,
   getCase,
   getCaseReadState,
@@ -193,6 +194,8 @@ export default function CaseDetail() {
     () => readStates.find((row) => row.user.id === user?.id) ?? null,
     [readStates, user?.id],
   );
+  const canSend =
+    user?.role !== 'SPECIALIST' || item?.specialist?.id === user?.id;
 
   useEffect(() => {
     if (!caseId) return;
@@ -251,6 +254,19 @@ export default function CaseDetail() {
     }
   };
 
+  const handleAssignToMe = async () => {
+    if (!item) return;
+    setBusy(true);
+    try {
+      await assignCaseToSelf(caseId);
+      await loadAll();
+    } catch {
+      setError('Failed to assign case to you');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="mt-10 flex justify-center">
@@ -279,7 +295,14 @@ export default function CaseDetail() {
             Back to case queue
           </Button>
           <Title order={2}>{item.title}</Title>
-          <Text c="dimmed">{item.description || 'No case description provided.'}</Text>
+          <Text c="dimmed">
+            {item.profile
+              ? `Profile: ${item.profile.desiredRole} -> ${item.profile.targetCountry}${item.profile.targetCity ? `, ${item.profile.targetCity}` : ''}`
+              : 'No profile attached.'}
+          </Text>
+          {item.additionalNotes ? (
+            <Text c="dimmed">Notes: {item.additionalNotes}</Text>
+          ) : null}
         </Stack>
         <Badge color={statusColor[item.status] ?? 'gray'} variant="light" size="lg">
           {item.status.replaceAll('_', ' ')}
@@ -316,6 +339,13 @@ export default function CaseDetail() {
                 onClick={() => void handleAssign()}
               >
                 {item.specialist ? 'Reassign' : 'Assign'}
+              </Button>
+            </Group>
+          ) : null}
+          {user?.role === 'SPECIALIST' && !item.specialist ? (
+            <Group>
+              <Button color="teal" variant="light" onClick={() => void handleAssignToMe()} loading={busy}>
+                Assign to me
               </Button>
             </Group>
           ) : null}
@@ -370,10 +400,19 @@ export default function CaseDetail() {
               value={text}
               onChange={(event) => setText(event.currentTarget.value)}
             />
-            <Button onClick={() => void handleSend()} disabled={busy || !text.trim()} color="brand.7">
+            <Button
+              onClick={() => void handleSend()}
+              disabled={busy || !text.trim() || !canSend}
+              color="brand.7"
+            >
               Send
             </Button>
           </Group>
+          {!canSend ? (
+            <Text size="sm" c="dimmed">
+              Assign this case to yourself before sending messages.
+            </Text>
+          ) : null}
         </Stack>
       </Card>
     </Stack>

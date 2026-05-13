@@ -18,8 +18,10 @@ import TaxonomyManager from './pages/admin/TaxonomyManager';
 import MarketImport from './pages/admin/MarketImport';
 import UserList from './pages/admin/UserList';
 import SyncManager from './pages/admin/SyncManager';
+import SystemMonitoring from './pages/admin/SystemMonitoring';
 import Cases from './pages/Cases';
 import CaseDetail from './pages/CaseDetail';
+import Chats from './pages/Chats';
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -94,6 +96,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="system"
+          element={
+            <AdminRoute>
+              <SystemMonitoring />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="cases"
           element={
             <InternalRoute>
@@ -106,6 +116,14 @@ function AppRoutes() {
           element={
             <InternalRoute>
               <CaseDetail />
+            </InternalRoute>
+          }
+        />
+        <Route
+          path="chats"
+          element={
+            <InternalRoute>
+              <Chats />
             </InternalRoute>
           }
         />

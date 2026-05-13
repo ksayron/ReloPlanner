@@ -24,6 +24,7 @@ import { OAuthExchangeDto } from './dto/oauth-exchange.dto.js';
 import { OAuthCompleteEmailDto } from './dto/oauth-complete-email.dto.js';
 import { AdminUsersQueryDto } from './dto/admin-users-query.dto.js';
 import { UpdateUserBlockStatusDto } from './dto/update-user-block-status.dto.js';
+import { CreateSpecialistUserDto } from './dto/create-specialist-user.dto.js';
 import { Roles, RolesGuard } from './roles.guard.js';
 import { GithubAuthGuard } from './github-auth.guard.js';
 import { GithubLinkGuard } from './github-link.guard.js';
@@ -235,6 +236,11 @@ export class AuthController {
 @ApiBearerAuth()
 export class AdminUsersController {
   constructor(private readonly auth: AuthService) {}
+
+  @Post()
+  createSpecialist(@Body() dto: CreateSpecialistUserDto) {
+    return this.auth.createSpecialistUser(dto);
+  }
 
   @Get()
   listUsers(@Query() query: AdminUsersQueryDto) {

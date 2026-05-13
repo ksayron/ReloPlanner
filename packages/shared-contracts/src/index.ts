@@ -649,6 +649,14 @@ export interface RelocationCaseParticipant {
   role: Role;
 }
 
+export interface CaseAttachedProfile {
+  id: string;
+  desiredRole: string;
+  targetCountry: string;
+  targetCity: string | null;
+  yearsExperience: number;
+}
+
 export interface CaseMessage {
   id: string;
   caseId: string;
@@ -680,7 +688,9 @@ export interface CaseReadState {
 export interface RelocationCase {
   id: string;
   title: string;
-  description: string | null;
+  additionalNotes: string | null;
+  profileId: string | null;
+  profile: CaseAttachedProfile | null;
   status: RelocationCaseStatus;
   owner: RelocationCaseParticipant;
   specialist: RelocationCaseParticipant | null;
@@ -696,6 +706,38 @@ export interface RelocationCase {
   messages?: CaseMessage[];
   activities?: CaseActivity[];
   readStates?: CaseReadState[];
+}
+
+export interface DirectChatParticipant {
+  id: string;
+  email: string;
+  displayName: string | null;
+  role: Role;
+}
+
+export type DirectChatMessageKind = 'USER' | 'SPECIALIST' | 'SYSTEM';
+
+export interface DirectChatThread {
+  id: string;
+  client: DirectChatParticipant;
+  specialist: DirectChatParticipant;
+  createdAt: string;
+  updatedAt: string;
+  lastMessage: {
+    id: string;
+    kind: DirectChatMessageKind;
+    content: string;
+    createdAt: string;
+  } | null;
+}
+
+export interface DirectChatMessage {
+  id: string;
+  threadId: string;
+  author: DirectChatParticipant;
+  kind: DirectChatMessageKind;
+  content: string;
+  createdAt: string;
 }
 
 export interface NotificationItem {

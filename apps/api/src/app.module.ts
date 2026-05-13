@@ -22,6 +22,8 @@ import { PreferencesModule } from './preferences/preferences.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { CasesModule } from './cases/cases.module.js';
+import { InternalChatsModule } from './internal-chats/internal-chats.module.js';
+import { MonitoringModule } from './monitoring/monitoring.module.js';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { CasesModule } from './cases/cases.module.js';
     RealtimeModule,
     NotificationsModule,
     CasesModule,
+    InternalChatsModule,
+    MonitoringModule,
   ],
 })
 export class AppModule {}

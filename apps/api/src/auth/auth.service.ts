@@ -18,6 +18,7 @@ import { LoginDto } from './dto/login.dto.js';
 import { OAuthExchangeDto } from './dto/oauth-exchange.dto.js';
 import { OAuthCompleteEmailDto } from './dto/oauth-complete-email.dto.js';
 import { AdminUsersQueryDto } from './dto/admin-users-query.dto.js';
+import { CreateSpecialistUserDto } from './dto/create-specialist-user.dto.js';
 
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const OAUTH_EXCHANGE_TTL_MS = 2 * 60 * 1000;
@@ -937,6 +938,48 @@ export class AuthService {
         createdAt: true,
       },
     });
+  }
+
+  async createSpecialistUser(dto: CreateSpecialistUserDto) {
+    const email = this.normalizeEmail(dto.email);
+    const displayName = this.normalizeDisplayName(dto.displayName);
+    if (!displayName || displayName.length < 2) {
+      throw new BadRequestException(
+        'Display name must be at least 2 characters',
+      );
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException('Email already in use');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const created = await this.prisma.user.create({
+      data: {
+        email,
+        displayName,
+        passwordHash,
+        role: Role.SPECIALIST,
+      },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        isBlocked: true,
+        createdAt: true,
+      },
+    });
+
+    await this.issueEmailVerification(created.id, created.email, {
+      waitForSend: false,
+    });
+
+    return created;
   }
 
   async setUserBlocked(userId: string, blocked: boolean, actorUserId: string) {

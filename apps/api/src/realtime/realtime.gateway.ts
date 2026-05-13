@@ -152,12 +152,19 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
         select: {
           ownerUserId: true,
           specialistUserId: true,
+          status: true,
         },
       },
     );
     if (!relocationCase) return false;
     if (relocationCase.ownerUserId === userId) return true;
     if (relocationCase.specialistUserId === userId) return true;
+    if (
+      role === 'SPECIALIST' &&
+      ['SUBMITTED', 'IN_PROGRESS', 'NEEDS_USER_INPUT'].includes(relocationCase.status)
+    ) {
+      return true;
+    }
     return false;
   }
 }

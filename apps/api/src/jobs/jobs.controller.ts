@@ -251,6 +251,124 @@ export class JobsController {
     });
   }
 
+  @Get('admin/queue/dashboard')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async getAdminQueueDashboard(@Query('limit') limitRaw?: string) {
+    const parsedLimit = Number(limitRaw);
+    const limit = Number.isFinite(parsedLimit) ? parsedLimit : 25;
+    return this.jobsService.getQueueDashboard(limit);
+  }
+
+  @Post('admin/queue/:jobId/retry')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async retryJob(@Param('jobId') jobId: string) {
+    const sourceJob = await this.jobsService.getJobRecordById(jobId);
+    const sourcePayload = this.asRecord(sourceJob.payload);
+
+    if (sourceJob.type === 'PROFILE_ANALYSIS') {
+      const profileId = this.asString(sourcePayload?.profileId);
+      if (!profileId) {
+        throw new BadRequestException(
+          'Cannot retry PROFILE_ANALYSIS job: missing profileId in payload',
+        );
+      }
+      const retryJob = await this.jobsService.createJob({
+        userId: sourceJob.userId,
+        type: 'PROFILE_ANALYSIS',
+        payload: { profileId },
+      });
+      this.jobsRunnerService.runProfileAnalysisJob(
+        retryJob.id,
+        profileId,
+        sourceJob.userId,
+      );
+      return {
+        sourceJobId: sourceJob.id,
+        retryJobId: retryJob.id,
+        retryType: retryJob.type,
+        statusUrl: `/api/jobs/${retryJob.id}`,
+        eventsUrl: `/api/jobs/${retryJob.id}/events`,
+      };
+    }
+
+    if (sourceJob.type === 'MARKET_SYNC') {
+      const retryJob = await this.jobsService.createJob({
+        userId: sourceJob.userId,
+        type: 'MARKET_SYNC',
+        payload: { force: true, retriedFromJobId: sourceJob.id },
+      });
+      this.jobsRunnerService.runMarketSyncJob(retryJob.id);
+      return {
+        sourceJobId: sourceJob.id,
+        retryJobId: retryJob.id,
+        retryType: retryJob.type,
+        statusUrl: `/api/jobs/${retryJob.id}`,
+        eventsUrl: `/api/jobs/${retryJob.id}/events`,
+      };
+    }
+
+    if (sourceJob.type === 'REPORT_GENERATION') {
+      const analysisId = this.asString(sourcePayload?.analysisId);
+      const variant = sourcePayload?.variant;
+      const format = sourcePayload?.format;
+      const locale = sourcePayload?.locale;
+
+      if (!analysisId) {
+        throw new BadRequestException(
+          'Cannot retry REPORT_GENERATION job: missing analysisId in payload',
+        );
+      }
+      if (variant !== 'snapshot' && variant !== 'ai-summary') {
+        throw new BadRequestException(
+          'Cannot retry REPORT_GENERATION job: invalid variant in payload',
+        );
+      }
+      if (format !== 'json' && format !== 'html' && format !== 'pdf') {
+        throw new BadRequestException(
+          'Cannot retry REPORT_GENERATION job: invalid format in payload',
+        );
+      }
+      if (locale !== 'en' && locale !== 'ru') {
+        throw new BadRequestException(
+          'Cannot retry REPORT_GENERATION job: invalid locale in payload',
+        );
+      }
+
+      const retryJob = await this.jobsService.createJob({
+        userId: sourceJob.userId,
+        type: 'REPORT_GENERATION',
+        payload: {
+          analysisId,
+          variant,
+          format,
+          locale,
+          retriedFromJobId: sourceJob.id,
+        },
+      });
+      this.jobsRunnerService.runReportGenerationJob(
+        retryJob.id,
+        analysisId,
+        sourceJob.userId,
+        variant,
+        format,
+        locale,
+      );
+      return {
+        sourceJobId: sourceJob.id,
+        retryJobId: retryJob.id,
+        retryType: retryJob.type,
+        statusUrl: `/api/jobs/${retryJob.id}`,
+        eventsUrl: `/api/jobs/${retryJob.id}/events`,
+      };
+    }
+
+    throw new BadRequestException(
+      `Retry is not supported for job type ${sourceJob.type}. Please trigger it from the original flow.`,
+    );
+  }
+
   @Get(':jobId')
   async getJob(@Param('jobId') jobId: string, @Req() req: any) {
     return this.jobsService.getJobForUser(jobId, req.user.id);
@@ -270,5 +388,16 @@ export class JobsController {
         data: snapshot,
       })),
     );
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return value as Record<string, unknown>;
+  }
+
+  private asString(value: unknown): string | null {
+    return typeof value === 'string' && value.length > 0 ? value : null;
   }
 }

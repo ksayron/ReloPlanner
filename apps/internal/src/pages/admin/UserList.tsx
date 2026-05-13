@@ -5,6 +5,7 @@ import {
   Button,
   Group,
   Loader,
+  PasswordInput,
   Paper,
   Select,
   Stack,
@@ -14,7 +15,7 @@ import {
   Title,
 } from '@mantine/core';
 import client from '../../api/client';
-import type { Role } from '../../types';
+import type { Role } from '@reloplanner/shared-contracts';
 
 interface UserListItem {
   id: string;
@@ -38,6 +39,10 @@ export default function UserList() {
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
+  const [creatingSpecialist, setCreatingSpecialist] = useState(false);
+  const [newSpecialistName, setNewSpecialistName] = useState('');
+  const [newSpecialistEmail, setNewSpecialistEmail] = useState('');
+  const [newSpecialistPassword, setNewSpecialistPassword] = useState('');
 
   const [nameFilter, setNameFilter] = useState('');
   const [emailFilter, setEmailFilter] = useState('');
@@ -135,6 +140,36 @@ export default function UserList() {
     }
   };
 
+  const handleCreateSpecialist = async () => {
+    const displayName = newSpecialistName.trim();
+    const email = newSpecialistEmail.trim().toLowerCase();
+    const password = newSpecialistPassword;
+    if (displayName.length < 2 || !email || password.length < 8) {
+      setActionError(
+        'Provide valid specialist name, email, and password (min 8 chars).',
+      );
+      return;
+    }
+
+    setActionError('');
+    setCreatingSpecialist(true);
+    try {
+      await client.post('/admin/users', {
+        displayName,
+        email,
+        password,
+      });
+      setNewSpecialistName('');
+      setNewSpecialistEmail('');
+      setNewSpecialistPassword('');
+      await loadUsers();
+    } catch {
+      setActionError('Failed to create specialist user.');
+    } finally {
+      setCreatingSpecialist(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="mt-10 flex justify-center">
@@ -148,6 +183,41 @@ export default function UserList() {
       <Title order={2}>User Management</Title>
       {error && <Alert color="red">{error}</Alert>}
       {actionError && <Alert color="red">{actionError}</Alert>}
+
+      <Paper withBorder radius="lg" p="md" className="bg-white">
+        <Stack gap="sm">
+          <Title order={4}>Create Specialist Account</Title>
+          <Group grow align="end">
+            <TextInput
+              label="Display name"
+              placeholder="Case Specialist"
+              value={newSpecialistName}
+              onChange={(event) => setNewSpecialistName(event.currentTarget.value)}
+            />
+            <TextInput
+              label="Email"
+              placeholder="specialist@example.com"
+              value={newSpecialistEmail}
+              onChange={(event) => setNewSpecialistEmail(event.currentTarget.value)}
+            />
+            <PasswordInput
+              label="Temporary password"
+              placeholder="At least 8 chars"
+              value={newSpecialistPassword}
+              onChange={(event) => setNewSpecialistPassword(event.currentTarget.value)}
+            />
+          </Group>
+          <Group>
+            <Button
+              color="brand.7"
+              onClick={() => void handleCreateSpecialist()}
+              loading={creatingSpecialist}
+            >
+              Create specialist
+            </Button>
+          </Group>
+        </Stack>
+      </Paper>
 
       <Paper withBorder radius="lg" p="md" className="bg-white">
         <Stack gap="sm">

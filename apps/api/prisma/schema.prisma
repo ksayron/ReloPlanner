@@ -231,6 +231,12 @@ enum NotificationType {
   CASE_SYSTEM
 }
 
+enum DirectChatMessageKind {
+  USER
+  SPECIALIST
+  SYSTEM
+}
+
 model User {
   id                              String              @id @default(uuid())
   email                           String              @unique
@@ -257,6 +263,9 @@ model User {
   caseMessages                    CaseMessage[]
   caseReadStates                  CaseReadState[]
   notifications                   Notification[]
+  directClientThreads             DirectChatThread[] @relation("DirectChatClient")
+  directSpecialistThreads         DirectChatThread[] @relation("DirectChatSpecialist")
+  directChatMessages              DirectChatMessage[]
 
   @@map("users")
 }
@@ -382,6 +391,7 @@ model RelocationProfile {
   skills                       UserSkill[]
   competencies                 UserCompetency[]
   analyses                     AnalysisResult[]
+  attachedCase                 RelocationCase?
 
   @@map("relocation_profiles")
 }
@@ -714,8 +724,9 @@ model RelocationCase {
   id               String               @id @default(uuid())
   ownerUserId      String               @map("owner_user_id")
   specialistUserId String?              @map("specialist_user_id")
+  profileId        String?              @unique @map("profile_id")
   title            String
-  description      String?
+  additionalNotes  String?              @map("description")
   status           RelocationCaseStatus @default(DRAFT)
   submittedAt      DateTime?            @map("submitted_at")
   archivedAt       DateTime?            @map("archived_at")
@@ -724,6 +735,7 @@ model RelocationCase {
   updatedAt        DateTime             @updatedAt @map("updated_at")
   owner            User                 @relation("CaseOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   specialist       User?                @relation("CaseSpecialist", fields: [specialistUserId], references: [id], onDelete: SetNull)
+  profile          RelocationProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
   activities       CaseActivity[]
   messages         CaseMessage[]
   readStates       CaseReadState[]
@@ -801,6 +813,37 @@ model Notification {
   @@index([userId, isRead, createdAt])
   @@index([caseId, createdAt])
   @@map("notifications")
+}
+
+model DirectChatThread {
+  id               String              @id @default(uuid())
+  clientUserId     String              @map("client_user_id")
+  specialistUserId String              @map("specialist_user_id")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  client           User                @relation("DirectChatClient", fields: [clientUserId], references: [id], onDelete: Cascade)
+  specialist       User                @relation("DirectChatSpecialist", fields: [specialistUserId], references: [id], onDelete: Cascade)
+  messages         DirectChatMessage[]
+
+  @@unique([clientUserId, specialistUserId])
+  @@index([specialistUserId, updatedAt])
+  @@index([clientUserId, updatedAt])
+  @@map("direct_chat_threads")
+}
+
+model DirectChatMessage {
+  id           String                @id @default(uuid())
+  threadId     String                @map("thread_id")
+  authorUserId String                @map("author_user_id")
+  kind         DirectChatMessageKind
+  content      String
+  createdAt    DateTime              @default(now()) @map("created_at")
+  thread       DirectChatThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author       User                  @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@index([authorUserId, createdAt])
+  @@map("direct_chat_messages")
 }
 
 model KnowledgeArticle {

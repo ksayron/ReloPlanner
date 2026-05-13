@@ -72,6 +72,14 @@ export class CasesController {
     return this.casesService.cancelCase(req.user, caseId);
   }
 
+  @Post(':caseId/assign-self')
+  assignCaseToSelf(
+    @Req() req: Request & { user: RequestUser },
+    @Param('caseId') caseId: string,
+  ) {
+    return this.casesService.assignToSelf(req.user, caseId);
+  }
+
   @Get(':caseId/messages')
   listMessages(
     @Req() req: Request & { user: RequestUser },

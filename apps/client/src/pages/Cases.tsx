@@ -6,6 +6,7 @@ import {
   Card,
   Group,
   Loader,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -13,8 +14,9 @@ import {
   Title,
 } from '@mantine/core';
 import { Link as RouterLink } from 'react-router-dom';
-import type { RelocationCase } from '@reloplanner/shared-contracts';
+import type { RelocationCase, RelocationProfile } from '@reloplanner/shared-contracts';
 import { createCase, listCases } from '../api/cases';
+import { listProfiles } from '../api/profiles';
 
 const statusColor: Record<string, string> = {
   DRAFT: 'gray',
@@ -31,18 +33,25 @@ export default function Cases() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const [additionalNotes, setAdditionalNotes] = useState('');
+  const [profiles, setProfiles] = useState<RelocationProfile[]>([]);
   const [creating, setCreating] = useState(false);
 
-  const canCreate = useMemo(() => title.trim().length >= 3, [title]);
+  const canCreate = useMemo(
+    () => title.trim().length >= 3 && Boolean(profileId),
+    [profileId, title],
+  );
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      setItems(await listCases());
+      const [cases, profileRows] = await Promise.all([listCases(), listProfiles()]);
+      setItems(cases);
+      setProfiles(profileRows);
     } catch {
-      setError('Failed to load cases');
+      setError('Failed to load cases or profiles');
     } finally {
       setLoading(false);
     }
@@ -59,10 +68,12 @@ export default function Cases() {
     try {
       await createCase({
         title: title.trim(),
-        description: description.trim() || undefined,
+        profileId: profileId as string,
+        additionalNotes: additionalNotes.trim() || undefined,
       });
       setTitle('');
-      setDescription('');
+      setProfileId(null);
+      setAdditionalNotes('');
       await load();
     } catch {
       setError('Failed to create case');
@@ -93,13 +104,29 @@ export default function Cases() {
             value={title}
             onChange={(event) => setTitle(event.currentTarget.value)}
           />
+          <Select
+            label="Attached profile"
+            placeholder="Select profile"
+            data={profiles.map((profile) => ({
+              value: profile.id,
+              label: `${profile.desiredRole} to ${profile.targetCountry}${profile.targetCity ? `, ${profile.targetCity}` : ''}`,
+            }))}
+            value={profileId}
+            onChange={setProfileId}
+            searchable
+          />
+          {profiles.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No profiles found. Create a profile first, then open Cases again.
+            </Text>
+          ) : null}
           <Textarea
-            label="Context"
-            placeholder="Add goals, constraints, deadlines, visa context, or key questions."
+            label="Additional notes (optional)"
+            placeholder="Any details that are not already covered by profile."
             minRows={3}
             autosize
-            value={description}
-            onChange={(event) => setDescription(event.currentTarget.value)}
+            value={additionalNotes}
+            onChange={(event) => setAdditionalNotes(event.currentTarget.value)}
           />
           <Group justify="flex-end">
             <Button
@@ -124,9 +151,15 @@ export default function Cases() {
               <Group justify="space-between" align="start">
                 <Stack gap={0}>
                   <Text fw={700}>{item.title}</Text>
-                  {item.description ? (
+                  {item.profile ? (
+                    <Text size="sm" c="dimmed">
+                      Profile: {item.profile.desiredRole} to {item.profile.targetCountry}
+                      {item.profile.targetCity ? `, ${item.profile.targetCity}` : ''}
+                    </Text>
+                  ) : null}
+                  {item.additionalNotes ? (
                     <Text size="sm" c="dimmed" lineClamp={2}>
-                      {item.description}
+                      {item.additionalNotes}
                     </Text>
                   ) : null}
                 </Stack>

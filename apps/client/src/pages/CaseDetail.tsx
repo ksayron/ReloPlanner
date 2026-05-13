@@ -251,7 +251,14 @@ export default function CaseDetail() {
             Back to cases
           </Button>
           <Title order={2}>{item.title}</Title>
-          <Text c="dimmed">{item.description || 'No extra context provided.'}</Text>
+          <Text c="dimmed">
+            {item.profile
+              ? `Profile: ${item.profile.desiredRole} -> ${item.profile.targetCountry}${item.profile.targetCity ? `, ${item.profile.targetCity}` : ''}`
+              : 'No profile attached.'}
+          </Text>
+          {item.additionalNotes ? (
+            <Text c="dimmed">Notes: {item.additionalNotes}</Text>
+          ) : null}
         </Stack>
         <Badge color={statusColor[item.status] ?? 'gray'} variant="light" size="lg">
           {item.status.replaceAll('_', ' ')}

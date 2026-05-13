@@ -7,7 +7,8 @@ import type {
 
 export interface CreateCasePayload {
   title: string;
-  description?: string;
+  profileId: string;
+  additionalNotes?: string;
 }
 
 export async function listCases() {
@@ -22,6 +23,11 @@ export async function getCase(caseId: string) {
 
 export async function createCase(payload: CreateCasePayload) {
   const res = await client.post<RelocationCase>('/cases', payload);
+  return res.data;
+}
+
+export async function assignCaseToSelf(caseId: string) {
+  const res = await client.post<RelocationCase>(`/cases/${caseId}/assign-self`);
   return res.data;
 }
 

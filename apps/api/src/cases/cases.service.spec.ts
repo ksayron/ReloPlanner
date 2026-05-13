@@ -37,7 +37,7 @@ describe('CasesService', () => {
     await expect(
       service.createCase(
         { id: 'admin-1', role: 'ADMIN', email: 'admin@x.dev' },
-        { title: 'Case', description: 'desc' },
+        { title: 'Case', profileId: 'profile-1', additionalNotes: 'desc' },
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });

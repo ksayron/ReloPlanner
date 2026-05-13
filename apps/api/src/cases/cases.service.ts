@@ -4,6 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type {
+  CaseAttachedProfile,
+  CaseMessage,
+  CaseMessageKind,
+  RelocationCaseStatus,
+} from '@reloplanner/shared-contracts';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -18,14 +24,7 @@ type CaseActor = {
   email?: string;
 };
 
-type CaseStatus =
-  | 'DRAFT'
-  | 'SUBMITTED'
-  | 'IN_PROGRESS'
-  | 'NEEDS_USER_INPUT'
-  | 'ARCHIVED'
-  | 'CANCELED'
-  | 'COMPLETED';
+type CaseStatus = RelocationCaseStatus;
 
 @Injectable()
 export class CasesService {
@@ -37,12 +36,32 @@ export class CasesService {
 
   async createCase(actor: CaseActor, dto: CreateCaseDto) {
     this.assertClientRole(actor.role);
+    const profile = await this.prisma.relocationProfile.findFirst({
+      where: { id: dto.profileId, userId: actor.id },
+      select: { id: true },
+    });
+    if (!profile) {
+      throw new BadRequestException('Selected profile does not belong to current user');
+    }
+    const existingCase = await (this.prisma as any).relocationCase.findFirst({
+      where: {
+        ownerUserId: actor.id,
+        profileId: dto.profileId,
+        status: { notIn: ['ARCHIVED', 'CANCELED', 'COMPLETED'] },
+      },
+      select: { id: true },
+    });
+    if (existingCase) {
+      throw new BadRequestException('This profile is already attached to an active case');
+    }
+
     const created = await this.prisma.$transaction(async (tx: any) => {
       const caseRow = await tx.relocationCase.create({
         data: {
           ownerUserId: actor.id,
+          profileId: dto.profileId,
           title: dto.title.trim(),
-          description: dto.description?.trim() ?? null,
+          additionalNotes: dto.additionalNotes?.trim() ?? null,
           status: 'DRAFT',
         },
       });
@@ -73,7 +92,7 @@ export class CasesService {
       actor.role === 'ADMIN'
         ? {}
         : actor.role === 'SPECIALIST'
-          ? { specialistUserId: actor.id }
+          ? { status: { in: ['SUBMITTED', 'IN_PROGRESS', 'NEEDS_USER_INPUT'] } }
           : { ownerUserId: actor.id };
 
     const rows = await (this.prisma as any).relocationCase.findMany({
@@ -82,6 +101,15 @@ export class CasesService {
       include: {
         owner: { select: { id: true, email: true, displayName: true } },
         specialist: { select: { id: true, email: true, displayName: true } },
+        profile: {
+          select: {
+            id: true,
+            desiredRole: true,
+            targetCountry: true,
+            targetCity: true,
+            yearsExperience: true,
+          },
+        },
         readStates: {
           where: { userId: actor.id },
           select: { unreadCount: true, lastReadAt: true },
@@ -95,7 +123,9 @@ export class CasesService {
     return rows.map((row: any) => ({
       id: row.id,
       title: row.title,
-      description: row.description ?? null,
+      additionalNotes: row.additionalNotes ?? null,
+      profileId: row.profileId ?? null,
+      profile: row.profile ? this.mapProfile(row.profile) : null,
       status: row.status,
       owner: row.owner,
       specialist: row.specialist ?? null,
@@ -154,7 +184,9 @@ export class CasesService {
     return {
       id: caseRow.id,
       title: caseRow.title,
-      description: caseRow.description ?? null,
+      additionalNotes: caseRow.additionalNotes ?? null,
+      profileId: caseRow.profileId ?? null,
+      profile: caseRow.profile ? this.mapProfile(caseRow.profile) : null,
       status: caseRow.status,
       owner: caseRow.owner,
       specialist: caseRow.specialist ?? null,
@@ -252,6 +284,30 @@ export class CasesService {
     return this.getCase(actor, caseId);
   }
 
+  async assignToSelf(actor: CaseActor, caseId: string) {
+    if (actor.role !== 'SPECIALIST') {
+      throw new ForbiddenException('Only specialists can self-assign cases');
+    }
+    const caseRow = await this.findCaseStrict(caseId);
+    if (['ARCHIVED', 'CANCELED', 'COMPLETED'].includes(caseRow.status)) {
+      throw new BadRequestException('Cannot assign closed case');
+    }
+    if (caseRow.specialistUserId && caseRow.specialistUserId !== actor.id) {
+      throw new BadRequestException('Case is already assigned to another specialist');
+    }
+    if (caseRow.specialistUserId === actor.id) {
+      return this.getCase(actor, caseId);
+    }
+    await this.applySpecialistAssignment({
+      actor,
+      caseRow,
+      specialistUserId: actor.id,
+      specialistEmail: actor.email ?? 'specialist',
+      reassign: false,
+    });
+    return this.getCase(actor, caseId);
+  }
+
   async assignSpecialist(
     actor: CaseActor,
     caseId: string,
@@ -326,6 +382,9 @@ export class CasesService {
 
   async postMessage(actor: CaseActor, caseId: string, dto: PostCaseMessageDto) {
     const caseRow = await this.findCaseForActor(actor, caseId);
+    if (actor.role === 'SPECIALIST' && caseRow.specialistUserId !== actor.id) {
+      throw new ForbiddenException('Assign case to yourself before replying in chat');
+    }
     const content = dto.content.trim();
     if (!content) {
       throw new BadRequestException('Message cannot be empty');
@@ -540,11 +599,11 @@ export class CasesService {
       return { updatedCase, message };
     });
 
-    const messagePayload = {
+    const messagePayload: CaseMessage = {
       id: result.message.id,
       caseId: input.caseId,
       author: null,
-      kind: 'SYSTEM',
+      kind: 'SYSTEM' as CaseMessageKind,
       content: result.message.content,
       metadata:
         result.message.metadata && typeof result.message.metadata === 'object'
@@ -656,18 +715,23 @@ export class CasesService {
       return { updatedCase, message, participantsAfter };
     });
 
-    this.realtime.emitToCase(input.caseRow.id, 'case.system.created', {
+    const messagePayload: CaseMessage = {
       id: result.message.id,
       caseId: input.caseRow.id,
       author: null,
-      kind: 'SYSTEM',
+      kind: 'SYSTEM' as CaseMessageKind,
       content: result.message.content,
       metadata:
         result.message.metadata && typeof result.message.metadata === 'object'
           ? (result.message.metadata as Record<string, unknown>)
           : null,
       createdAt: new Date(result.message.createdAt).toISOString(),
-    });
+    };
+    this.realtime.emitToCase(
+      input.caseRow.id,
+      'case.system.created',
+      messagePayload,
+    );
 
     const notificationRecipients = new Set<string>([
       ...participantsBefore,
@@ -754,12 +818,28 @@ export class CasesService {
     ];
   }
 
-  private mapMessage(row: any) {
+  private mapProfile(row: {
+    id: string;
+    desiredRole: string;
+    targetCountry: string;
+    targetCity: string | null;
+    yearsExperience: number;
+  }): CaseAttachedProfile {
+    return {
+      id: row.id,
+      desiredRole: row.desiredRole,
+      targetCountry: row.targetCountry,
+      targetCity: row.targetCity,
+      yearsExperience: row.yearsExperience,
+    };
+  }
+
+  private mapMessage(row: any): CaseMessage {
     return {
       id: row.id,
       caseId: row.caseId,
       author: row.author ?? null,
-      kind: row.kind,
+      kind: row.kind as CaseMessageKind,
       content: row.content,
       metadata:
         row.metadata && typeof row.metadata === 'object'
@@ -801,6 +881,15 @@ export class CasesService {
         specialist: {
           select: { id: true, email: true, displayName: true, role: true },
         },
+        profile: {
+          select: {
+            id: true,
+            desiredRole: true,
+            targetCountry: true,
+            targetCity: true,
+            yearsExperience: true,
+          },
+        },
       },
     });
     if (!caseRow) {
@@ -818,7 +907,12 @@ export class CasesService {
     const isOwner = caseRow.ownerUserId === actor.id;
     const isSpecialist = caseRow.specialistUserId === actor.id;
     const isAdmin = actor.role === 'ADMIN';
-    if (!isOwner && !isSpecialist && !isAdmin) {
+    const isSpecialistPoolAccess =
+      actor.role === 'SPECIALIST' &&
+      ['SUBMITTED', 'IN_PROGRESS', 'NEEDS_USER_INPUT'].includes(
+        caseRow.status as string,
+      );
+    if (!isOwner && !isSpecialist && !isAdmin && !isSpecialistPoolAccess) {
       throw new ForbiddenException('No access to this case');
     }
     if (options?.ownerWrite && !isOwner) {

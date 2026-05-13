@@ -15,6 +15,13 @@ import {
 import { ReplaySubject, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 
+const JOB_TYPES: ProcessingJobType[] = [
+  'PROFILE_ANALYSIS',
+  'MARKET_SYNC',
+  'REPORT_GENERATION',
+  'RESUME_PROFILE_PARSE',
+];
+
 @Injectable()
 export class JobsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(JobsService.name);
@@ -85,6 +92,32 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     return snapshot;
   }
 
+  async getJobById(jobId: string): Promise<ProcessingJobSnapshot> {
+    const processingJobModel = (this.prisma as any).processingJob;
+    const job = await processingJobModel.findUnique({
+      where: { id: jobId },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Processing job not found');
+    }
+
+    const snapshot = this.toSnapshot(job);
+    this.publishSnapshot(snapshot);
+    return snapshot;
+  }
+
+  async getJobRecordById(jobId: string): Promise<any> {
+    const processingJobModel = (this.prisma as any).processingJob;
+    const job = await processingJobModel.findUnique({
+      where: { id: jobId },
+    });
+    if (!job) {
+      throw new NotFoundException('Processing job not found');
+    }
+    return job;
+  }
+
   observeJob(jobId: string) {
     return this.getOrCreateStream(jobId).asObservable();
   }
@@ -149,6 +182,216 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     const snapshot = this.toSnapshot(job);
     this.publishSnapshot(snapshot);
     return snapshot;
+  }
+
+  async getQueueDashboard(limit: number): Promise<{
+    generatedAt: Date;
+    stuckThresholdMinutes: number;
+    totals: {
+      all: number;
+      pending: number;
+      running: number;
+      completedLast24h: number;
+      failedLast24h: number;
+    };
+    throughput: {
+      completedLastHour: number;
+      failedLastHour: number;
+      completedLast24h: number;
+      failedLast24h: number;
+    };
+    queue: {
+      pending: number;
+      running: number;
+      stuck: number;
+      oldestPendingCreatedAt: Date | null;
+    };
+    byType: Array<{
+      type: ProcessingJobType;
+      pending: number;
+      running: number;
+      completedLast24h: number;
+      failedLast24h: number;
+      total: number;
+    }>;
+    active: Array<
+      ProcessingJobSnapshot & {
+        runSeconds: number | null;
+        isPossiblyStuck: boolean;
+      }
+    >;
+    recent: Array<
+      ProcessingJobSnapshot & {
+        durationSeconds: number | null;
+        ageSeconds: number;
+        isRetryable: boolean;
+      }
+    >;
+  }> {
+    const now = Date.now();
+    const oneHourAgo = new Date(now - 60 * 60 * 1000);
+    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
+    const stuckThresholdMinutes = 30;
+    const stuckThresholdDate = new Date(now - stuckThresholdMinutes * 60 * 1000);
+    const safeLimit = Math.min(Math.max(limit, 5), 100);
+    const processingJobModel = (this.prisma as any).processingJob;
+
+    const [
+      allCount,
+      pendingCount,
+      runningCount,
+      completedLast24h,
+      failedLast24h,
+      completedLastHour,
+      failedLastHour,
+      activeRows,
+      recentRows,
+      oldestPending,
+      stuckCount,
+    ] = await Promise.all([
+      processingJobModel.count(),
+      processingJobModel.count({ where: { status: 'PENDING' as any } }),
+      processingJobModel.count({ where: { status: 'RUNNING' as any } }),
+      processingJobModel.count({
+        where: { status: 'COMPLETED' as any, updatedAt: { gte: oneDayAgo } },
+      }),
+      processingJobModel.count({
+        where: { status: 'FAILED' as any, updatedAt: { gte: oneDayAgo } },
+      }),
+      processingJobModel.count({
+        where: { status: 'COMPLETED' as any, updatedAt: { gte: oneHourAgo } },
+      }),
+      processingJobModel.count({
+        where: { status: 'FAILED' as any, updatedAt: { gte: oneHourAgo } },
+      }),
+      processingJobModel.findMany({
+        where: { status: { in: ['PENDING', 'RUNNING'] } },
+        orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+        take: 50,
+      }),
+      processingJobModel.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: safeLimit,
+      }),
+      processingJobModel.findFirst({
+        where: { status: 'PENDING' as any },
+        orderBy: { createdAt: 'asc' },
+      }),
+      processingJobModel.count({
+        where: {
+          status: 'RUNNING' as any,
+          startedAt: { lte: stuckThresholdDate },
+        },
+      }),
+    ]);
+
+    const byType = await Promise.all(
+      JOB_TYPES.map(async (type) => {
+        const [pending, running, completed24h, failed24h, total] =
+          await Promise.all([
+            processingJobModel.count({
+              where: { type: type as any, status: 'PENDING' as any },
+            }),
+            processingJobModel.count({
+              where: { type: type as any, status: 'RUNNING' as any },
+            }),
+            processingJobModel.count({
+              where: {
+                type: type as any,
+                status: 'COMPLETED' as any,
+                updatedAt: { gte: oneDayAgo },
+              },
+            }),
+            processingJobModel.count({
+              where: {
+                type: type as any,
+                status: 'FAILED' as any,
+                updatedAt: { gte: oneDayAgo },
+              },
+            }),
+            processingJobModel.count({ where: { type: type as any } }),
+          ]);
+        return {
+          type,
+          pending,
+          running,
+          completedLast24h: completed24h,
+          failedLast24h: failed24h,
+          total,
+        };
+      }),
+    );
+
+    return {
+      generatedAt: new Date(now),
+      stuckThresholdMinutes,
+      totals: {
+        all: allCount,
+        pending: pendingCount,
+        running: runningCount,
+        completedLast24h,
+        failedLast24h,
+      },
+      throughput: {
+        completedLastHour,
+        failedLastHour,
+        completedLast24h,
+        failedLast24h,
+      },
+      queue: {
+        pending: pendingCount,
+        running: runningCount,
+        stuck: stuckCount,
+        oldestPendingCreatedAt: oldestPending?.createdAt ?? null,
+      },
+      byType,
+      active: activeRows.map((row: any) => {
+        const snapshot = this.toSnapshot(row);
+        const startedAt = snapshot.startedAt ?? snapshot.createdAt;
+        const runSeconds = startedAt
+          ? Math.max(
+              0,
+              Math.floor((now - new Date(startedAt).getTime()) / 1000),
+            )
+          : null;
+        return {
+          ...snapshot,
+          runSeconds,
+          isPossiblyStuck:
+            snapshot.status === 'RUNNING' &&
+            snapshot.startedAt != null &&
+            new Date(snapshot.startedAt).getTime() <=
+              stuckThresholdDate.getTime(),
+        };
+      }),
+      recent: recentRows.map((row: any) => {
+        const snapshot = this.toSnapshot(row);
+        const start = snapshot.startedAt ?? snapshot.createdAt;
+        const end = snapshot.completedAt ?? snapshot.updatedAt;
+        const durationSeconds =
+          start && end
+            ? Math.max(
+                0,
+                Math.floor(
+                  (new Date(end).getTime() - new Date(start).getTime()) / 1000,
+                ),
+              )
+            : null;
+        return {
+          ...snapshot,
+          durationSeconds,
+          ageSeconds: Math.max(
+            0,
+            Math.floor((now - new Date(snapshot.createdAt).getTime()) / 1000),
+          ),
+          isRetryable:
+            snapshot.status === 'FAILED' &&
+            (snapshot.type === 'PROFILE_ANALYSIS' ||
+              snapshot.type === 'MARKET_SYNC' ||
+              snapshot.type === 'REPORT_GENERATION'),
+        };
+      }),
+    };
   }
 
   private enqueueEvent(event: ProcessingJobDomainEvent) {

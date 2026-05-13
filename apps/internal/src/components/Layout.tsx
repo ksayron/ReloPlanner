@@ -65,13 +65,15 @@ export default function Layout() {
   const adminLinks = useMemo(() => {
     const links = [
       { to: '/cases', label: 'Cases' },
+      { to: '/chats', label: 'Chats' },
       { to: '/sync', label: 'Sync' },
+      { to: '/system', label: 'System' },
       { to: '/taxonomy', label: 'Taxonomy' },
       { to: '/market', label: 'Market' },
       { to: '/users', label: 'Users' },
     ];
     if (user?.role === 'SPECIALIST') {
-      return links.filter((link) => link.to === '/cases');
+      return links.filter((link) => link.to === '/cases' || link.to === '/chats');
     }
     return links;
   }, [user?.role]);
@@ -135,7 +137,7 @@ export default function Layout() {
           <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between px-4">
             <Group gap="md">
               <Burger opened={opened} onClick={toggle} size="sm" aria-label="Open internal menu" />
-              <Anchor component={RouterLink} to="/sync" underline="never">
+              <Anchor component={RouterLink} to="/cases" underline="never">
                 <Title order={3} c="brand.7">
                   ReloPlanner Internal
                 </Title>

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { NotificationItem, NotificationType } from '@reloplanner/shared-contracts';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 
@@ -114,12 +115,12 @@ export class NotificationsService {
     return results;
   }
 
-  private toDto(row: any) {
+  private toDto(row: any): NotificationItem {
     return {
       id: row.id as string,
       userId: row.userId as string,
       caseId: (row.caseId as string | null) ?? null,
-      type: row.type as string,
+      type: row.type as NotificationType,
       title: row.title as string,
       body: row.body as string,
       isRead: Boolean(row.isRead),
