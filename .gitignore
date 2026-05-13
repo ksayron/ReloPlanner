@@ -14,6 +14,7 @@ coverage/
 out/
 tmp/
 temp/
+.vite/
 
 # Logs
 *.log

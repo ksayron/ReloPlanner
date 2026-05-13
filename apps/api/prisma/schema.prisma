@@ -1,0 +1,867 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7 datasource URL is configured in prisma.config.ts
+}
+
+enum Role {
+  USER
+  PREMIUM
+  ADMIN
+  SPECIALIST
+}
+
+enum PlanCode {
+  FREE
+  PREMIUM
+}
+
+enum BillingPeriod {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+  CANCELED
+}
+
+enum PaymentProvider {
+  STRIPE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum SkillCategory {
+  HARD_SKILL
+  LANGUAGE
+  CERTIFICATION
+  SOFT_SKILL
+}
+
+enum CompetencyType {
+  HARD_SKILL
+  LANGUAGE
+  CERTIFICATION
+  DOMAIN_KNOWLEDGE
+  SOFT_SKILL
+}
+
+enum HardSkillLevel {
+  NONE
+  BASIC
+  PRACTICAL
+  CONFIDENT
+  ADVANCED
+}
+
+enum LanguageLevel {
+  NONE
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+}
+
+enum CertificationStatus {
+  NONE
+  PLANNED
+  IN_PROGRESS
+  OBTAINED
+  EXPIRED
+}
+
+enum CertificationRequirementLevel {
+  OPTIONAL
+  PREFERRED
+  REQUIRED
+}
+
+enum RequirementPriority {
+  CORE
+  IMPORTANT
+  OPTIONAL
+  CONTEXTUAL
+}
+
+enum RoleRelevance {
+  CORE
+  RELATED
+  WEAKLY_RELATED
+  IRRELEVANT
+}
+
+enum RecommendationType {
+  ACTIONABLE_GAP
+  OPTIONAL_IMPROVEMENT
+  MARKET_CONTEXT
+  EXCLUDED_AS_IRRELEVANT
+}
+
+enum LanguageRequirementContext {
+  JOB_MARKET
+  RELOCATION_ADAPTATION
+  LEGAL_OR_ADMIN
+  OPTIONAL_ADVANTAGE
+}
+
+enum CountryLanguageRelevance {
+  PRIMARY
+  BUSINESS_COMMON
+  MINORITY
+  IRRELEVANT
+}
+
+enum GapType {
+  HARD_SKILL
+  LANGUAGE
+  CERTIFICATION
+  EXPERIENCE
+}
+
+enum Severity {
+  CRITICAL
+  MODERATE
+  MINOR
+}
+
+enum GapStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum CostCategory {
+  RENT
+  FOOD
+  TRANSPORT
+  UTILITIES
+  OTHER
+}
+
+enum KnowledgeCategory {
+  VISA
+  LEGAL
+  COST
+  JOB
+  CV
+  LANGUAGE
+  HOUSING
+}
+
+enum KnowledgeAccessLevel {
+  FREE
+  PREMIUM
+}
+
+enum ProcessingJobType {
+  PROFILE_ANALYSIS
+  MARKET_SYNC
+  REPORT_GENERATION
+  RESUME_PROFILE_PARSE
+}
+
+enum ProcessingJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum CurrencyCode {
+  USD
+  EUR
+  GBP
+  CAD
+  PLN
+  UAH
+}
+
+enum LifestyleProfile {
+  FRUGAL
+  STANDARD
+  COMFORTABLE
+}
+
+enum RelocationCaseStatus {
+  DRAFT
+  SUBMITTED
+  IN_PROGRESS
+  NEEDS_USER_INPUT
+  ARCHIVED
+  CANCELED
+  COMPLETED
+}
+
+enum CaseActivityType {
+  CASE_CREATED
+  CASE_SUBMITTED
+  CASE_ARCHIVED
+  CASE_CANCELED
+  CASE_STATUS_CHANGED
+  SPECIALIST_ASSIGNED
+  SPECIALIST_REASSIGNED
+  MESSAGE_POSTED
+  MESSAGE_READ
+}
+
+enum CaseMessageKind {
+  USER
+  SPECIALIST
+  SYSTEM
+}
+
+enum NotificationType {
+  CASE_ASSIGNED
+  CASE_REASSIGNED
+  CASE_STATUS_CHANGED
+  CASE_MESSAGE
+  CASE_SYSTEM
+}
+
+enum DirectChatMessageKind {
+  USER
+  SPECIALIST
+  SYSTEM
+}
+
+model User {
+  id                              String              @id @default(uuid())
+  email                           String              @unique
+  displayName                     String?             @map("display_name")
+  passwordHash                    String?             @map("password_hash")
+  isBlocked                       Boolean             @default(false) @map("is_blocked")
+  githubId                        String?             @unique @map("github_id")
+  githubLogin                     String?             @map("github_login")
+  googleId                        String?             @unique @map("google_id")
+  googleEmail                     String?             @map("google_email")
+  emailVerifiedAt                 DateTime?           @map("email_verified_at")
+  emailVerificationTokenHash      String?             @unique @map("email_verification_token_hash")
+  emailVerificationTokenExpiresAt DateTime?           @map("email_verification_token_expires_at")
+  role                            Role                @default(USER)
+  createdAt                       DateTime            @default(now()) @map("created_at")
+  profiles                        RelocationProfile[]
+  processingJobs                  ProcessingJob[]
+  subscriptions                   Subscription[]
+  payments                        Payment[]
+  preferences                     UserPreference?
+  ownedCases                      RelocationCase[]   @relation("CaseOwner")
+  assignedCases                   RelocationCase[]   @relation("CaseSpecialist")
+  caseActivities                  CaseActivity[]
+  caseMessages                    CaseMessage[]
+  caseReadStates                  CaseReadState[]
+  notifications                   Notification[]
+  directClientThreads             DirectChatThread[] @relation("DirectChatClient")
+  directSpecialistThreads         DirectChatThread[] @relation("DirectChatSpecialist")
+  directChatMessages              DirectChatMessage[]
+
+  @@map("users")
+}
+
+model UserPreference {
+  id                    String       @id @default(uuid())
+  userId                String       @unique @map("user_id")
+  preferredLanguage     String       @default("en") @map("preferred_language")
+  preferredTheme        String       @default("light") @map("preferred_theme")
+  preferredCurrency     CurrencyCode @default(USD) @map("preferred_currency")
+  defaultTargetCountry  String?      @map("default_target_country")
+  defaultTargetCity     String?      @map("default_target_city")
+  weeklyStudyHours      Int          @default(8) @map("weekly_study_hours") @db.SmallInt
+  preferredReportLanguage String     @default("en") @map("preferred_report_language")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+  user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model Plan {
+  id            String               @id @default(uuid())
+  code          PlanCode             @unique
+  name          String
+  price         Decimal              @db.Decimal(10, 2)
+  currency      CurrencyCode
+  billingPeriod BillingPeriod        @default(MONTHLY) @map("billing_period")
+  isActive      Boolean              @default(true) @map("is_active")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+  entitlements  FeatureEntitlement[]
+  subscriptions Subscription[]
+  payments      Payment[]
+
+  @@map("plans")
+}
+
+model FeatureEntitlement {
+  id          String   @id @default(uuid())
+  planId      String   @map("plan_id")
+  featureCode String   @map("feature_code")
+  isEnabled   Boolean  @default(false) @map("is_enabled")
+  limitValue  Int?     @map("limit_value")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  plan        Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureCode])
+  @@index([featureCode])
+  @@map("feature_entitlements")
+}
+
+model Subscription {
+  id                     String             @id @default(uuid())
+  userId                 String             @map("user_id")
+  planId                 String             @map("plan_id")
+  status                 SubscriptionStatus @default(ACTIVE)
+  startedAt              DateTime           @default(now()) @map("started_at")
+  expiresAt              DateTime?          @map("expires_at")
+  canceledAt             DateTime?          @map("canceled_at")
+  provider               PaymentProvider    @default(STRIPE)
+  providerSubscriptionId String?            @map("provider_subscription_id")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                   Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  payments               Payment[]
+
+  @@index([userId, status, expiresAt])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                        String          @id @default(uuid())
+  userId                    String          @map("user_id")
+  planId                    String          @map("plan_id")
+  subscriptionId            String?         @map("subscription_id")
+  provider                  PaymentProvider @default(STRIPE)
+  providerPaymentId         String?         @map("provider_payment_id")
+  providerCheckoutSessionId String          @unique @map("provider_checkout_session_id")
+  amount                    Decimal         @db.Decimal(10, 2)
+  currency                  CurrencyCode
+  status                    PaymentStatus   @default(PENDING)
+  failureCode               String?         @map("failure_code")
+  failureMessage            String?         @map("failure_message")
+  metadata                  Json?
+  createdAt                 DateTime        @default(now()) @map("created_at")
+  updatedAt                 DateTime        @updatedAt @map("updated_at")
+  user                      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                      Plan            @relation(fields: [planId], references: [id], onDelete: Restrict)
+  subscription              Subscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("payments")
+}
+
+model RelocationProfile {
+  id                           String             @id @default(uuid())
+  userId                       String             @map("user_id")
+  targetCountry                String             @map("target_country")
+  targetCity                   String?            @map("target_city")
+  currentCountry               String             @map("current_country")
+  yearsExperience              Int                @map("years_experience") @db.SmallInt
+  desiredRole                  String             @map("desired_role")
+  savingsAmount                Decimal?           @map("savings_amount") @db.Decimal(12, 2)
+  savingsCurrency              CurrencyCode?      @map("savings_currency")
+  monthlyBudgetAmount          Decimal?           @map("monthly_budget_amount") @db.Decimal(12, 2)
+  monthlyBudgetCurrency        CurrencyCode?      @map("monthly_budget_currency")
+  expectedNetSalaryAmount      Decimal?           @map("expected_net_salary_amount") @db.Decimal(12, 2)
+  expectedNetSalaryCurrency    CurrencyCode?      @map("expected_net_salary_currency")
+  dependentsCount              Int?               @map("dependents_count") @db.SmallInt
+  lifestyle                    LifestyleProfile?  @map("lifestyle")
+  jobSearchMonths              Int?               @map("job_search_months") @db.SmallInt
+  hasExistingWorkAuthorization Boolean?           @map("has_existing_work_authorization")
+  hasJobOffer                  Boolean?           @map("has_job_offer")
+  hasRecognizedDegree          Boolean?           @map("has_recognized_degree")
+  hasFormalEducation           Boolean?           @map("has_formal_education")
+  relocationWithFamily         Boolean?           @map("relocation_with_family")
+  createdAt                    DateTime           @default(now()) @map("created_at")
+  user                         User               @relation(fields: [userId], references: [id])
+  skills                       UserSkill[]
+  competencies                 UserCompetency[]
+  analyses                     AnalysisResult[]
+  attachedCase                 RelocationCase?
+
+  @@map("relocation_profiles")
+}
+
+model Competency {
+  id                   String                  @id @default(uuid())
+  name                 String                  @unique
+  type                 CompetencyType
+  family               String?
+  parentId             String?                 @map("parent_id")
+  parent               Competency?             @relation("CompetencyHierarchy", fields: [parentId], references: [id])
+  children             Competency[]            @relation("CompetencyHierarchy")
+  legacySkillId        String?                 @unique @map("legacy_skill_id")
+  userCompetencies     UserCompetency[]
+  marketRequirements   MarketRequirement[]
+  countryLanguageLinks CountryLanguage[]
+  effortProfiles       LearningEffortProfile[]
+  analysisItems        AnalysisItem[]
+  roadmapSteps         RoadmapStep[]
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  @@map("competencies")
+}
+
+model UserCompetency {
+  id                  String               @id @default(uuid())
+  profileId           String               @map("profile_id")
+  competencyId        String               @map("competency_id")
+  hardSkillLevel      HardSkillLevel?      @map("hard_skill_level")
+  languageLevel       LanguageLevel?       @map("language_level")
+  certificationStatus CertificationStatus? @map("certification_status")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  profile             RelocationProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  competency          Competency           @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, competencyId])
+  @@map("user_competencies")
+}
+
+model Skill {
+  id            String                 @id @default(uuid())
+  name          String                 @unique
+  category      SkillCategory
+  parentId      String?                @map("parent_id")
+  parent        Skill?                 @relation("SkillHierarchy", fields: [parentId], references: [id])
+  children      Skill[]                @relation("SkillHierarchy")
+  aliases       SkillAlias[]
+  userSkills    UserSkill[]
+  marketDemands MarketSkillDemand[]
+  gapItems      GapItem[]
+  transfersFrom SkillTransferability[] @relation("TransferSource")
+  transfersTo   SkillTransferability[] @relation("TransferTarget")
+
+  @@map("skills")
+}
+
+model SkillAlias {
+  id      String @id @default(uuid())
+  alias   String @unique
+  skillId String @map("skill_id")
+  skill   Skill  @relation(fields: [skillId], references: [id])
+
+  @@map("skill_aliases")
+}
+
+model SkillTransferability {
+  sourceSkillId String  @map("source_skill_id")
+  targetSkillId String  @map("target_skill_id")
+  coefficient   Decimal @db.Decimal(3, 2)
+  sourceSkill   Skill   @relation("TransferSource", fields: [sourceSkillId], references: [id])
+  targetSkill   Skill   @relation("TransferTarget", fields: [targetSkillId], references: [id])
+
+  @@id([sourceSkillId, targetSkillId])
+  @@map("skill_transferability")
+}
+
+model UserSkill {
+  profileId   String            @map("profile_id")
+  skillId     String            @map("skill_id")
+  proficiency Decimal           @db.Decimal(3, 2)
+  profile     RelocationProfile @relation(fields: [profileId], references: [id])
+  skill       Skill             @relation(fields: [skillId], references: [id])
+
+  @@id([profileId, skillId])
+  @@map("user_skills")
+}
+
+model MarketSnapshot {
+  id             String              @id @default(uuid())
+  country        String
+  city           String?
+  snapshotDate   DateTime            @map("snapshot_date") @db.Date
+  source         String
+  totalVacancies Int                 @map("total_vacancies")
+  skillDemands   MarketSkillDemand[]
+  requirements   MarketRequirement[]
+  analyses       AnalysisResult[]
+
+  @@map("market_snapshots")
+}
+
+model MarketRequirement {
+  id                            String                         @id @default(uuid())
+  snapshotId                    String?                        @map("snapshot_id")
+  countryCode                   String                         @map("country_code")
+  roleName                      String                         @map("role_name")
+  competencyId                  String                         @map("competency_id")
+  competencyType                CompetencyType                 @map("competency_type")
+  hardSkillRequiredLevel        HardSkillLevel?                @map("hard_skill_required_level")
+  languageRequiredLevel         LanguageLevel?                 @map("language_required_level")
+  certificationRequirementLevel CertificationRequirementLevel? @map("certification_requirement_level")
+  requiredCertificationStatus   CertificationStatus?           @map("required_certification_status")
+  priority                      RequirementPriority
+  roleRelevance                 RoleRelevance                  @map("role_relevance")
+  languageContext               LanguageRequirementContext?    @map("language_context")
+  frequency                     Decimal                        @db.Decimal(5, 4)
+  importance                    Decimal                        @db.Decimal(5, 4)
+  isActive                      Boolean                        @default(true) @map("is_active")
+  createdAt                     DateTime                       @default(now()) @map("created_at")
+  updatedAt                     DateTime                       @updatedAt @map("updated_at")
+  snapshot                      MarketSnapshot?                @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+  competency                    Competency                     @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  @@unique([countryCode, roleName, competencyId])
+  @@index([countryCode, roleName, isActive])
+  @@map("market_requirements")
+}
+
+model CountryLanguage {
+  id                   String                   @id @default(uuid())
+  countryCode          String                   @map("country_code")
+  languageCompetencyId String                   @map("language_competency_id")
+  relevance            CountryLanguageRelevance
+  languageCompetency   Competency               @relation(fields: [languageCompetencyId], references: [id], onDelete: Cascade)
+
+  @@unique([countryCode, languageCompetencyId])
+  @@map("country_languages")
+}
+
+model RoleCompetencyRule {
+  id               String              @id @default(uuid())
+  roleName         String              @map("role_name")
+  competencyFamily String              @map("competency_family")
+  defaultRelevance RoleRelevance       @map("default_relevance")
+  defaultPriority  RequirementPriority @map("default_priority")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  @@unique([roleName, competencyFamily])
+  @@map("role_competency_rules")
+}
+
+model LearningEffortProfile {
+  id             String     @id @default(uuid())
+  competencyId   String     @map("competency_id")
+  targetLevel    String     @map("target_level")
+  estimatedHours Int        @map("estimated_hours")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  competency     Competency @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  @@unique([competencyId, targetLevel])
+  @@map("learning_effort_profiles")
+}
+
+model MarketSkillDemand {
+  snapshotId       String         @map("snapshot_id")
+  skillId          String         @map("skill_id")
+  frequency        Decimal        @db.Decimal(5, 4)
+  avgRequiredLevel Decimal        @map("avg_required_level") @db.Decimal(3, 2)
+  snapshot         MarketSnapshot @relation(fields: [snapshotId], references: [id])
+  skill            Skill          @relation(fields: [skillId], references: [id])
+
+  @@id([snapshotId, skillId])
+  @@map("market_skill_demands")
+}
+
+model CostOfLivingData {
+  id            String       @id @default(uuid())
+  country       String
+  city          String
+  category      CostCategory
+  avgMonthlyUsd Decimal      @map("avg_monthly_usd") @db.Decimal(10, 2)
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  @@map("cost_of_living_data")
+}
+
+model AnalysisResult {
+  id              String             @id @default(uuid())
+  profileId       String             @map("profile_id")
+  snapshotId      String             @map("snapshot_id")
+  fitScore        Decimal            @map("fit_score") @db.Decimal(4, 3)
+  skillBreakdown  Json               @map("skill_breakdown")
+  totalPrepMonths Decimal            @map("total_prep_months") @db.Decimal(4, 1)
+  timeEstimate    Json?              @map("time_estimate")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  profile         RelocationProfile  @relation(fields: [profileId], references: [id])
+  snapshot        MarketSnapshot     @relation(fields: [snapshotId], references: [id])
+  gaps            GapItem[]
+  analysisItems   AnalysisItem[]
+  roadmapSteps    RoadmapStep[]
+  aiSummary       AnalysisAiSummary?
+
+  @@map("analysis_results")
+}
+
+model AnalysisAiSummary {
+  id          String         @id @default(uuid())
+  analysisId  String         @unique @map("analysis_id")
+  summaryJson Json           @map("summary_json")
+  metaJson    Json           @map("meta_json")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  analysis    AnalysisResult @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@map("analysis_ai_summaries")
+}
+
+model AnalysisItem {
+  id                      String              @id @default(uuid())
+  analysisId              String              @map("analysis_id")
+  competencyId            String              @map("competency_id")
+  currentDisplayLevel     String              @map("current_display_level")
+  requiredDisplayLevel    String              @map("required_display_level")
+  normalizedCurrentScore  Decimal             @map("normalized_current_score") @db.Decimal(4, 3)
+  normalizedRequiredScore Decimal             @map("normalized_required_score") @db.Decimal(4, 3)
+  matchScore              Decimal             @map("match_score") @db.Decimal(4, 3)
+  priority                RequirementPriority
+  roleRelevance           RoleRelevance       @map("role_relevance")
+  recommendationType      RecommendationType  @map("recommendation_type")
+  includedInRoadmap       Boolean             @map("included_in_roadmap")
+  reason                  String
+  weight                  Decimal             @db.Decimal(6, 4)
+  createdAt               DateTime            @default(now()) @map("created_at")
+  analysis                AnalysisResult      @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  competency              Competency          @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId, recommendationType])
+  @@map("analysis_items")
+}
+
+model RoadmapStep {
+  id                   String              @id @default(uuid())
+  analysisId           String              @map("analysis_id")
+  competencyId         String              @map("competency_id")
+  orderIndex           Int                 @map("order_index") @db.SmallInt
+  estimatedHours       Int                 @map("estimated_hours")
+  estimatedMonths      Decimal             @map("estimated_months") @db.Decimal(4, 1)
+  dependsOn            String[]            @map("depends_on")
+  priority             RequirementPriority
+  roleRelevance        RoleRelevance       @map("role_relevance")
+  recommendationType   RecommendationType  @map("recommendation_type")
+  currentDisplayLevel  String              @map("current_display_level")
+  requiredDisplayLevel String              @map("required_display_level")
+  reason               String
+  status               GapStatus           @default(PENDING)
+  createdAt            DateTime            @default(now()) @map("created_at")
+  analysis             AnalysisResult      @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  competency           Competency          @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId, orderIndex])
+  @@map("roadmap_steps")
+}
+
+model GapItem {
+  id              String         @id @default(uuid())
+  analysisId      String         @map("analysis_id")
+  skillId         String         @map("skill_id")
+  gapType         GapType        @map("gap_type")
+  severity        Severity
+  currentLevel    Decimal        @map("current_level") @db.Decimal(3, 2)
+  requiredLevel   Decimal        @map("required_level") @db.Decimal(3, 2)
+  estimatedMonths Decimal        @map("estimated_months") @db.Decimal(3, 1)
+  dependsOn       String[]       @map("depends_on")
+  orderIndex      Int            @map("order_index") @db.SmallInt
+  status          GapStatus      @default(PENDING)
+  analysis        AnalysisResult @relation(fields: [analysisId], references: [id])
+  skill           Skill          @relation(fields: [skillId], references: [id])
+
+  @@map("gap_items")
+}
+
+model ProcessingJob {
+  id              String              @id @default(uuid())
+  userId          String              @map("user_id")
+  type            ProcessingJobType
+  status          ProcessingJobStatus @default(PENDING)
+  currentStep     String              @map("current_step")
+  progressPercent Int                 @default(0) @map("progress_percent")
+  errorMessage    String?             @map("error_message")
+  payload         Json?
+  result          Json?
+  startedAt       DateTime?           @map("started_at")
+  completedAt     DateTime?           @map("completed_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("processing_jobs")
+}
+
+model JobPosting {
+  id                       String   @id @default(uuid())
+  countryCode              String   @map("country_code")
+  roleName                 String   @map("role_name")
+  title                    String
+  company                  String
+  location                 String
+  source                   String
+  sourceUrl                String?  @map("source_url")
+  sourceExternalId         String?  @map("source_external_id")
+  salaryMinUsd             Int?     @map("salary_min_usd")
+  salaryMaxUsd             Int?     @map("salary_max_usd")
+  salaryCurrency           String?  @map("salary_currency")
+  requirements             Json
+  requirementCompetencyIds String[] @default([]) @map("requirement_competency_ids")
+  dedupKey                 String   @unique @map("dedup_key")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@index([countryCode, roleName, createdAt])
+  @@map("job_postings")
+}
+
+model RelocationCase {
+  id               String               @id @default(uuid())
+  ownerUserId      String               @map("owner_user_id")
+  specialistUserId String?              @map("specialist_user_id")
+  profileId        String?              @unique @map("profile_id")
+  title            String
+  additionalNotes  String?              @map("description")
+  status           RelocationCaseStatus @default(DRAFT)
+  submittedAt      DateTime?            @map("submitted_at")
+  archivedAt       DateTime?            @map("archived_at")
+  canceledAt       DateTime?            @map("canceled_at")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  owner            User                 @relation("CaseOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  specialist       User?                @relation("CaseSpecialist", fields: [specialistUserId], references: [id], onDelete: SetNull)
+  profile          RelocationProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  activities       CaseActivity[]
+  messages         CaseMessage[]
+  readStates       CaseReadState[]
+  notifications    Notification[]
+
+  @@index([ownerUserId, status, updatedAt])
+  @@index([specialistUserId, status, updatedAt])
+  @@map("relocation_cases")
+}
+
+model CaseActivity {
+  id          String           @id @default(uuid())
+  caseId      String           @map("case_id")
+  actorUserId String?          @map("actor_user_id")
+  type        CaseActivityType
+  statusFrom  RelocationCaseStatus? @map("status_from")
+  statusTo    RelocationCaseStatus? @map("status_to")
+  metadata    Json?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  case        RelocationCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  actor       User?            @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([caseId, createdAt])
+  @@map("case_activities")
+}
+
+model CaseMessage {
+  id           String          @id @default(uuid())
+  caseId       String          @map("case_id")
+  authorUserId String?         @map("author_user_id")
+  kind         CaseMessageKind
+  content      String
+  metadata     Json?
+  createdAt    DateTime        @default(now()) @map("created_at")
+  case         RelocationCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author       User?           @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  readStates   CaseReadState[] @relation("ReadStateLastMessage")
+
+  @@index([caseId, createdAt])
+  @@map("case_messages")
+}
+
+model CaseReadState {
+  id                String         @id @default(uuid())
+  caseId            String         @map("case_id")
+  userId            String         @map("user_id")
+  lastReadMessageId String?        @map("last_read_message_id")
+  lastReadAt        DateTime?      @map("last_read_at")
+  unreadCount       Int            @default(0) @map("unread_count")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  case              RelocationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadMessage   CaseMessage?   @relation("ReadStateLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([caseId, userId])
+  @@index([userId, unreadCount, updatedAt])
+  @@map("case_read_states")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  caseId    String?          @map("case_id")
+  type      NotificationType
+  title     String
+  body      String
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  metadata  Json?
+  createdAt DateTime         @default(now()) @map("created_at")
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  case      RelocationCase?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead, createdAt])
+  @@index([caseId, createdAt])
+  @@map("notifications")
+}
+
+model DirectChatThread {
+  id               String              @id @default(uuid())
+  clientUserId     String              @map("client_user_id")
+  specialistUserId String              @map("specialist_user_id")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  client           User                @relation("DirectChatClient", fields: [clientUserId], references: [id], onDelete: Cascade)
+  specialist       User                @relation("DirectChatSpecialist", fields: [specialistUserId], references: [id], onDelete: Cascade)
+  messages         DirectChatMessage[]
+
+  @@unique([clientUserId, specialistUserId])
+  @@index([specialistUserId, updatedAt])
+  @@index([clientUserId, updatedAt])
+  @@map("direct_chat_threads")
+}
+
+model DirectChatMessage {
+  id           String                @id @default(uuid())
+  threadId     String                @map("thread_id")
+  authorUserId String                @map("author_user_id")
+  kind         DirectChatMessageKind
+  content      String
+  createdAt    DateTime              @default(now()) @map("created_at")
+  thread       DirectChatThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author       User                  @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@index([authorUserId, createdAt])
+  @@map("direct_chat_messages")
+}
+
+model KnowledgeArticle {
+  id        String            @id @default(uuid())
+  slug      String
+  title     String
+  country   String
+  category  KnowledgeCategory
+  accessLevel KnowledgeAccessLevel @default(FREE) @map("access_level")
+  language  String            @default("en")
+  content   String
+  topicTags String[]          @default([])
+  riskTags  String[]          @default([])
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  @@unique([slug, language])
+  @@index([country, category, language])
+  @@index([updatedAt(sort: Desc)])
+  @@map("knowledge_articles")
+}
