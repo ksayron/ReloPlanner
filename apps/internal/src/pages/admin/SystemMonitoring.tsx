@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import {
   Alert,
   Badge,
@@ -16,7 +17,10 @@ import client from '../../api/client';
 import type {
   ProcessingJobSnapshot,
   ProcessingJobType,
+  RealtimeEnvelope,
+  RealtimeAdminSystemSnapshotPayload,
 } from '@reloplanner/shared-contracts';
+import { useAuth } from '@reloplanner/shared-frontend';
 
 type HealthStatus = 'healthy' | 'degraded' | 'unhealthy';
 
@@ -50,6 +54,22 @@ interface SystemStateResponse {
     oldestPendingCreatedAt: string | null;
     completedLastHour: number;
     failedLastHour: number;
+  };
+  websocket: {
+    status: HealthStatus;
+    activeConnections: number;
+    recentEmits: Array<{
+      at: string;
+      event: string;
+      target: string;
+      recipients: number;
+    }>;
+    recentFailures: Array<{
+      at: string;
+      event: string;
+      target: string;
+      error: string;
+    }>;
   };
   warnings: string[];
 }
@@ -131,6 +151,7 @@ const formatSeconds = (seconds: number | null) => {
 };
 
 export default function SystemMonitoring() {
+  const { token } = useAuth();
   const [systemState, setSystemState] = useState<SystemStateResponse | null>(null);
   const [queueDashboard, setQueueDashboard] =
     useState<QueueDashboardResponse | null>(null);
@@ -168,13 +189,70 @@ export default function SystemMonitoring() {
   }, [loadData]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      void loadData(false);
-    }, 15000);
-    return () => {
-      window.clearInterval(interval);
+    if (!token) return;
+
+    const resolveRealtimeBaseUrl = () => {
+      const { protocol, hostname, port, origin } = window.location;
+      if (port === '5173' || port === '5174') {
+        return `${protocol}//${hostname}:3000`;
+      }
+      return origin;
     };
-  }, [loadData]);
+
+    const socket: Socket = io(resolveRealtimeBaseUrl(), {
+      path: '/api/realtime',
+      transports: ['websocket'],
+      auth: { token },
+      query: { access_token: token },
+      timeout: 10000,
+      forceNew: false,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 700,
+    });
+
+    const subscribeAdminSystem = () => {
+      socket.timeout(5000).emit(
+        'admin.system.subscribe',
+        {},
+        (err: unknown, response: { ok?: boolean; error?: string } | undefined) => {
+          if (err) {
+            setError('Failed to subscribe admin monitoring realtime stream');
+            console.warn('[admin-monitoring] subscribe timeout/error', String(err));
+            return;
+          }
+          if (!response?.ok) {
+            setError(response?.error || 'Admin monitoring realtime subscription rejected');
+            console.warn('[admin-monitoring] subscribe rejected', response);
+            return;
+          }
+          console.info('[admin-monitoring] subscribe ok');
+        },
+      );
+    };
+
+    socket.on('session.ready', () => {
+      subscribeAdminSystem();
+    });
+
+    socket.on(
+      'admin.system.snapshot',
+      (envelope: RealtimeEnvelope<'admin.system.snapshot'>) => {
+        const payload = envelope.data as RealtimeAdminSystemSnapshotPayload;
+        setSystemState(payload.systemState as unknown as SystemStateResponse);
+        setQueueDashboard(payload.queueDashboard as unknown as QueueDashboardResponse);
+      },
+    );
+
+    socket.on('connect_error', () => {
+      setError('Realtime monitoring connection failed');
+    });
+
+    return () => {
+      socket.emit('admin.system.unsubscribe');
+      socket.disconnect();
+    };
+  }, [token]);
 
   const handleRetryJob = async (jobId: string) => {
     setRetryingJobId(jobId);
@@ -523,6 +601,112 @@ export default function SystemMonitoring() {
                   </Table.Td>
                 </Table.Tr>
               ))}
+            </Table.Tbody>
+          </Table>
+        </Stack>
+      </Paper>
+
+      <Paper withBorder radius="lg" p="lg" className="bg-white">
+        <Stack gap="md">
+          <Group justify="space-between" align="center">
+            <Title order={3}>Realtime Health (Chat + Notifications)</Title>
+            <Badge color={statusColor(systemState.websocket.status)} variant="light">
+              {systemState.websocket.status.toUpperCase()}
+            </Badge>
+          </Group>
+
+          <Group grow>
+            <Card withBorder radius="md" p="md">
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  Active Socket Connections
+                </Text>
+                <Text fw={700}>{systemState.websocket.activeConnections}</Text>
+              </Stack>
+            </Card>
+            <Card withBorder radius="md" p="md">
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  Recent Emits
+                </Text>
+                <Text fw={700}>{systemState.websocket.recentEmits.length}</Text>
+              </Stack>
+            </Card>
+            <Card withBorder radius="md" p="md">
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  Recent Failures
+                </Text>
+                <Text fw={700}>{systemState.websocket.recentFailures.length}</Text>
+              </Stack>
+            </Card>
+          </Group>
+
+          <Title order={5}>Recent Emits</Title>
+          <Table withTableBorder withColumnBorders striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>At</Table.Th>
+                <Table.Th>Event</Table.Th>
+                <Table.Th>Target</Table.Th>
+                <Table.Th className="text-right">Recipients</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {systemState.websocket.recentEmits.length === 0 ? (
+                <Table.Tr>
+                  <Table.Td colSpan={4}>
+                    <Text size="sm" c="dimmed" ta="center">
+                      No recent websocket emits
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ) : (
+                systemState.websocket.recentEmits.map((emit, index) => (
+                  <Table.Tr key={`${emit.at}-${emit.event}-${index}`}>
+                    <Table.Td>{new Date(emit.at).toLocaleString()}</Table.Td>
+                    <Table.Td>{emit.event}</Table.Td>
+                    <Table.Td>{emit.target}</Table.Td>
+                    <Table.Td className="text-right">{emit.recipients}</Table.Td>
+                  </Table.Tr>
+                ))
+              )}
+            </Table.Tbody>
+          </Table>
+
+          <Title order={5}>Recent Failures</Title>
+          <Table withTableBorder withColumnBorders striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>At</Table.Th>
+                <Table.Th>Event</Table.Th>
+                <Table.Th>Target</Table.Th>
+                <Table.Th>Error</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {systemState.websocket.recentFailures.length === 0 ? (
+                <Table.Tr>
+                  <Table.Td colSpan={4}>
+                    <Text size="sm" c="dimmed" ta="center">
+                      No recent websocket failures
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ) : (
+                systemState.websocket.recentFailures.map((failure, index) => (
+                  <Table.Tr key={`${failure.at}-${failure.event}-${index}`}>
+                    <Table.Td>{new Date(failure.at).toLocaleString()}</Table.Td>
+                    <Table.Td>{failure.event}</Table.Td>
+                    <Table.Td>{failure.target}</Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed" lineClamp={2}>
+                        {failure.error}
+                      </Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ))
+              )}
             </Table.Tbody>
           </Table>
         </Stack>

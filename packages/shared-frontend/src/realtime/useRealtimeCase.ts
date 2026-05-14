@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { RealtimeEnvelope } from '@reloplanner/shared-contracts';
 
@@ -10,6 +10,17 @@ export interface UseRealtimeCaseOptions {
   onCaseSystemCreated?: (envelope: RealtimeEnvelope<'case.system.created'>) => void;
   onNotificationCreated?: (envelope: RealtimeEnvelope<'notification.created'>) => void;
   onNotificationRead?: (envelope: RealtimeEnvelope<'notification.read'>) => void;
+}
+
+function resolveRealtimeBaseUrl(): string {
+  if (typeof window === 'undefined') {
+    return 'http://localhost:3000';
+  }
+  const { protocol, hostname, port, origin } = window.location;
+  if (port === '5173' || port === '5174') {
+    return `${protocol}//${hostname}:3000`;
+  }
+  return origin;
 }
 
 export function useRealtimeCase(options: UseRealtimeCaseOptions) {
@@ -25,23 +36,31 @@ export function useRealtimeCase(options: UseRealtimeCaseOptions) {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const handlersRef = useRef({
+    onCaseMessageCreated,
+    onCaseMessageRead,
+    onCaseSystemCreated,
+    onNotificationCreated,
+    onNotificationRead,
+  });
+  const caseIdRef = useRef<string | null>(caseId ?? null);
 
-  const handlers = useMemo(
-    () => ({
+  useEffect(() => {
+    caseIdRef.current = caseId ?? null;
+    handlersRef.current = {
       onCaseMessageCreated,
       onCaseMessageRead,
       onCaseSystemCreated,
       onNotificationCreated,
       onNotificationRead,
-    }),
-    [
-      onCaseMessageCreated,
-      onCaseMessageRead,
-      onCaseSystemCreated,
-      onNotificationCreated,
-      onNotificationRead,
-    ],
-  );
+    };
+  }, [
+    onCaseMessageCreated,
+    onCaseMessageRead,
+    onCaseSystemCreated,
+    onNotificationCreated,
+    onNotificationRead,
+  ]);
 
   useEffect(() => {
     if (!token) {
@@ -51,21 +70,51 @@ export function useRealtimeCase(options: UseRealtimeCaseOptions) {
       return;
     }
 
-    const socket = io('/', {
+    const socket = io(resolveRealtimeBaseUrl(), {
       path: '/api/realtime',
       transports: ['websocket'],
       auth: { token },
       query: { access_token: token },
-      withCredentials: true,
+      timeout: 10000,
+      forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 700,
     });
 
     socketRef.current = socket;
     setError(null);
 
+    const subscribeCaseRoom = (nextCaseId: string) => {
+      socket.timeout(5000).emit(
+        'case.subscribe',
+        { caseId: nextCaseId },
+        (err: unknown, response: { ok?: boolean; error?: string } | undefined) => {
+          if (err) {
+            console.warn('[realtime] case.subscribe timeout/error', {
+              caseId: nextCaseId,
+              err: String(err),
+            });
+            return;
+          }
+          if (!response?.ok) {
+            console.warn('[realtime] case.subscribe rejected', {
+              caseId: nextCaseId,
+              response,
+            });
+            return;
+          }
+          console.info('[realtime] case.subscribe ok', { caseId: nextCaseId });
+        },
+      );
+    };
+
     socket.on('connect', () => {
       setConnected(true);
-      if (caseId) {
-        socket.emit('case.subscribe', { caseId });
+      console.info('[realtime] connected', { socketId: socket.id, caseId: caseId ?? null });
+      const nextCaseId = caseIdRef.current;
+      if (nextCaseId) {
+        subscribeCaseRoom(nextCaseId);
       }
     });
 
@@ -79,19 +128,24 @@ export function useRealtimeCase(options: UseRealtimeCaseOptions) {
     });
 
     socket.on('case.message.created', (envelope: RealtimeEnvelope<'case.message.created'>) => {
-      handlers.onCaseMessageCreated?.(envelope);
+      handlersRef.current.onCaseMessageCreated?.(envelope);
     });
     socket.on('case.message.read', (envelope: RealtimeEnvelope<'case.message.read'>) => {
-      handlers.onCaseMessageRead?.(envelope);
+      handlersRef.current.onCaseMessageRead?.(envelope);
     });
     socket.on('case.system.created', (envelope: RealtimeEnvelope<'case.system.created'>) => {
-      handlers.onCaseSystemCreated?.(envelope);
+      handlersRef.current.onCaseSystemCreated?.(envelope);
     });
     socket.on('notification.created', (envelope: RealtimeEnvelope<'notification.created'>) => {
-      handlers.onNotificationCreated?.(envelope);
+      handlersRef.current.onNotificationCreated?.(envelope);
     });
     socket.on('notification.read', (envelope: RealtimeEnvelope<'notification.read'>) => {
-      handlers.onNotificationRead?.(envelope);
+      handlersRef.current.onNotificationRead?.(envelope);
+    });
+    socket.on('session.ready', () => {
+      const nextCaseId = caseIdRef.current;
+      if (!nextCaseId) return;
+      subscribeCaseRoom(nextCaseId);
     });
 
     return () => {
@@ -100,13 +154,27 @@ export function useRealtimeCase(options: UseRealtimeCaseOptions) {
         socketRef.current = null;
       }
     };
-  }, [caseId, handlers, token]);
+  }, [caseId, token]);
 
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket || !socket.connected) return;
     if (caseId) {
-      socket.emit('case.subscribe', { caseId });
+      socket.timeout(5000).emit(
+        'case.subscribe',
+        { caseId },
+        (err: unknown, response: { ok?: boolean; error?: string } | undefined) => {
+          if (err) {
+            console.warn('[realtime] case.subscribe timeout/error', { caseId, err: String(err) });
+            return;
+          }
+          if (!response?.ok) {
+            console.warn('[realtime] case.subscribe rejected', { caseId, response });
+            return;
+          }
+          console.info('[realtime] case.subscribe ok', { caseId });
+        },
+      );
       return () => {
         socket.emit('case.unsubscribe', { caseId });
       };

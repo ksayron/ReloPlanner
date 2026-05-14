@@ -88,35 +88,69 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
   @SubscribeMessage('case.subscribe')
   async subscribeCase(
     @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() payload: { caseId?: string },
+    @MessageBody() payload: unknown,
   ) {
     const user = client.data.user;
-    if (!user || !payload?.caseId) {
+    const caseId = this.extractCaseId(payload);
+    if (!user || !caseId) {
       return { ok: false, error: 'Invalid subscription payload' };
     }
 
     const allowed = await this.canAccessCase(
       user.id,
       user.role,
-      payload.caseId,
+      caseId,
     );
     if (!allowed) {
       return { ok: false, error: 'No access to case' };
     }
-    client.join(`case:${payload.caseId}`);
+    client.join(`case:${caseId}`);
     return { ok: true };
   }
 
   @SubscribeMessage('case.unsubscribe')
   unsubscribeCase(
     @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() payload: { caseId?: string },
+    @MessageBody() payload: unknown,
   ) {
-    if (!payload?.caseId) {
+    const caseId = this.extractCaseId(payload);
+    if (!caseId) {
       return { ok: false, error: 'Invalid unsubscription payload' };
     }
-    client.leave(`case:${payload.caseId}`);
+    client.leave(`case:${caseId}`);
     return { ok: true };
+  }
+
+  @SubscribeMessage('admin.system.subscribe')
+  subscribeAdminSystem(@ConnectedSocket() client: AuthedSocket) {
+    const user = client.data.user;
+    if (!user || user.role !== 'ADMIN') {
+      return { ok: false, error: 'Admin access required' };
+    }
+    client.join('admin:system-monitoring');
+    return { ok: true };
+  }
+
+  @SubscribeMessage('admin.system.unsubscribe')
+  unsubscribeAdminSystem(@ConnectedSocket() client: AuthedSocket) {
+    client.leave('admin:system-monitoring');
+    return { ok: true };
+  }
+
+  private extractCaseId(payload: unknown): string | null {
+    if (typeof payload === 'string' && payload.trim().length > 0) {
+      return payload.trim();
+    }
+    if (Array.isArray(payload) && payload.length > 0) {
+      return this.extractCaseId(payload[0]);
+    }
+    if (payload && typeof payload === 'object') {
+      const maybeCaseId = (payload as { caseId?: unknown }).caseId;
+      if (typeof maybeCaseId === 'string' && maybeCaseId.trim().length > 0) {
+        return maybeCaseId.trim();
+      }
+    }
+    return null;
   }
 
   private extractToken(client: AuthedSocket): string | null {

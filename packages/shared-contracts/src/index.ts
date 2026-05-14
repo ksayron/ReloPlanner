@@ -618,7 +618,6 @@ export type RelocationCaseStatus =
   | 'SUBMITTED'
   | 'IN_PROGRESS'
   | 'NEEDS_USER_INPUT'
-  | 'ARCHIVED'
   | 'CANCELED'
   | 'COMPLETED';
 
@@ -694,9 +693,10 @@ export interface RelocationCase {
   status: RelocationCaseStatus;
   owner: RelocationCaseParticipant;
   specialist: RelocationCaseParticipant | null;
+  isArchivedForCurrentUser?: boolean;
+  isDeletedForCurrentUser?: boolean;
   unreadCount?: number;
   submittedAt: string | null;
-  archivedAt: string | null;
   canceledAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -708,36 +708,37 @@ export interface RelocationCase {
   readStates?: CaseReadState[];
 }
 
-export interface DirectChatParticipant {
-  id: string;
-  email: string;
-  displayName: string | null;
-  role: Role;
-}
-
-export type DirectChatMessageKind = 'USER' | 'SPECIALIST' | 'SYSTEM';
-
-export interface DirectChatThread {
-  id: string;
-  client: DirectChatParticipant;
-  specialist: DirectChatParticipant;
-  createdAt: string;
-  updatedAt: string;
+export interface CaseChatSummary {
+  caseId: string;
+  caseTitle: string;
+  caseStatus: RelocationCaseStatus;
+  clientUserId: string;
+  clientName: string;
+  specialistUserId: string | null;
+  specialistName: string | null;
+  unreadCount: number;
+  lastReadAt: string | null;
+  lastActivityAt: string;
+  isArchivedForCurrentUser: boolean;
   lastMessage: {
     id: string;
-    kind: DirectChatMessageKind;
-    content: string;
+    body: string;
     createdAt: string;
+    senderUserId: string;
+    senderName: string;
   } | null;
 }
 
-export interface DirectChatMessage {
-  id: string;
-  threadId: string;
-  author: DirectChatParticipant;
-  kind: DirectChatMessageKind;
-  content: string;
+export interface CaseChatUnreadCount {
+  unreadCount: number;
+}
+
+export interface SpecialistCaseNote {
+  caseId: string;
+  specialistUserId: string;
+  body: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface NotificationItem {
@@ -758,6 +759,7 @@ export type RealtimeEventName =
   | 'case.message.created'
   | 'case.message.read'
   | 'case.system.created'
+  | 'admin.system.snapshot'
   | 'notification.created'
   | 'notification.read';
 
@@ -775,11 +777,18 @@ export interface RealtimeCaseMessageReadPayload {
   unreadCount: number;
 }
 
+export interface RealtimeAdminSystemSnapshotPayload {
+  generatedAt: string;
+  systemState: Record<string, unknown>;
+  queueDashboard: Record<string, unknown>;
+}
+
 export interface RealtimeEventPayloadMap {
   'session.ready': RealtimeSessionReadyPayload;
   'case.message.created': CaseMessage;
   'case.message.read': RealtimeCaseMessageReadPayload;
   'case.system.created': CaseMessage;
+  'admin.system.snapshot': RealtimeAdminSystemSnapshotPayload;
   'notification.created': NotificationItem;
   'notification.read': NotificationItem;
 }
