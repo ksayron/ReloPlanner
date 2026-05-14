@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobsService } from '../jobs/jobs.service.js';
+import { RealtimeService } from '../realtime/realtime.service.js';
 
 type HealthStatus = 'healthy' | 'degraded' | 'unhealthy';
 
@@ -38,6 +39,22 @@ export interface SystemStateResponse {
     completedLastHour: number;
     failedLastHour: number;
   };
+  websocket: {
+    status: HealthStatus;
+    activeConnections: number;
+    recentEmits: Array<{
+      at: string;
+      event: string;
+      target: string;
+      recipients: number;
+    }>;
+    recentFailures: Array<{
+      at: string;
+      event: string;
+      target: string;
+      error: string;
+    }>;
+  };
   warnings: string[];
 }
 
@@ -46,11 +63,13 @@ export class MonitoringService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobsService: JobsService,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
   async getSystemState(): Promise<SystemStateResponse> {
     const startedAt = Date.now();
     const dbState = await this.getDatabaseState();
+    const realtimeState = this.getRealtimeState();
     const queueDashboard = await this.jobsService.getQueueDashboard(10);
     const memory = process.memoryUsage();
     const heapUsagePercent =
@@ -68,6 +87,9 @@ export class MonitoringService {
     if (queueDashboard.queue.pending > 25) {
       warnings.push('Job queue backlog is growing (more than 25 pending jobs)');
     }
+    if (realtimeState.status !== 'healthy') {
+      warnings.push('Realtime websocket delivery has recent issues');
+    }
     if (heapUsagePercent >= 85) {
       warnings.push(
         `High heap utilization detected (${heapUsagePercent.toFixed(1)}%)`,
@@ -75,7 +97,7 @@ export class MonitoringService {
     }
 
     let status: HealthStatus = 'healthy';
-    if (dbState.status === 'unhealthy') {
+    if (dbState.status === 'unhealthy' || realtimeState.status === 'unhealthy') {
       status = 'unhealthy';
     } else if (warnings.length > 0) {
       status = 'degraded';
@@ -99,7 +121,7 @@ export class MonitoringService {
           heapUsagePercent: Number(heapUsagePercent.toFixed(2)),
         },
       },
-      dependencies: [dbState] as DependencyState[],
+      dependencies: [dbState, realtimeState] as DependencyState[],
       queue: {
         pending: queueDashboard.queue.pending,
         running: queueDashboard.queue.running,
@@ -108,7 +130,53 @@ export class MonitoringService {
         completedLastHour: queueDashboard.throughput.completedLastHour,
         failedLastHour: queueDashboard.throughput.failedLastHour,
       },
+      websocket: {
+        status: realtimeState.status,
+        activeConnections: realtimeState.activeConnections,
+        recentEmits: realtimeState.recentEmits,
+        recentFailures: realtimeState.recentFailures,
+      },
       warnings,
+    };
+  }
+
+  private getRealtimeState(): DependencyState & {
+    activeConnections: number;
+    recentEmits: Array<{
+      at: string;
+      event: string;
+      target: string;
+      recipients: number;
+    }>;
+    recentFailures: Array<{
+      at: string;
+      event: string;
+      target: string;
+      error: string;
+    }>;
+  } {
+    const snapshot = this.realtimeService.getMonitoringSnapshot();
+    let status: HealthStatus = 'healthy';
+    if (!snapshot.serverAttached) {
+      status = 'unhealthy';
+    } else if (snapshot.recentFailures.length > 0) {
+      status = 'degraded';
+    }
+
+    const message = !snapshot.serverAttached
+      ? 'Realtime gateway is not attached to socket server'
+      : snapshot.recentFailures.length > 0
+        ? `Recent emit failures: ${snapshot.recentFailures.length}`
+        : null;
+
+    return {
+      name: 'websocket-realtime',
+      status,
+      latencyMs: null,
+      message,
+      activeConnections: snapshot.activeConnections,
+      recentEmits: snapshot.recentEmits,
+      recentFailures: snapshot.recentFailures,
     };
   }
 

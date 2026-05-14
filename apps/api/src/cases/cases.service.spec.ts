@@ -7,6 +7,10 @@ function createService() {
     relocationCase: {
       findUnique: jest.fn(),
     },
+    caseUserState: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+    },
     user: {
       findUnique: jest.fn(),
     },
@@ -77,7 +81,7 @@ describe('CasesService', () => {
       id: 'case-closed',
       ownerUserId: 'owner-1',
       specialistUserId: null,
-      status: 'ARCHIVED',
+      status: 'CANCELED',
       owner: {
         id: 'owner-1',
         email: 'owner@x.dev',
@@ -126,13 +130,14 @@ describe('CasesService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('blocks posting messages to archived cases', async () => {
+  it('blocks posting messages to closed cases', async () => {
     const { prisma, service } = createService();
+    prisma.caseUserState.findUnique.mockResolvedValue(null);
     prisma.relocationCase.findUnique.mockResolvedValue({
       id: 'case-1',
       ownerUserId: 'owner-1',
       specialistUserId: 'specialist-1',
-      status: 'ARCHIVED',
+      status: 'COMPLETED',
       owner: {
         id: 'owner-1',
         email: 'owner@x.dev',
@@ -154,5 +159,60 @@ describe('CasesService', () => {
         { content: 'hello' },
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('blocks admin participant chat posting', async () => {
+    const { prisma, service } = createService();
+    prisma.relocationCase.findUnique.mockResolvedValue({
+      id: 'case-1',
+      ownerUserId: 'owner-1',
+      specialistUserId: 'specialist-1',
+      status: 'IN_PROGRESS',
+      owner: {
+        id: 'owner-1',
+        email: 'owner@x.dev',
+        displayName: null,
+        role: 'USER',
+      },
+      specialist: {
+        id: 'specialist-1',
+        email: 'spec@x.dev',
+        displayName: null,
+        role: 'SPECIALIST',
+      },
+    });
+
+    await expect(
+      service.postMessage(
+        { id: 'admin-1', role: 'ADMIN', email: 'admin@x.dev' },
+        'case-1',
+        { content: 'hello' },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('blocks specialist chat access for unassigned case', async () => {
+    const { prisma, service } = createService();
+    prisma.caseUserState.findUnique.mockResolvedValue(null);
+    prisma.relocationCase.findUnique.mockResolvedValue({
+      id: 'case-1',
+      ownerUserId: 'owner-1',
+      specialistUserId: null,
+      status: 'SUBMITTED',
+      owner: {
+        id: 'owner-1',
+        email: 'owner@x.dev',
+        displayName: null,
+        role: 'USER',
+      },
+      specialist: null,
+    });
+
+    await expect(
+      service.listMessages(
+        { id: 'specialist-2', role: 'SPECIALIST', email: 'spec2@x.dev' },
+        'case-1',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

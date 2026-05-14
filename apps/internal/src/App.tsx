@@ -22,6 +22,7 @@ import SystemMonitoring from './pages/admin/SystemMonitoring';
 import Cases from './pages/Cases';
 import CaseDetail from './pages/CaseDetail';
 import Chats from './pages/Chats';
+import ChatDetail from './pages/ChatDetail';
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -124,6 +125,14 @@ function AppRoutes() {
           element={
             <InternalRoute>
               <Chats />
+            </InternalRoute>
+          }
+        />
+        <Route
+          path="chats/:caseId"
+          element={
+            <InternalRoute>
+              <ChatDetail />
             </InternalRoute>
           }
         />

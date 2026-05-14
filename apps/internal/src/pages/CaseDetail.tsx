@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   Badge,
@@ -7,6 +7,7 @@ import {
   Card,
   Group,
   Loader,
+  ScrollArea,
   Select,
   Stack,
   Text,
@@ -21,6 +22,8 @@ import type {
 } from '@reloplanner/shared-contracts';
 import { useAuth, useRealtimeCase } from '@reloplanner/shared-frontend';
 import {
+  archiveCase,
+  completeCase,
   assignCaseToSelf,
   assignSpecialist,
   getCase,
@@ -29,6 +32,7 @@ import {
   markCaseRead,
   postCaseMessage,
   reassignSpecialist,
+  unarchiveCase,
 } from '../api/cases';
 import client from '../api/client';
 
@@ -44,13 +48,13 @@ const statusColor: Record<string, string> = {
   SUBMITTED: 'indigo',
   IN_PROGRESS: 'blue',
   NEEDS_USER_INPUT: 'orange',
-  ARCHIVED: 'dark',
   CANCELED: 'red',
   COMPLETED: 'teal',
 };
 
 export default function CaseDetail() {
   const { caseId = '' } = useParams();
+  const navigate = useNavigate();
   const { token, user } = useAuth();
   const [item, setItem] = useState<RelocationCase | null>(null);
   const [messages, setMessages] = useState<CaseMessage[]>([]);
@@ -61,6 +65,7 @@ export default function CaseDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const upsertMessage = useCallback((incoming: CaseMessage) => {
     setMessages((current) => {
@@ -196,6 +201,13 @@ export default function CaseDetail() {
   );
   const canSend =
     user?.role !== 'SPECIALIST' || item?.specialist?.id === user?.id;
+  const canComplete =
+    item &&
+    item.status !== 'COMPLETED' &&
+    item.status !== 'CANCELED' &&
+    item.status !== 'DRAFT' &&
+    (user?.role === 'ADMIN' ||
+      (user?.role === 'SPECIALIST' && item.specialist?.id === user.id));
 
   useEffect(() => {
     if (!caseId) return;
@@ -221,6 +233,10 @@ export default function CaseDetail() {
       });
   }, [caseId, currentReadState, user?.id]);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+  }, [messages]);
+
   const handleSend = async () => {
     const content = text.trim();
     if (!content) return;
@@ -229,7 +245,6 @@ export default function CaseDetail() {
       await postCaseMessage(caseId, content);
       setText('');
       await markCaseRead(caseId);
-      await loadAll();
     } catch {
       setError('Failed to send message');
     } finally {
@@ -262,6 +277,38 @@ export default function CaseDetail() {
       await loadAll();
     } catch {
       setError('Failed to assign case to you');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleArchiveToggle = async () => {
+    if (!item || user?.role !== 'SPECIALIST') return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (item.isArchivedForCurrentUser) {
+        await unarchiveCase(caseId);
+        await loadAll();
+      } else {
+        await archiveCase(caseId);
+        navigate('/cases');
+      }
+    } catch {
+      setError('Failed to change archive state');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await completeCase(caseId);
+      await loadAll();
+    } catch {
+      setError('Failed to complete case');
     } finally {
       setBusy(false);
     }
@@ -354,13 +401,33 @@ export default function CaseDetail() {
               Unread for me: {currentReadState.unreadCount}
             </Badge>
           ) : null}
+          <Group>
+            {user?.role === 'SPECIALIST' ? (
+              <Button
+                color="gray"
+                variant="light"
+                onClick={() => void handleArchiveToggle()}
+                disabled={busy}
+              >
+                {item.isArchivedForCurrentUser ? 'Unarchive for me' : 'Archive for me'}
+              </Button>
+            ) : null}
+            <Button
+              color="teal"
+              variant="light"
+              disabled={!canComplete || busy}
+              onClick={() => void handleComplete()}
+            >
+              Complete
+            </Button>
+          </Group>
         </Stack>
       </Card>
 
       <Card withBorder radius="lg" p="lg" className="bg-white">
         <Stack gap="sm">
           <Title order={4}>Case Chat</Title>
-          <Stack gap="xs" className="max-h-[440px] overflow-y-auto pr-1">
+          <ScrollArea h={440} type="always" scrollbarSize={8} offsetScrollbars>
             {messages.length === 0 ? <Text c="dimmed">No messages yet.</Text> : null}
             {messages.map((message) => (
               <Card
@@ -391,7 +458,8 @@ export default function CaseDetail() {
                 </Stack>
               </Card>
             ))}
-          </Stack>
+            <div ref={messagesEndRef} />
+          </ScrollArea>
           <Group align="end">
             <TextInput
               className="flex-1"
@@ -399,6 +467,12 @@ export default function CaseDetail() {
               placeholder="Provide concrete next steps or request missing details..."
               value={text}
               onChange={(event) => setText(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && text.trim() && !busy && canSend) {
+                  event.preventDefault();
+                  void handleSend();
+                }
+              }}
             />
             <Button
               onClick={() => void handleSend()}

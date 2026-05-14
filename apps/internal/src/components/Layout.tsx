@@ -1,9 +1,10 @@
 import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
   AppShell,
   Anchor,
+  Badge,
   Burger,
   Button,
   Divider,
@@ -17,7 +18,8 @@ import {
   useMantineColorScheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { useAuth } from '@reloplanner/shared-frontend';
+import { useAuth, useRealtimeCase } from '@reloplanner/shared-frontend';
+import { getCaseChatsUnreadCount } from '../api/cases';
 import { fetchMyPreferences, updateMyPreferences } from '../api/preferences';
 
 const colorSchemeStorageKey = 'reloplanner-color-scheme';
@@ -55,9 +57,10 @@ function MoonIcon() {
 }
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [opened, { toggle, close }] = useDisclosure(false);
+  const [chatUnread, setChatUnread] = useState(0);
   const clientAppUrl = import.meta.env.DEV ? 'http://localhost:5173/' : '/';
   const { setColorScheme } = useMantineColorScheme();
   const computedColorScheme = useComputedColorScheme('light');
@@ -83,6 +86,39 @@ export default function Layout() {
     navigate('/login');
     close();
   };
+
+  const refreshUnreadCount = useCallback(async () => {
+    if (!user) {
+      setChatUnread(0);
+      return;
+    }
+    try {
+      const payload = await getCaseChatsUnreadCount();
+      setChatUnread(payload.unreadCount);
+    } catch {
+      // Keep UI non-blocking.
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void refreshUnreadCount();
+  }, [refreshUnreadCount]);
+
+  useRealtimeCase({
+    token,
+    onCaseMessageCreated: () => {
+      void refreshUnreadCount();
+    },
+    onCaseMessageRead: () => {
+      void refreshUnreadCount();
+    },
+    onNotificationCreated: () => {
+      void refreshUnreadCount();
+    },
+    onNotificationRead: () => {
+      void refreshUnreadCount();
+    },
+  });
 
   useEffect(() => {
     if (!user) {
@@ -198,7 +234,18 @@ export default function Layout() {
               underline="never"
               onClick={close}
             >
-              {link.label}
+              {link.to === '/chats' ? (
+                <Group gap={6}>
+                  <span>{link.label}</span>
+                  {chatUnread > 0 ? (
+                    <Badge color="red" size="xs" variant="filled">
+                      {chatUnread}
+                    </Badge>
+                  ) : null}
+                </Group>
+              ) : (
+                link.label
+              )}
             </Anchor>
           ))}
           <Anchor component={RouterLink} to="/settings" underline="never" onClick={close}>

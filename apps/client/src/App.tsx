@@ -19,6 +19,8 @@ import InDevelopment from './pages/InDevelopment';
 import Plan from './pages/Plan';
 import Cases from './pages/Cases';
 import CaseDetail from './pages/CaseDetail';
+import Chats from './pages/Chats';
+import ChatDetail from './pages/ChatDetail';
 
 function AppRoutes() {
   return (
@@ -40,6 +42,8 @@ function AppRoutes() {
         <Route path="profiles" element={<ProtectedRoute><Profiles /></ProtectedRoute>} />
         <Route path="cases" element={<ProtectedRoute><Cases /></ProtectedRoute>} />
         <Route path="cases/:caseId" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
+        <Route path="chats" element={<ProtectedRoute><Chats /></ProtectedRoute>} />
+        <Route path="chats/:caseId" element={<ProtectedRoute><ChatDetail /></ProtectedRoute>} />
         <Route path="wizard" element={<ProtectedRoute><ProfileWizard /></ProtectedRoute>} />
         <Route path="wizard/:profileId" element={<ProtectedRoute><ProfileWizard /></ProtectedRoute>} />
         <Route path="dashboard/:profileId" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

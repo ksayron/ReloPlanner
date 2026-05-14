@@ -20,7 +20,6 @@ const statusColor: Record<string, string> = {
   SUBMITTED: 'indigo',
   IN_PROGRESS: 'blue',
   NEEDS_USER_INPUT: 'orange',
-  ARCHIVED: 'dark',
   CANCELED: 'red',
   COMPLETED: 'teal',
 };

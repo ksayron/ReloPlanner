@@ -18,7 +18,7 @@ CREATE TABLE "direct_chat_threads" (
   "client_user_id" TEXT NOT NULL,
   "specialist_user_id" TEXT NOT NULL,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "direct_chat_threads_pkey" PRIMARY KEY ("id")
 );
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Badge, Button, Card, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Card, Group, Loader, Stack, Text, Title, Button } from '@mantine/core';
 import type { CaseChatSummary } from '@reloplanner/shared-contracts';
 import { listCaseChats } from '../api/cases';
 
@@ -44,7 +44,7 @@ export default function Chats() {
 
   return (
     <Stack className="mx-auto max-w-6xl" gap="lg">
-      <Title order={2}>Case Chats</Title>
+      <Title order={2}>Chats</Title>
       {error ? <Alert color="red">{error}</Alert> : null}
       {items.length === 0 ? <Text c="dimmed">No case chats yet.</Text> : null}
       {items.map((item) => (
@@ -56,9 +56,6 @@ export default function Chats() {
                 {item.caseStatus.replaceAll('_', ' ')}
               </Badge>
             </Group>
-            <Text size="sm" c="dimmed">
-              Client: {item.clientName}
-            </Text>
             <Text size="sm" c="dimmed">
               Specialist: {item.specialistName || 'Not assigned'}
             </Text>

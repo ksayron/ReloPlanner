@@ -1,5 +1,5 @@
 import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActionIcon,
   AppShell,
@@ -21,8 +21,10 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { useAuth } from '../api/AuthContext';
 import { getBillingStatus } from '../api/billing';
+import { getCaseChatsUnreadCount } from '../api/cases';
 import { fetchMyPreferences, updateMyPreferences } from '../api/preferences';
 import type { BillingPlanCode } from '../types';
+import { useRealtimeCase } from '@reloplanner/shared-frontend';
 
 const linkClass = 'text-[var(--app-nav-link)] hover:text-[var(--app-nav-link-hover)]';
 const colorSchemeStorageKey = 'reloplanner-color-scheme';
@@ -60,10 +62,11 @@ function MoonIcon() {
 }
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [opened, { toggle, close }] = useDisclosure(false);
   const [planCode, setPlanCode] = useState<BillingPlanCode | null>(null);
+  const [chatUnread, setChatUnread] = useState(0);
   const { setColorScheme } = useMantineColorScheme();
   const computedColorScheme = useComputedColorScheme('light');
 
@@ -128,6 +131,39 @@ export default function Layout() {
     navigate('/');
     close();
   };
+
+  const refreshUnreadCount = useCallback(async () => {
+    if (!user) {
+      setChatUnread(0);
+      return;
+    }
+    try {
+      const payload = await getCaseChatsUnreadCount();
+      setChatUnread(payload.unreadCount);
+    } catch {
+      // Keep UI non-blocking.
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void refreshUnreadCount();
+  }, [refreshUnreadCount]);
+
+  useRealtimeCase({
+    token,
+    onCaseMessageCreated: () => {
+      void refreshUnreadCount();
+    },
+    onCaseMessageRead: () => {
+      void refreshUnreadCount();
+    },
+    onNotificationCreated: () => {
+      void refreshUnreadCount();
+    },
+    onNotificationRead: () => {
+      void refreshUnreadCount();
+    },
+  });
 
   const handleThemeToggle = () => {
     const nextTheme = computedColorScheme === 'dark' ? 'light' : 'dark';
@@ -209,6 +245,21 @@ export default function Layout() {
                     underline="never"
                   >
                     Cases
+                  </Anchor>
+                  <Anchor
+                    component={RouterLink}
+                    to="/chats"
+                    className={linkClass}
+                    underline="never"
+                  >
+                    <Group gap={6}>
+                      <span>Chats</span>
+                      {chatUnread > 0 ? (
+                        <Badge color="red" size="xs" variant="filled">
+                          {chatUnread}
+                        </Badge>
+                      ) : null}
+                    </Group>
                   </Anchor>
                   <Anchor
                     component={RouterLink}
@@ -339,6 +390,21 @@ export default function Layout() {
                 onClick={close}
               >
                 Cases
+              </Anchor>
+              <Anchor
+                component={RouterLink}
+                to="/chats"
+                underline="never"
+                onClick={close}
+              >
+                <Group gap={6}>
+                  <span>Chats</span>
+                  {chatUnread > 0 ? (
+                    <Badge color="red" size="xs" variant="filled">
+                      {chatUnread}
+                    </Badge>
+                  ) : null}
+                </Group>
               </Anchor>
               <Anchor
                 component={RouterLink}

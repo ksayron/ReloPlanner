@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   Badge,
@@ -7,6 +7,7 @@ import {
   Card,
   Group,
   Loader,
+  ScrollArea,
   Stack,
   Text,
   TextInput,
@@ -17,6 +18,8 @@ import { useAuth, useRealtimeCase } from '@reloplanner/shared-frontend';
 import {
   archiveCase,
   cancelCase,
+  completeCase,
+  deleteCaseForCurrentUser,
   getCase,
   getCaseReadState,
   listCaseMessages,
@@ -30,13 +33,13 @@ const statusColor: Record<string, string> = {
   SUBMITTED: 'indigo',
   IN_PROGRESS: 'blue',
   NEEDS_USER_INPUT: 'orange',
-  ARCHIVED: 'dark',
   CANCELED: 'red',
   COMPLETED: 'teal',
 };
 
 export default function CaseDetail() {
   const { caseId = '' } = useParams();
+  const navigate = useNavigate();
   const { token, user } = useAuth();
   const [item, setItem] = useState<RelocationCase | null>(null);
   const [messages, setMessages] = useState<CaseMessage[]>([]);
@@ -45,6 +48,7 @@ export default function CaseDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const upsertMessage = useCallback((incoming: CaseMessage) => {
     setMessages((current) => {
@@ -161,8 +165,11 @@ export default function CaseDetail() {
   });
 
   const canSubmit = item?.status === 'DRAFT' || item?.status === 'NEEDS_USER_INPUT';
-  const canArchive = item?.status !== 'ARCHIVED';
-  const canCancel = item?.status !== 'CANCELED' && item?.status !== 'ARCHIVED';
+  const canCancel = item?.status !== 'CANCELED' && item?.status !== 'COMPLETED';
+  const canComplete =
+    item?.status !== 'COMPLETED' &&
+    item?.status !== 'CANCELED' &&
+    item?.status !== 'DRAFT';
 
   const currentReadState = useMemo(
     () => readStates.find((row) => row.user.id === user?.id) ?? null,
@@ -193,6 +200,10 @@ export default function CaseDetail() {
       });
   }, [caseId, currentReadState, user?.id]);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+  }, [messages]);
+
   const handleSend = async () => {
     const content = text.trim();
     if (!content) return;
@@ -201,7 +212,6 @@ export default function CaseDetail() {
       await postCaseMessage(caseId, content);
       setText('');
       await markCaseRead(caseId);
-      await loadAll();
     } catch {
       setError('Failed to send message');
     } finally {
@@ -209,15 +219,41 @@ export default function CaseDetail() {
     }
   };
 
-  const handleStatusAction = async (action: 'submit' | 'archive' | 'cancel') => {
+  const handleStatusAction = async (action: 'submit' | 'cancel' | 'complete') => {
     setBusy(true);
     try {
       if (action === 'submit') await submitCase(caseId);
-      if (action === 'archive') await archiveCase(caseId);
       if (action === 'cancel') await cancelCase(caseId);
+      if (action === 'complete') await completeCase(caseId);
       await loadAll();
     } catch {
       setError(`Failed to ${action} case`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await archiveCase(caseId);
+      navigate('/cases');
+    } catch {
+      setError('Failed to archive case');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteCaseForCurrentUser(caseId);
+      navigate('/cases');
+    } catch {
+      setError('Failed to delete case');
     } finally {
       setBusy(false);
     }
@@ -276,10 +312,10 @@ export default function CaseDetail() {
             Submit
           </Button>
           <Button
-            onClick={() => void handleStatusAction('archive')}
-            disabled={!canArchive || busy}
+            onClick={() => void handleArchive()}
             color="gray"
             variant="light"
+            disabled={busy}
           >
             Archive
           </Button>
@@ -290,6 +326,17 @@ export default function CaseDetail() {
             variant="light"
           >
             Cancel
+          </Button>
+          <Button
+            onClick={() => void handleStatusAction('complete')}
+            disabled={!canComplete || busy}
+            color="teal"
+            variant="light"
+          >
+            Complete
+          </Button>
+          <Button onClick={() => void handleDelete()} disabled={busy} color="red" variant="subtle">
+            Delete (hide for me)
           </Button>
           {currentReadState ? (
             <Badge color={currentReadState.unreadCount > 0 ? 'red' : 'teal'}>
@@ -302,7 +349,7 @@ export default function CaseDetail() {
       <Card withBorder radius="lg" p="lg" className="bg-white">
         <Stack gap="sm">
           <Title order={4}>Case Chat</Title>
-          <Stack gap="xs" className="max-h-[420px] overflow-y-auto pr-1">
+          <ScrollArea h={420} type="always" scrollbarSize={8} offsetScrollbars>
             {messages.length === 0 ? <Text c="dimmed">No messages yet.</Text> : null}
             {messages.map((message) => (
               <Card
@@ -333,7 +380,8 @@ export default function CaseDetail() {
                 </Stack>
               </Card>
             ))}
-          </Stack>
+            <div ref={messagesEndRef} />
+          </ScrollArea>
           <Group align="end">
             <TextInput
               className="flex-1"
@@ -341,6 +389,12 @@ export default function CaseDetail() {
               placeholder="Ask your specialist a focused question..."
               value={text}
               onChange={(event) => setText(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && text.trim() && !busy) {
+                  event.preventDefault();
+                  void handleSend();
+                }
+              }}
             />
             <Button onClick={() => void handleSend()} disabled={busy || !text.trim()} color="brand.7">
               Send

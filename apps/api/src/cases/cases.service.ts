@@ -6,9 +6,12 @@ import {
 } from '@nestjs/common';
 import type {
   CaseAttachedProfile,
+  CaseChatSummary,
   CaseMessage,
   CaseMessageKind,
+  RelocationCase,
   RelocationCaseStatus,
+  SpecialistCaseNote,
 } from '@reloplanner/shared-contracts';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -41,18 +44,22 @@ export class CasesService {
       select: { id: true },
     });
     if (!profile) {
-      throw new BadRequestException('Selected profile does not belong to current user');
+      throw new BadRequestException(
+        'Selected profile does not belong to current user',
+      );
     }
     const existingCase = await (this.prisma as any).relocationCase.findFirst({
       where: {
         ownerUserId: actor.id,
         profileId: dto.profileId,
-        status: { notIn: ['ARCHIVED', 'CANCELED', 'COMPLETED'] },
+        status: { notIn: ['CANCELED', 'COMPLETED'] },
       },
       select: { id: true },
     });
     if (existingCase) {
-      throw new BadRequestException('This profile is already attached to an active case');
+      throw new BadRequestException(
+        'This profile is already attached to an active case',
+      );
     }
 
     const created = await this.prisma.$transaction(async (tx: any) => {
@@ -70,6 +77,12 @@ export class CasesService {
           caseId: caseRow.id,
           userId: actor.id,
           unreadCount: 0,
+        },
+      });
+      await tx.caseUserState.create({
+        data: {
+          caseId: caseRow.id,
+          userId: actor.id,
         },
       });
       await tx.caseActivity.create({
@@ -99,8 +112,8 @@ export class CasesService {
       where,
       orderBy: { updatedAt: 'desc' },
       include: {
-        owner: { select: { id: true, email: true, displayName: true } },
-        specialist: { select: { id: true, email: true, displayName: true } },
+        owner: { select: { id: true, email: true, displayName: true, role: true } },
+        specialist: { select: { id: true, email: true, displayName: true, role: true } },
         profile: {
           select: {
             id: true,
@@ -110,9 +123,15 @@ export class CasesService {
             yearsExperience: true,
           },
         },
+        userStates: {
+          where: { userId: actor.id },
+          select: { isArchived: true, isDeleted: true },
+          take: 1,
+        },
         readStates: {
           where: { userId: actor.id },
           select: { unreadCount: true, lastReadAt: true },
+          take: 1,
         },
         _count: {
           select: { messages: true, activities: true },
@@ -120,42 +139,115 @@ export class CasesService {
       },
     });
 
-    return rows.map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      additionalNotes: row.additionalNotes ?? null,
-      profileId: row.profileId ?? null,
-      profile: row.profile ? this.mapProfile(row.profile) : null,
-      status: row.status,
-      owner: row.owner,
-      specialist: row.specialist ?? null,
-      unreadCount: Number(row.readStates?.[0]?.unreadCount ?? 0),
-      lastReadAt: row.readStates?.[0]?.lastReadAt
-        ? new Date(row.readStates[0].lastReadAt).toISOString()
-        : null,
-      messageCount: Number(row._count?.messages ?? 0),
-      activityCount: Number(row._count?.activities ?? 0),
-      submittedAt: row.submittedAt
-        ? new Date(row.submittedAt).toISOString()
-        : null,
-      archivedAt: row.archivedAt
-        ? new Date(row.archivedAt).toISOString()
-        : null,
-      canceledAt: row.canceledAt
-        ? new Date(row.canceledAt).toISOString()
-        : null,
-      createdAt: new Date(row.createdAt).toISOString(),
-      updatedAt: new Date(row.updatedAt).toISOString(),
-    }));
+    return rows
+      .filter((row: any) => {
+        if (actor.role === 'ADMIN') return true;
+        const userState = row.userStates?.[0];
+        if (!userState) return true;
+        return !userState.isDeleted && !userState.isArchived;
+      })
+      .map((row: any) => this.mapCaseRow(row));
   }
 
-  async getCase(actor: CaseActor, caseId: string) {
+  async listCaseChats(actor: CaseActor): Promise<CaseChatSummary[]> {
+    const where =
+      actor.role === 'ADMIN'
+        ? {}
+        : actor.role === 'SPECIALIST'
+          ? { specialistUserId: actor.id }
+          : { ownerUserId: actor.id };
+
+    const rows = await (this.prisma as any).relocationCase.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        owner: { select: { id: true, email: true, displayName: true } },
+        specialist: { select: { id: true, email: true, displayName: true } },
+        userStates: {
+          where: { userId: actor.id },
+          select: {
+            isArchived: true,
+            isDeleted: true,
+          },
+          take: 1,
+        },
+        readStates: {
+          where: { userId: actor.id },
+          select: {
+            unreadCount: true,
+            lastReadAt: true,
+          },
+          take: 1,
+        },
+        messages: {
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            author: { select: { id: true, email: true, displayName: true } },
+          },
+        },
+      },
+    });
+
+    return rows
+      .filter((row: any) => {
+        if (actor.role === 'ADMIN') return true;
+        const userState = row.userStates?.[0];
+        if (!userState) return true;
+        return !userState.isDeleted && !userState.isArchived;
+      })
+      .map((row: any) => {
+        const latest = row.messages?.[0] ?? null;
+        const senderName = latest
+          ? latest.author?.displayName || latest.author?.email || 'System'
+          : '';
+        const state = row.userStates?.[0] ?? null;
+        return {
+          caseId: row.id,
+          caseTitle: row.title,
+          caseStatus: row.status,
+          clientUserId: row.owner.id,
+          clientName: row.owner.displayName || row.owner.email,
+          specialistUserId: row.specialist?.id ?? null,
+          specialistName: row.specialist
+            ? row.specialist.displayName || row.specialist.email
+            : null,
+          unreadCount: Number(row.readStates?.[0]?.unreadCount ?? 0),
+          lastReadAt: row.readStates?.[0]?.lastReadAt
+            ? new Date(row.readStates[0].lastReadAt).toISOString()
+            : null,
+          lastActivityAt: latest
+            ? new Date(latest.createdAt).toISOString()
+            : new Date(row.updatedAt).toISOString(),
+          isArchivedForCurrentUser: Boolean(state?.isArchived ?? false),
+          lastMessage: latest
+            ? {
+                id: latest.id,
+                body: latest.content,
+                createdAt: new Date(latest.createdAt).toISOString(),
+                senderUserId: latest.author?.id ?? 'system',
+                senderName,
+              }
+            : null,
+        } as CaseChatSummary;
+      });
+  }
+
+  async getCaseChatsUnreadCount(actor: CaseActor) {
+    const chats = await this.listCaseChats(actor);
+    return {
+      unreadCount: chats.reduce((sum, row) => sum + row.unreadCount, 0),
+    };
+  }
+
+  async getCase(actor: CaseActor, caseId: string): Promise<RelocationCase> {
     const caseRow = await this.findCaseForActor(actor, caseId);
-    const [messages, activities, readStates] = await Promise.all([
+    this.assertCanAccessCaseChat(actor, caseRow);
+    const [messages, activities, readStates, userState] = await Promise.all([
       (this.prisma as any).caseMessage.findMany({
         where: { caseId },
         orderBy: { createdAt: 'asc' },
-        take: 200,
+        take: 500,
         include: {
           author: {
             select: { id: true, email: true, displayName: true, role: true },
@@ -179,6 +271,11 @@ export class CasesService {
           },
         },
       }),
+      actor.role === 'ADMIN'
+        ? null
+        : (this.prisma as any).caseUserState.findUnique({
+            where: { caseId_userId: { caseId, userId: actor.id } },
+          }),
     ]);
 
     return {
@@ -190,11 +287,10 @@ export class CasesService {
       status: caseRow.status,
       owner: caseRow.owner,
       specialist: caseRow.specialist ?? null,
+      isArchivedForCurrentUser: Boolean(userState?.isArchived ?? false),
+      isDeletedForCurrentUser: Boolean(userState?.isDeleted ?? false),
       submittedAt: caseRow.submittedAt
         ? new Date(caseRow.submittedAt).toISOString()
-        : null,
-      archivedAt: caseRow.archivedAt
-        ? new Date(caseRow.archivedAt).toISOString()
         : null,
       canceledAt: caseRow.canceledAt
         ? new Date(caseRow.canceledAt).toISOString()
@@ -217,9 +313,7 @@ export class CasesService {
       readStates: readStates.map((row: any) => ({
         user: row.user,
         lastReadMessageId: row.lastReadMessageId ?? null,
-        lastReadAt: row.lastReadAt
-          ? new Date(row.lastReadAt).toISOString()
-          : null,
+        lastReadAt: row.lastReadAt ? new Date(row.lastReadAt).toISOString() : null,
         unreadCount: Number(row.unreadCount),
         updatedAt: new Date(row.updatedAt).toISOString(),
       })),
@@ -246,32 +340,125 @@ export class CasesService {
     return this.getCase(actor, caseId);
   }
 
-  async archiveCase(actor: CaseActor, caseId: string) {
-    const caseRow = await this.findCaseForActor(actor, caseId, {
-      ownerWrite: true,
-    });
-    if (caseRow.status === 'ARCHIVED') {
+  async completeCase(actor: CaseActor, caseId: string) {
+    const caseRow = await this.findCaseForActor(actor, caseId);
+    const canComplete =
+      actor.role === 'ADMIN' ||
+      caseRow.ownerUserId === actor.id ||
+      (actor.role === 'SPECIALIST' && caseRow.specialistUserId === actor.id);
+    if (!canComplete) {
+      throw new ForbiddenException('No access to complete this case');
+    }
+    if (['CANCELED', 'COMPLETED'].includes(caseRow.status)) {
       return this.getCase(actor, caseId);
+    }
+    if (caseRow.status === 'DRAFT') {
+      throw new BadRequestException('Draft case cannot be completed');
     }
     await this.changeCaseStatus({
       caseId,
       actor,
-      nextStatus: 'ARCHIVED',
-      activityType: 'CASE_ARCHIVED',
-      systemMessage: 'Case was archived by the owner.',
-      setArchivedAt: true,
+      nextStatus: 'COMPLETED',
+      activityType: 'CASE_STATUS_CHANGED',
+      systemMessage: 'Case was marked as completed.',
     });
     return this.getCase(actor, caseId);
+  }
+
+  async archiveCase(actor: CaseActor, caseId: string) {
+    await this.findCaseForActor(actor, caseId);
+    if (actor.role === 'ADMIN') {
+      throw new ForbiddenException('Admin archive is not supported');
+    }
+
+    await (this.prisma as any).caseUserState.upsert({
+      where: { caseId_userId: { caseId, userId: actor.id } },
+      update: {
+        isArchived: true,
+        archivedAt: new Date(),
+      },
+      create: {
+        caseId,
+        userId: actor.id,
+        isArchived: true,
+        archivedAt: new Date(),
+      },
+    });
+
+    await (this.prisma as any).caseActivity.create({
+      data: {
+        caseId,
+        actorUserId: actor.id,
+        type: 'CASE_ARCHIVED',
+        metadata: { archivedByUserId: actor.id },
+      },
+    });
+
+    return { ok: true };
+  }
+
+  async unarchiveCase(actor: CaseActor, caseId: string) {
+    await this.findCaseForActor(actor, caseId, { includeArchived: true });
+    if (actor.role === 'ADMIN') {
+      throw new ForbiddenException('Admin unarchive is not supported');
+    }
+
+    await (this.prisma as any).caseUserState.upsert({
+      where: { caseId_userId: { caseId, userId: actor.id } },
+      update: {
+        isArchived: false,
+        archivedAt: null,
+      },
+      create: {
+        caseId,
+        userId: actor.id,
+        isArchived: false,
+      },
+    });
+
+    return this.getCase(actor, caseId);
+  }
+
+  async deleteCaseForCurrentUser(actor: CaseActor, caseId: string) {
+    const caseRow = await this.findCaseForActor(actor, caseId);
+    if (actor.role !== 'USER' && actor.role !== 'PREMIUM') {
+      throw new ForbiddenException('Only clients can delete cases for themselves');
+    }
+    if (caseRow.ownerUserId !== actor.id) {
+      throw new ForbiddenException('Only case owner can delete this case');
+    }
+    if (!['DRAFT', 'COMPLETED', 'CANCELED'].includes(caseRow.status)) {
+      throw new BadRequestException(
+        'Active case cannot be deleted. Archive or complete it first.',
+      );
+    }
+
+    await (this.prisma as any).caseUserState.upsert({
+      where: { caseId_userId: { caseId, userId: actor.id } },
+      update: {
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+      create: {
+        caseId,
+        userId: actor.id,
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    });
+
+    return { ok: true };
   }
 
   async cancelCase(actor: CaseActor, caseId: string) {
     const caseRow = await this.findCaseForActor(actor, caseId, {
       ownerWrite: true,
     });
-    if (['ARCHIVED', 'COMPLETED'].includes(caseRow.status)) {
-      throw new BadRequestException(
-        'Archived or completed case cannot be canceled',
-      );
+    if (['COMPLETED'].includes(caseRow.status)) {
+      throw new BadRequestException('Completed case cannot be canceled');
+    }
+    if (caseRow.status === 'CANCELED') {
+      return this.getCase(actor, caseId);
     }
     await this.changeCaseStatus({
       caseId,
@@ -289,11 +476,13 @@ export class CasesService {
       throw new ForbiddenException('Only specialists can self-assign cases');
     }
     const caseRow = await this.findCaseStrict(caseId);
-    if (['ARCHIVED', 'CANCELED', 'COMPLETED'].includes(caseRow.status)) {
+    if (['CANCELED', 'COMPLETED'].includes(caseRow.status)) {
       throw new BadRequestException('Cannot assign closed case');
     }
     if (caseRow.specialistUserId && caseRow.specialistUserId !== actor.id) {
-      throw new BadRequestException('Case is already assigned to another specialist');
+      throw new BadRequestException(
+        'Case is already assigned to another specialist',
+      );
     }
     if (caseRow.specialistUserId === actor.id) {
       return this.getCase(actor, caseId);
@@ -317,7 +506,7 @@ export class CasesService {
       throw new ForbiddenException('Only admin can assign specialists');
     }
     const caseRow = await this.findCaseStrict(caseId);
-    if (['ARCHIVED', 'CANCELED', 'COMPLETED'].includes(caseRow.status)) {
+    if (['CANCELED', 'COMPLETED'].includes(caseRow.status)) {
       throw new BadRequestException('Cannot assign specialist to closed case');
     }
     const specialist = await this.requireSpecialistUser(specialistUserId);
@@ -343,7 +532,7 @@ export class CasesService {
       throw new ForbiddenException('Only admin can reassign specialists');
     }
     const caseRow = await this.findCaseStrict(caseId);
-    if (['ARCHIVED', 'CANCELED', 'COMPLETED'].includes(caseRow.status)) {
+    if (['CANCELED', 'COMPLETED'].includes(caseRow.status)) {
       throw new BadRequestException(
         'Cannot reassign specialist for closed case',
       );
@@ -366,7 +555,8 @@ export class CasesService {
   }
 
   async listMessages(actor: CaseActor, caseId: string) {
-    await this.findCaseForActor(actor, caseId);
+    const caseRow = await this.findCaseForActor(actor, caseId);
+    this.assertCanAccessCaseChat(actor, caseRow);
     const rows = await (this.prisma as any).caseMessage.findMany({
       where: { caseId },
       orderBy: { createdAt: 'asc' },
@@ -382,14 +572,20 @@ export class CasesService {
 
   async postMessage(actor: CaseActor, caseId: string, dto: PostCaseMessageDto) {
     const caseRow = await this.findCaseForActor(actor, caseId);
+    this.assertCanAccessCaseChat(actor, caseRow);
+    if (actor.role === 'ADMIN') {
+      throw new ForbiddenException('Admin cannot post participant chat messages');
+    }
     if (actor.role === 'SPECIALIST' && caseRow.specialistUserId !== actor.id) {
-      throw new ForbiddenException('Assign case to yourself before replying in chat');
+      throw new ForbiddenException(
+        'Assign case to yourself before replying in chat',
+      );
     }
     const content = dto.content.trim();
     if (!content) {
       throw new BadRequestException('Message cannot be empty');
     }
-    if (['ARCHIVED', 'CANCELED'].includes(caseRow.status)) {
+    if (['CANCELED', 'COMPLETED'].includes(caseRow.status)) {
       throw new BadRequestException('Cannot post messages to closed cases');
     }
 
@@ -428,6 +624,25 @@ export class CasesService {
         message.id,
       );
 
+      await tx.caseUserState.upsert({
+        where: {
+          caseId_userId: {
+            caseId,
+            userId: actor.id,
+          },
+        },
+        update: {
+          isArchived: false,
+          archivedAt: null,
+          lastOpenedAt: new Date(),
+        },
+        create: {
+          caseId,
+          userId: actor.id,
+          lastOpenedAt: new Date(),
+        },
+      });
+
       return message;
     });
 
@@ -442,7 +657,8 @@ export class CasesService {
           caseId,
           type: 'CASE_MESSAGE' as const,
           title: 'New case message',
-          body: content.length > 120 ? `${content.slice(0, 117)}...` : content,
+          body:
+            content.length > 120 ? `${content.slice(0, 117)}...` : content,
           metadata: { caseId, messageId: created.id },
         })),
     );
@@ -451,7 +667,8 @@ export class CasesService {
   }
 
   async getReadState(actor: CaseActor, caseId: string) {
-    await this.findCaseForActor(actor, caseId);
+    const caseRow = await this.findCaseForActor(actor, caseId);
+    this.assertCanAccessCaseChat(actor, caseRow);
     const rows = await (this.prisma as any).caseReadState.findMany({
       where: { caseId },
       include: {
@@ -465,20 +682,15 @@ export class CasesService {
     return rows.map((row: any) => ({
       user: row.user,
       lastReadMessageId: row.lastReadMessageId ?? null,
-      lastReadAt: row.lastReadAt
-        ? new Date(row.lastReadAt).toISOString()
-        : null,
+      lastReadAt: row.lastReadAt ? new Date(row.lastReadAt).toISOString() : null,
       unreadCount: Number(row.unreadCount),
       updatedAt: new Date(row.updatedAt).toISOString(),
     }));
   }
 
-  async updateReadState(
-    actor: CaseActor,
-    caseId: string,
-    dto: UpdateReadStateDto,
-  ) {
-    await this.findCaseForActor(actor, caseId);
+  async updateReadState(actor: CaseActor, caseId: string, dto: UpdateReadStateDto) {
+    const caseRow = await this.findCaseForActor(actor, caseId);
+    this.assertCanAccessCaseChat(actor, caseRow);
     const lastMessage = dto.lastReadMessageId
       ? await (this.prisma as any).caseMessage.findFirst({
           where: { id: dto.lastReadMessageId, caseId },
@@ -516,6 +728,25 @@ export class CasesService {
         },
       });
 
+      await tx.caseUserState.upsert({
+        where: {
+          caseId_userId: {
+            caseId,
+            userId: actor.id,
+          },
+        },
+        update: {
+          isArchived: false,
+          archivedAt: null,
+          lastOpenedAt: new Date(),
+        },
+        create: {
+          caseId,
+          userId: actor.id,
+          lastOpenedAt: new Date(),
+        },
+      });
+
       return row;
     });
 
@@ -532,13 +763,95 @@ export class CasesService {
     return payload;
   }
 
+  async getSpecialistNote(actor: CaseActor, caseId: string): Promise<SpecialistCaseNote> {
+    const caseRow = await this.findCaseForActor(actor, caseId);
+    const noteOwnerId = this.getSpecialistNoteOwnerId(actor, caseRow);
+    const note = await (this.prisma as any).specialistCaseNote.findUnique({
+      where: {
+        caseId_specialistUserId: {
+          caseId,
+          specialistUserId: noteOwnerId,
+        },
+      },
+    });
+    if (!note) {
+      return {
+        caseId,
+        specialistUserId: noteOwnerId,
+        body: '',
+        createdAt: new Date(0).toISOString(),
+        updatedAt: new Date(0).toISOString(),
+      };
+    }
+    return {
+      caseId: note.caseId,
+      specialistUserId: note.specialistUserId,
+      body: note.body,
+      createdAt: new Date(note.createdAt).toISOString(),
+      updatedAt: new Date(note.updatedAt).toISOString(),
+    };
+  }
+
+  async upsertSpecialistNote(
+    actor: CaseActor,
+    caseId: string,
+    body: string,
+  ): Promise<SpecialistCaseNote> {
+    const caseRow = await this.findCaseForActor(actor, caseId);
+    if (actor.role !== 'SPECIALIST' || caseRow.specialistUserId !== actor.id) {
+      throw new ForbiddenException('Only assigned specialist can edit notes');
+    }
+    const note = await (this.prisma as any).specialistCaseNote.upsert({
+      where: {
+        caseId_specialistUserId: {
+          caseId,
+          specialistUserId: actor.id,
+        },
+      },
+      update: {
+        body,
+      },
+      create: {
+        caseId,
+        specialistUserId: actor.id,
+        body,
+      },
+    });
+    return {
+      caseId: note.caseId,
+      specialistUserId: note.specialistUserId,
+      body: note.body,
+      createdAt: new Date(note.createdAt).toISOString(),
+      updatedAt: new Date(note.updatedAt).toISOString(),
+    };
+  }
+
+  private getSpecialistNoteOwnerId(actor: CaseActor, caseRow: any) {
+    if (actor.role === 'SPECIALIST') {
+      if (caseRow.specialistUserId !== actor.id) {
+        throw new ForbiddenException('No access to specialist note');
+      }
+      return actor.id;
+    }
+    if (actor.role === 'ADMIN') {
+      if (!caseRow.specialistUserId) {
+        throw new BadRequestException('Case has no assigned specialist');
+      }
+      return caseRow.specialistUserId as string;
+    }
+    throw new ForbiddenException('No access to specialist note');
+  }
+
   private async changeCaseStatus(input: {
     caseId: string;
     actor: CaseActor;
     nextStatus: CaseStatus;
-    activityType: 'CASE_SUBMITTED' | 'CASE_ARCHIVED' | 'CASE_CANCELED';
+    activityType:
+      | 'CASE_SUBMITTED'
+      | 'CASE_CANCELED'
+      | 'CASE_STATUS_CHANGED'
+      | 'CASE_ARCHIVED';
     systemMessage: string;
-    setArchivedAt?: boolean;
     setCanceledAt?: boolean;
   }) {
     const caseRow = await this.findCaseStrict(input.caseId);
@@ -546,13 +859,12 @@ export class CasesService {
     const participants = this.collectParticipantIds(caseRow);
 
     const result = await this.prisma.$transaction(async (tx: any) => {
-      const updatedCase = await tx.relocationCase.update({
+      await tx.relocationCase.update({
         where: { id: input.caseId },
         data: {
           status: input.nextStatus,
           submittedAt:
             input.nextStatus === 'SUBMITTED' ? new Date() : caseRow.submittedAt,
-          archivedAt: input.setArchivedAt ? new Date() : caseRow.archivedAt,
           canceledAt: input.setCanceledAt ? new Date() : caseRow.canceledAt,
         },
       });
@@ -596,7 +908,7 @@ export class CasesService {
         message.id,
       );
 
-      return { updatedCase, message };
+      return { message };
     });
 
     const messagePayload: CaseMessage = {
@@ -611,11 +923,7 @@ export class CasesService {
           : null,
       createdAt: new Date(result.message.createdAt).toISOString(),
     };
-    this.realtime.emitToCase(
-      input.caseId,
-      'case.system.created',
-      messagePayload,
-    );
+    this.realtime.emitToCase(input.caseId, 'case.system.created', messagePayload);
 
     await this.notifications.createNotifications(
       participants
@@ -649,7 +957,7 @@ export class CasesService {
           ? 'IN_PROGRESS'
           : (input.caseRow.status as CaseStatus);
 
-      const updatedCase = await tx.relocationCase.update({
+      await tx.relocationCase.update({
         where: { id: input.caseRow.id },
         data: {
           specialistUserId: input.specialistUserId,
@@ -669,6 +977,23 @@ export class CasesService {
           caseId: input.caseRow.id,
           userId: input.specialistUserId,
           unreadCount: 0,
+        },
+      });
+
+      await tx.caseUserState.upsert({
+        where: {
+          caseId_userId: {
+            caseId: input.caseRow.id,
+            userId: input.specialistUserId,
+          },
+        },
+        update: {
+          isDeleted: false,
+          deletedAt: null,
+        },
+        create: {
+          caseId: input.caseRow.id,
+          userId: input.specialistUserId,
         },
       });
 
@@ -712,7 +1037,7 @@ export class CasesService {
         message.id,
       );
 
-      return { updatedCase, message, participantsAfter };
+      return { message, participantsAfter };
     });
 
     const messagePayload: CaseMessage = {
@@ -727,11 +1052,7 @@ export class CasesService {
           : null,
       createdAt: new Date(result.message.createdAt).toISOString(),
     };
-    this.realtime.emitToCase(
-      input.caseRow.id,
-      'case.system.created',
-      messagePayload,
-    );
+    this.realtime.emitToCase(input.caseRow.id, 'case.system.created', messagePayload);
 
     const notificationRecipients = new Set<string>([
       ...participantsBefore,
@@ -818,6 +1139,34 @@ export class CasesService {
     ];
   }
 
+  private mapCaseRow(row: any) {
+    const userState = row.userStates?.[0] ?? null;
+    return {
+      id: row.id,
+      title: row.title,
+      additionalNotes: row.additionalNotes ?? null,
+      profileId: row.profileId ?? null,
+      profile: row.profile ? this.mapProfile(row.profile) : null,
+      status: row.status,
+      owner: row.owner,
+      specialist: row.specialist ?? null,
+      isArchivedForCurrentUser: Boolean(userState?.isArchived ?? false),
+      isDeletedForCurrentUser: Boolean(userState?.isDeleted ?? false),
+      unreadCount: Number(row.readStates?.[0]?.unreadCount ?? 0),
+      lastReadAt: row.readStates?.[0]?.lastReadAt
+        ? new Date(row.readStates[0].lastReadAt).toISOString()
+        : null,
+      messageCount: Number(row._count?.messages ?? 0),
+      activityCount: Number(row._count?.activities ?? 0),
+      submittedAt: row.submittedAt
+        ? new Date(row.submittedAt).toISOString()
+        : null,
+      canceledAt: row.canceledAt ? new Date(row.canceledAt).toISOString() : null,
+      createdAt: new Date(row.createdAt).toISOString(),
+      updatedAt: new Date(row.updatedAt).toISOString(),
+    } as RelocationCase;
+  }
+
   private mapProfile(row: {
     id: string;
     desiredRole: string;
@@ -901,7 +1250,7 @@ export class CasesService {
   private async findCaseForActor(
     actor: CaseActor,
     caseId: string,
-    options?: { ownerWrite?: boolean },
+    options?: { ownerWrite?: boolean; includeArchived?: boolean },
   ) {
     const caseRow = await this.findCaseStrict(caseId);
     const isOwner = caseRow.ownerUserId === actor.id;
@@ -918,6 +1267,28 @@ export class CasesService {
     if (options?.ownerWrite && !isOwner) {
       throw new ForbiddenException('Only owner can modify this case state');
     }
+
+    if (!isAdmin) {
+      const state = await (this.prisma as any).caseUserState.findUnique({
+        where: { caseId_userId: { caseId, userId: actor.id } },
+      });
+      if (state?.isDeleted) {
+        throw new ForbiddenException('Case is deleted for current user');
+      }
+      if (state?.isArchived && !options?.includeArchived) {
+        throw new ForbiddenException('Case is archived for current user');
+      }
+    }
+
     return caseRow;
+  }
+
+  private assertCanAccessCaseChat(actor: CaseActor, caseRow: any) {
+    if (actor.role !== 'SPECIALIST') {
+      return;
+    }
+    if (caseRow.specialistUserId !== actor.id) {
+      throw new ForbiddenException('Specialist can access chat only for assigned cases');
+    }
   }
 }

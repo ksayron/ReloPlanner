@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const client = axios.create({
   baseURL: '/api',
+  timeout: 15000,
 });
 
 type LockoutReason = 'blocked' | 'session_expired';
