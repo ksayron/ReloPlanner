@@ -10,6 +10,7 @@ import {
 } from './adapters/market-data.adapter.js';
 import { TARGET_COUNTRY_CODES } from '../countries/countries.data.js';
 import { MarketService } from './market.service.js';
+import { MarketDigestService } from './market-digest.service.js';
 
 /** Default avgRequiredLevel by SkillCategory */
 const REQUIRED_LEVEL: Record<string, number> = {
@@ -25,6 +26,18 @@ const MAX_SYNC_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 300;
 const MAX_RUN_HISTORY = 30;
 const STALE_THRESHOLD_MINUTES = 180;
+const DEFAULT_ROLE_NAMES = [
+  'Frontend Developer',
+  'Backend Developer',
+  'Full-Stack Developer',
+  'DevOps Engineer',
+  'Data Scientist',
+  'Data Engineer',
+  'Mobile Developer',
+  'QA Engineer',
+  'Software Architect',
+  'Engineering Manager',
+];
 
 export type SyncErrorKind = 'adapter' | 'normalization' | 'db' | 'unknown';
 export type SyncFailureStage =
@@ -116,6 +129,7 @@ export class MarketSyncService implements OnApplicationBootstrap {
     private readonly normalizer: SkillNormalizerService,
     private readonly adzuna: AdzunaAdapter,
     private readonly marketService: MarketService,
+    private readonly marketDigestService: MarketDigestService,
   ) {
     this.adapterMap.set('DE', adzuna);
     this.adapterMap.set('NL', adzuna);
@@ -395,6 +409,8 @@ export class MarketSyncService implements OnApplicationBootstrap {
         `MarketSync [${iso}]: created snapshot ${snapshot.id} - ${resolvedSkills.length} skills, ${result.totalVacancies} vacancies`,
       );
 
+      await this.marketDigestService.recomputeCountryDigest(iso);
+
       return {
         country: iso,
         status: 'synced',
@@ -615,14 +631,16 @@ export class MarketSyncService implements OnApplicationBootstrap {
         select: { roleName: true },
         distinct: ['roleName'],
       });
-      const roleNames = roleRows
-        .map((x) => x.roleName)
-        .filter(Boolean)
-        .slice(0, 10);
+      const roleNames = Array.from(
+        new Set([
+          ...roleRows.map((x) => x.roleName).filter(Boolean),
+          ...DEFAULT_ROLE_NAMES,
+        ]),
+      ).slice(0, 12);
       if (roleNames.length === 0) return 0;
 
       const liveRows = await adapter.fetchJobPostings(iso, roleNames, {
-        maxPerRole: 8,
+        maxPerRole: 20,
       });
       if (liveRows.length === 0) return 0;
 

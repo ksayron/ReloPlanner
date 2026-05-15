@@ -689,27 +689,42 @@ model ProcessingJob {
   @@map("processing_jobs")
 }
 
-model JobPosting {
-  id                       String   @id @default(uuid())
-  countryCode              String   @map("country_code")
-  roleName                 String   @map("role_name")
-  title                    String
-  company                  String
-  location                 String
-  source                   String
-  sourceUrl                String?  @map("source_url")
-  sourceExternalId         String?  @map("source_external_id")
-  salaryMinUsd             Int?     @map("salary_min_usd")
-  salaryMaxUsd             Int?     @map("salary_max_usd")
-  salaryCurrency           String?  @map("salary_currency")
-  requirements             Json
-  requirementCompetencyIds String[] @default([]) @map("requirement_competency_ids")
-  dedupKey                 String   @unique @map("dedup_key")
-  createdAt                DateTime @default(now()) @map("created_at")
-  updatedAt                DateTime @updatedAt @map("updated_at")
+  model JobPosting {
+    id                       String   @id @default(uuid())
+    countryCode              String   @map("country_code")
+    roleName                 String   @map("role_name")
+    title                    String
+    company                  String
+    location                 String
+    source                   String
+    sourceUrl                String?  @map("source_url")
+    sourceExternalId         String?  @map("source_external_id")
+    salaryMinUsd             Int?     @map("salary_min_usd")
+    salaryMaxUsd             Int?     @map("salary_max_usd")
+    salaryCurrency           String?  @map("salary_currency")
+    requirements             Json
+    requirementCompetencyIds String[] @default([]) @map("requirement_competency_ids")
+    dedupKey                 String   @unique @map("dedup_key")
+    createdAt                DateTime @default(now()) @map("created_at")
+    updatedAt                DateTime @updatedAt @map("updated_at")
 
-  @@index([countryCode, roleName, createdAt])
-  @@map("job_postings")
+    @@index([countryCode, roleName, createdAt])
+    @@map("job_postings")
+  }
+
+model MarketDigest {
+  countryCode    String   @id @map("country_code")
+  snapshotDate   DateTime? @map("snapshot_date") @db.Date
+  snapshotSource String?  @map("snapshot_source")
+  totalVacancies Int?     @map("total_vacancies")
+  postingsSampleSize Int  @default(0) @map("postings_sample_size")
+  roles          Json
+  topSkills      Json     @map("top_skills")
+  computedAt     DateTime @default(now()) @map("computed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("market_digests")
 }
 
 model RelocationCase {

@@ -448,6 +448,29 @@ export interface JobMatchResult {
   rationale: string;
 }
 
+export interface MarketDigestRoleCount {
+  roleName: string;
+  vacancies: number;
+}
+
+export interface MarketDigestSkillDemand {
+  skillName: string;
+  frequency: number;
+  count: number;
+}
+
+export interface MarketDigestCountryResponse {
+  countryCode: string;
+  hasData: boolean;
+  snapshotDate: string | null;
+  snapshotSource: string | null;
+  totalVacancies: number | null;
+  postingsSampleSize: number;
+  roles: MarketDigestRoleCount[];
+  topSkills: MarketDigestSkillDemand[];
+  computedAt: string | null;
+}
+
 export interface TopMatchesResponse {
   items: JobMatchResult[];
   limit: number;

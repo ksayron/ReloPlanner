@@ -67,13 +67,17 @@ const SKILL_SEARCH_TERMS: Record<string, string> = {
 
 const ROLE_SEARCH_TERMS: Record<string, string> = {
   'Frontend Developer': 'frontend developer react typescript',
-  'Backend Developer': 'backend developer node.js api',
+  'Backend Developer':
+    'backend developer,backend engineer,api developer,node.js developer,nestjs developer,java developer,spring developer,asp.net developer,.net developer,c# developer',
   'Full-Stack Developer': 'full stack developer javascript',
-  'DevOps Engineer': 'devops engineer kubernetes docker',
+  'DevOps Engineer':
+    'devops engineer,site reliability engineer,sre,kubernetes engineer,platform engineer',
   'Data Scientist': 'data scientist python machine learning',
-  'Data Engineer': 'data engineer sql python etl',
+  'Data Engineer':
+    'data engineer,etl developer,big data engineer,analytics engineer',
   'Mobile Developer': 'mobile developer react native ios android',
-  'QA Engineer': 'qa engineer test automation',
+  'QA Engineer':
+    'qa engineer,test automation engineer,quality assurance engineer,software tester',
   'Software Architect': 'software architect',
   'Engineering Manager': 'engineering manager',
 };
@@ -212,7 +216,11 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
     const postings: LiveJobPosting[] = [];
 
     for (const roleName of roleNames) {
-      const what = ROLE_SEARCH_TERMS[roleName] ?? roleName;
+      const query = ROLE_SEARCH_TERMS[roleName] ?? roleName;
+      const queryTerms = query
+        .split(',')
+        .map((term) => term.trim())
+        .filter(Boolean);
       for (let page = 1; page <= pages; page++) {
         await new Promise((r) => setTimeout(r, 120));
         try {
@@ -223,7 +231,9 @@ export class AdzunaAdapter implements ILiveMarketAdapter {
                 app_key: appKey,
                 results_per_page: 20,
                 category: 'it-jobs',
-                what,
+                ...(queryTerms.length > 1
+                  ? { what_or: queryTerms.join(',') }
+                  : { what: queryTerms[0] ?? roleName }),
               },
               timeout: HTTP_TIMEOUT_MS,
             }),

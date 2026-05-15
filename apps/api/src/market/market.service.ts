@@ -3,12 +3,16 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { ManualAdapter } from './adapters/manual.adapter.js';
 import { ImportMarketDto } from './dto/import-market.dto.js';
 import { ImportJobPostingsDto } from './dto/import-job-postings.dto.js';
+import { MarketDigestService } from './market-digest.service.js';
 
 @Injectable()
 export class MarketService {
   private readonly manualAdapter = new ManualAdapter();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly marketDigestService: MarketDigestService,
+  ) {}
 
   async importManual(dto: ImportMarketDto) {
     const rows = this.manualAdapter.parse(dto.skills);
@@ -63,6 +67,10 @@ export class MarketService {
       },
     });
 
+    await this.marketDigestService.recomputeCountryDigest(
+      snapshot.country.toUpperCase(),
+    );
+
     return snapshot;
   }
 
@@ -77,6 +85,7 @@ export class MarketService {
 
     let inserted = 0;
     let updated = 0;
+    const affectedCountries = new Set<string>();
 
     for (const item of dto.items) {
       const requirements = (item.requirements ?? [])
@@ -108,6 +117,7 @@ export class MarketService {
         requirementCompetencyIds,
         dedupKey,
       };
+      affectedCountries.add(payload.countryCode);
 
       if (existing) {
         await jobPostingModel.update({
@@ -120,6 +130,10 @@ export class MarketService {
         inserted += 1;
       }
     }
+
+    await this.marketDigestService.recomputeMany(
+      Array.from(affectedCountries.values()),
+    );
 
     return {
       inserted,

@@ -12,6 +12,7 @@ import ProfileWizard from './pages/ProfileWizard';
 import Dashboard from './pages/Dashboard';
 import ProgressTracker from './pages/ProgressTracker';
 import CostOfLiving from './pages/CostOfLiving';
+import Jobs from './pages/Jobs';
 import Profiles from './pages/Profiles';
 import KnowledgeList from './pages/KnowledgeList';
 import KnowledgeArticle from './pages/KnowledgeArticle';
@@ -49,6 +50,7 @@ function AppRoutes() {
         <Route path="dashboard/:profileId" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="progress/:profileId" element={<ProtectedRoute><ProgressTracker /></ProtectedRoute>} />
         <Route path="cost-of-living" element={<ProtectedRoute><CostOfLiving /></ProtectedRoute>} />
+        <Route path="jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
         <Route path="in-development" element={<ProtectedRoute><InDevelopment /></ProtectedRoute>} />
       </Route>
     </Routes>

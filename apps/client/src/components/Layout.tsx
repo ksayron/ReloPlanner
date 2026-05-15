@@ -232,6 +232,14 @@ export default function Layout() {
                 <>
                   <Anchor
                     component={RouterLink}
+                    to="/jobs"
+                    className={linkClass}
+                    underline="never"
+                  >
+                    Jobs
+                  </Anchor>
+                  <Anchor
+                    component={RouterLink}
                     to="/profiles"
                     className={linkClass}
                     underline="never"
@@ -375,6 +383,14 @@ export default function Layout() {
           </Button>
           {user && (
             <>
+              <Anchor
+                component={RouterLink}
+                to="/jobs"
+                underline="never"
+                onClick={close}
+              >
+                Jobs
+              </Anchor>
               <Anchor
                 component={RouterLink}
                 to="/profiles"
