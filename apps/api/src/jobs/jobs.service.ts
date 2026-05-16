@@ -232,7 +232,9 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     const oneHourAgo = new Date(now - 60 * 60 * 1000);
     const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
     const stuckThresholdMinutes = 30;
-    const stuckThresholdDate = new Date(now - stuckThresholdMinutes * 60 * 1000);
+    const stuckThresholdDate = new Date(
+      now - stuckThresholdMinutes * 60 * 1000,
+    );
     const safeLimit = Math.min(Math.max(limit, 5), 100);
     const processingJobModel = (this.prisma as any).processingJob;
 

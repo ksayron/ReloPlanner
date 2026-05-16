@@ -65,7 +65,9 @@ describe('MarketService', () => {
   });
 
   it('recomputes digests for affected countries after job postings import', async () => {
-    competencyFindMany.mockResolvedValue([{ id: 'comp-ts', name: 'TypeScript' }]);
+    competencyFindMany.mockResolvedValue([
+      { id: 'comp-ts', name: 'TypeScript' },
+    ]);
     jobPostingFindUnique.mockResolvedValue(null);
     jobPostingCreate.mockResolvedValue({});
     marketDigestRecomputeMany.mockResolvedValue(undefined);

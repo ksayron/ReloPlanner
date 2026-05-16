@@ -31,11 +31,8 @@ const reportTexts = (locale: ReportLocale) => {
       unknownError: 'Неизвестная ошибка',
       topGapsPrefix: 'Ключевые пробелы',
       noMajorGaps: 'Критичных пробелов не обнаружено.',
-      marketSnapshotNote: (
-        country: string,
-        source: string,
-        gapText: string,
-      ) => `Снимок рынка ${country} из ${source}. ${gapText}`,
+      marketSnapshotNote: (country: string, source: string, gapText: string) =>
+        `Снимок рынка ${country} из ${source}. ${gapText}`,
       aiFallbackExecutiveSummary:
         'AI-сводка недоступна. Базовые данные snapshot остаются доступными.',
       aiFallbackStrength: 'AI-вывод для этого запуска недоступен.',
@@ -146,9 +143,7 @@ export class ReportsService {
       locale,
     );
     if (variant === 'ai-summary' && !report.aiSummary) {
-      throw new BadRequestException(
-        texts.aiSummaryMissing,
-      );
+      throw new BadRequestException(texts.aiSummaryMissing);
     }
     const html = this.renderHtml(
       report.snapshot,
@@ -541,8 +536,7 @@ export class ReportsService {
           costBreakdown: 'Структура расходов',
           category: 'Категория',
           estimatedMonthlyCost: 'Оценка ежемесячной стоимости',
-          noCategoryCostData:
-            'Нет данных по категориям стоимости',
+          noCategoryCostData: 'Нет данных по категориям стоимости',
           section8: '8. Лучшие совпадения вакансий',
           topJobsPlaceholder:
             'Лучшие совпадения вакансий пока не прикреплены к этому snapshot.',
@@ -615,7 +609,8 @@ export class ReportsService {
           runway: 'Runway',
           unavailable: 'Unavailable',
           recommendedSavings: 'Recommended Savings',
-          financialSummaryUnavailable: 'Financial readiness summary is unavailable.',
+          financialSummaryUnavailable:
+            'Financial readiness summary is unavailable.',
           costBreakdown: 'Cost Breakdown',
           category: 'Category',
           estimatedMonthlyCost: 'Estimated Monthly Cost',
@@ -721,10 +716,8 @@ export class ReportsService {
         `,
       )
       .join('');
-    const topJobsPlaceholder =
-      `<li>${copy.topJobsPlaceholder}</li>`;
-    const cvAdvicePlaceholder =
-      `<li>${copy.cvAdvicePlaceholder}</li>`;
+    const topJobsPlaceholder = `<li>${copy.topJobsPlaceholder}</li>`;
+    const cvAdvicePlaceholder = `<li>${copy.cvAdvicePlaceholder}</li>`;
     const marketRiskLabel =
       snapshot.marketContext.totalVacancies < 100
         ? 'HIGH'

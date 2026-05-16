@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { NotificationItem, NotificationType } from '@reloplanner/shared-contracts';
+import type {
+  NotificationItem,
+  NotificationType,
+} from '@reloplanner/shared-contracts';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 

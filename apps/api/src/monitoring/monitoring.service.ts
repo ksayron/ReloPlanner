@@ -97,7 +97,10 @@ export class MonitoringService {
     }
 
     let status: HealthStatus = 'healthy';
-    if (dbState.status === 'unhealthy' || realtimeState.status === 'unhealthy') {
+    if (
+      dbState.status === 'unhealthy' ||
+      realtimeState.status === 'unhealthy'
+    ) {
       status = 'unhealthy';
     } else if (warnings.length > 0) {
       status = 'degraded';

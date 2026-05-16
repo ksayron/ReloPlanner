@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -105,7 +109,8 @@ export class ProfileService {
   }
 
   private async assertCreateProfileAllowed(userId: string) {
-    const subscription = await this.billingService.getCurrentSubscriptionForUser(userId);
+    const subscription =
+      await this.billingService.getCurrentSubscriptionForUser(userId);
     if (subscription.plan.code !== 'FREE') {
       return;
     }

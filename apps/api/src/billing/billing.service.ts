@@ -286,13 +286,7 @@ export class BillingService {
         }),
       ]);
 
-    const preferredCurrency = (preferences?.preferredCurrency ?? 'USD') as
-      | 'USD'
-      | 'EUR'
-      | 'GBP'
-      | 'CAD'
-      | 'PLN'
-      | 'UAH';
+    const preferredCurrency = preferences?.preferredCurrency ?? 'USD';
 
     const premiumPriceUsd = this.convertToUsd(
       Number(premiumPlan.price),

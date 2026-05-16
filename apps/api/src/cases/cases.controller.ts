@@ -101,7 +101,10 @@ export class CasesController {
   }
 
   @Delete(':caseId')
-  deleteCase(@Req() req: Request & { user: RequestUser }, @Param('caseId') caseId: string) {
+  deleteCase(
+    @Req() req: Request & { user: RequestUser },
+    @Param('caseId') caseId: string,
+  ) {
     return this.casesService.deleteCaseForCurrentUser(req.user, caseId);
   }
 

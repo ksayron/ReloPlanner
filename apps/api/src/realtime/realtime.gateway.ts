@@ -96,11 +96,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
       return { ok: false, error: 'Invalid subscription payload' };
     }
 
-    const allowed = await this.canAccessCase(
-      user.id,
-      user.role,
-      caseId,
-    );
+    const allowed = await this.canAccessCase(user.id, user.role, caseId);
     if (!allowed) {
       return { ok: false, error: 'No access to case' };
     }
@@ -195,7 +191,9 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     if (relocationCase.specialistUserId === userId) return true;
     if (
       role === 'SPECIALIST' &&
-      ['SUBMITTED', 'IN_PROGRESS', 'NEEDS_USER_INPUT'].includes(relocationCase.status)
+      ['SUBMITTED', 'IN_PROGRESS', 'NEEDS_USER_INPUT'].includes(
+        relocationCase.status,
+      )
     ) {
       return true;
     }

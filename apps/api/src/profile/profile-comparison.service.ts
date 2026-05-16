@@ -12,7 +12,9 @@ import { AnalysisWorkflowService } from '../scoring/analysis-workflow.service';
 import { FinancialReadinessService } from '../financial-readiness/financial-readiness.service';
 import { LegalReadinessService } from '../legal-readiness/legal-readiness.service';
 
-type FormattedAnalysis = ReturnType<AnalysisWorkflowService['formatAnalysisResponse']>;
+type FormattedAnalysis = ReturnType<
+  AnalysisWorkflowService['formatAnalysisResponse']
+>;
 
 const LOW_CONFIDENCE_THRESHOLD = 40;
 
@@ -49,7 +51,9 @@ export class ProfileComparisonService {
       );
     }
 
-    const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+    const profileById = new Map(
+      profiles.map((profile) => [profile.id, profile]),
+    );
     const firstProfile = profileById.get(firstProfileId)!;
     const secondProfile = profileById.get(secondProfileId)!;
 
@@ -79,7 +83,9 @@ export class ProfileComparisonService {
     };
   }
 
-  private async buildComparedProfile(profile: any): Promise<ComparedProfileResult> {
+  private async buildComparedProfile(
+    profile: any,
+  ): Promise<ComparedProfileResult> {
     const [analysis, financial, legal] = await Promise.all([
       this.getLatestFormattedAnalysis(profile.id),
       this.getFinancialReadiness(profile),
@@ -169,7 +175,9 @@ export class ProfileComparisonService {
     }
 
     if (strengths.length === 0) {
-      strengths.push('No clear standout strength identified from current data.');
+      strengths.push(
+        'No clear standout strength identified from current data.',
+      );
     }
     if (weaknesses.length === 0) {
       weaknesses.push('No critical bottleneck identified from current data.');
@@ -240,7 +248,9 @@ export class ProfileComparisonService {
         targetCountry: profile.targetCountry,
         targetCity: profile.targetCity ?? undefined,
         savingsAmount:
-          profile.savingsAmount != null ? Number(profile.savingsAmount) : undefined,
+          profile.savingsAmount != null
+            ? Number(profile.savingsAmount)
+            : undefined,
         savingsCurrency: profile.savingsCurrency ?? undefined,
         monthlyBudgetAmount:
           profile.monthlyBudgetAmount != null
@@ -251,7 +261,8 @@ export class ProfileComparisonService {
           profile.expectedNetSalaryAmount != null
             ? Number(profile.expectedNetSalaryAmount)
             : undefined,
-        expectedNetSalaryCurrency: profile.expectedNetSalaryCurrency ?? undefined,
+        expectedNetSalaryCurrency:
+          profile.expectedNetSalaryCurrency ?? undefined,
         dependentsCount: profile.dependentsCount ?? undefined,
         lifestyle: profile.lifestyle ?? undefined,
         jobSearchMonths: profile.jobSearchMonths ?? undefined,
@@ -324,14 +335,17 @@ export class ProfileComparisonService {
     return 45;
   }
 
-  private toImmigrationSimplicityScore(legal: LegalReadinessResult | null): number {
+  private toImmigrationSimplicityScore(
+    legal: LegalReadinessResult | null,
+  ): number {
     if (!legal) return 50;
 
     let score = 100;
     if (legal.visaCheckLikelyRequired) score -= 35;
     if (legal.overallRisk === 'MODERATE') score -= 25;
     if (legal.overallRisk === 'HIGH') score -= 50;
-    if (legal.warnings.some((warning) => warning.severity === 'HIGH')) score -= 15;
+    if (legal.warnings.some((warning) => warning.severity === 'HIGH'))
+      score -= 15;
     return this.roundScore(this.clamp(score, 0, 100));
   }
 
@@ -420,7 +434,9 @@ export class ProfileComparisonService {
     let betterProfileId: string | null = null;
     if (diff >= 2) {
       betterProfileId =
-        firstProfileScore > secondProfileScore ? first.profileId : second.profileId;
+        firstProfileScore > secondProfileScore
+          ? first.profileId
+          : second.profileId;
     }
     return {
       category,
@@ -434,7 +450,10 @@ export class ProfileComparisonService {
   private resolveWinner(
     first: ComparedProfileResult,
     second: ComparedProfileResult,
-  ): { winnerProfileId: string | null; recommendation: ProfileComparisonRecommendation } {
+  ): {
+    winnerProfileId: string | null;
+    recommendation: ProfileComparisonRecommendation;
+  } {
     if (
       first.scores.dataConfidenceScore < LOW_CONFIDENCE_THRESHOLD ||
       second.scores.dataConfidenceScore < LOW_CONFIDENCE_THRESHOLD
@@ -477,8 +496,7 @@ export class ProfileComparisonService {
       return 'Both profiles currently appear similar in overall readiness based on available analysis data.';
     }
 
-    const winner =
-      recommendation === 'FIRST_PROFILE_STRONGER' ? first : second;
+    const winner = recommendation === 'FIRST_PROFILE_STRONGER' ? first : second;
     const loser = recommendation === 'FIRST_PROFILE_STRONGER' ? second : first;
 
     const winnerWins = categories
@@ -531,7 +549,9 @@ export class ProfileComparisonService {
 
     const immigrationRisk = this.normalizeRisk(legal?.overallRisk);
     const financialRisk = this.normalizeRisk(financial?.financialRiskLevel);
-    const market = this.normalizeMarketConfidence(analysis?.marketConfidence?.level);
+    const market = this.normalizeMarketConfidence(
+      analysis?.marketConfidence?.level,
+    );
 
     if (immigrationRisk) risks.push(immigrationRisk);
     if (financialRisk) risks.push(financialRisk);
@@ -612,11 +632,15 @@ export class ProfileComparisonService {
   }
 
   private toProfileName(profile: any): string {
-    const role = typeof profile.desiredRole === 'string' ? profile.desiredRole : 'Profile';
+    const role =
+      typeof profile.desiredRole === 'string' ? profile.desiredRole : 'Profile';
     const country =
-      typeof profile.targetCountry === 'string' ? profile.targetCountry : 'target';
+      typeof profile.targetCountry === 'string'
+        ? profile.targetCountry
+        : 'target';
     const city =
-      typeof profile.targetCity === 'string' && profile.targetCity.trim().length > 0
+      typeof profile.targetCity === 'string' &&
+      profile.targetCity.trim().length > 0
         ? `, ${profile.targetCity}`
         : '';
     return `${role} -> ${country}${city}`;

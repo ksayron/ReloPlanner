@@ -26,7 +26,7 @@ export class MonitoringStreamService {
       const payload: RealtimeAdminSystemSnapshotPayload = {
         generatedAt: new Date().toISOString(),
         systemState: systemState as unknown as Record<string, unknown>,
-        queueDashboard: queueDashboard as unknown as Record<string, unknown>,
+        queueDashboard: queueDashboard,
       };
 
       this.realtimeService.emitToAdminMonitoring(
@@ -34,8 +34,9 @@ export class MonitoringStreamService {
         payload,
       );
     } catch (error) {
-      this.logger.warn(`Failed to push admin monitoring snapshot: ${String(error)}`);
+      this.logger.warn(
+        `Failed to push admin monitoring snapshot: ${String(error)}`,
+      );
     }
   }
 }
-

@@ -112,8 +112,12 @@ export class CasesService {
       where,
       orderBy: { updatedAt: 'desc' },
       include: {
-        owner: { select: { id: true, email: true, displayName: true, role: true } },
-        specialist: { select: { id: true, email: true, displayName: true, role: true } },
+        owner: {
+          select: { id: true, email: true, displayName: true, role: true },
+        },
+        specialist: {
+          select: { id: true, email: true, displayName: true, role: true },
+        },
         profile: {
           select: {
             id: true,
@@ -229,7 +233,7 @@ export class CasesService {
                 senderName,
               }
             : null,
-        } as CaseChatSummary;
+        };
       });
   }
 
@@ -313,7 +317,9 @@ export class CasesService {
       readStates: readStates.map((row: any) => ({
         user: row.user,
         lastReadMessageId: row.lastReadMessageId ?? null,
-        lastReadAt: row.lastReadAt ? new Date(row.lastReadAt).toISOString() : null,
+        lastReadAt: row.lastReadAt
+          ? new Date(row.lastReadAt).toISOString()
+          : null,
         unreadCount: Number(row.unreadCount),
         updatedAt: new Date(row.updatedAt).toISOString(),
       })),
@@ -422,7 +428,9 @@ export class CasesService {
   async deleteCaseForCurrentUser(actor: CaseActor, caseId: string) {
     const caseRow = await this.findCaseForActor(actor, caseId);
     if (actor.role !== 'USER' && actor.role !== 'PREMIUM') {
-      throw new ForbiddenException('Only clients can delete cases for themselves');
+      throw new ForbiddenException(
+        'Only clients can delete cases for themselves',
+      );
     }
     if (caseRow.ownerUserId !== actor.id) {
       throw new ForbiddenException('Only case owner can delete this case');
@@ -574,7 +582,9 @@ export class CasesService {
     const caseRow = await this.findCaseForActor(actor, caseId);
     this.assertCanAccessCaseChat(actor, caseRow);
     if (actor.role === 'ADMIN') {
-      throw new ForbiddenException('Admin cannot post participant chat messages');
+      throw new ForbiddenException(
+        'Admin cannot post participant chat messages',
+      );
     }
     if (actor.role === 'SPECIALIST' && caseRow.specialistUserId !== actor.id) {
       throw new ForbiddenException(
@@ -657,8 +667,7 @@ export class CasesService {
           caseId,
           type: 'CASE_MESSAGE' as const,
           title: 'New case message',
-          body:
-            content.length > 120 ? `${content.slice(0, 117)}...` : content,
+          body: content.length > 120 ? `${content.slice(0, 117)}...` : content,
           metadata: { caseId, messageId: created.id },
         })),
     );
@@ -682,13 +691,19 @@ export class CasesService {
     return rows.map((row: any) => ({
       user: row.user,
       lastReadMessageId: row.lastReadMessageId ?? null,
-      lastReadAt: row.lastReadAt ? new Date(row.lastReadAt).toISOString() : null,
+      lastReadAt: row.lastReadAt
+        ? new Date(row.lastReadAt).toISOString()
+        : null,
       unreadCount: Number(row.unreadCount),
       updatedAt: new Date(row.updatedAt).toISOString(),
     }));
   }
 
-  async updateReadState(actor: CaseActor, caseId: string, dto: UpdateReadStateDto) {
+  async updateReadState(
+    actor: CaseActor,
+    caseId: string,
+    dto: UpdateReadStateDto,
+  ) {
     const caseRow = await this.findCaseForActor(actor, caseId);
     this.assertCanAccessCaseChat(actor, caseRow);
     const lastMessage = dto.lastReadMessageId
@@ -763,7 +778,10 @@ export class CasesService {
     return payload;
   }
 
-  async getSpecialistNote(actor: CaseActor, caseId: string): Promise<SpecialistCaseNote> {
+  async getSpecialistNote(
+    actor: CaseActor,
+    caseId: string,
+  ): Promise<SpecialistCaseNote> {
     const caseRow = await this.findCaseForActor(actor, caseId);
     const noteOwnerId = this.getSpecialistNoteOwnerId(actor, caseRow);
     const note = await (this.prisma as any).specialistCaseNote.findUnique({
@@ -915,7 +933,7 @@ export class CasesService {
       id: result.message.id,
       caseId: input.caseId,
       author: null,
-      kind: 'SYSTEM' as CaseMessageKind,
+      kind: 'SYSTEM',
       content: result.message.content,
       metadata:
         result.message.metadata && typeof result.message.metadata === 'object'
@@ -923,7 +941,11 @@ export class CasesService {
           : null,
       createdAt: new Date(result.message.createdAt).toISOString(),
     };
-    this.realtime.emitToCase(input.caseId, 'case.system.created', messagePayload);
+    this.realtime.emitToCase(
+      input.caseId,
+      'case.system.created',
+      messagePayload,
+    );
 
     await this.notifications.createNotifications(
       participants
@@ -1044,7 +1066,7 @@ export class CasesService {
       id: result.message.id,
       caseId: input.caseRow.id,
       author: null,
-      kind: 'SYSTEM' as CaseMessageKind,
+      kind: 'SYSTEM',
       content: result.message.content,
       metadata:
         result.message.metadata && typeof result.message.metadata === 'object'
@@ -1052,7 +1074,11 @@ export class CasesService {
           : null,
       createdAt: new Date(result.message.createdAt).toISOString(),
     };
-    this.realtime.emitToCase(input.caseRow.id, 'case.system.created', messagePayload);
+    this.realtime.emitToCase(
+      input.caseRow.id,
+      'case.system.created',
+      messagePayload,
+    );
 
     const notificationRecipients = new Set<string>([
       ...participantsBefore,
@@ -1161,7 +1187,9 @@ export class CasesService {
       submittedAt: row.submittedAt
         ? new Date(row.submittedAt).toISOString()
         : null,
-      canceledAt: row.canceledAt ? new Date(row.canceledAt).toISOString() : null,
+      canceledAt: row.canceledAt
+        ? new Date(row.canceledAt).toISOString()
+        : null,
       createdAt: new Date(row.createdAt).toISOString(),
       updatedAt: new Date(row.updatedAt).toISOString(),
     } as RelocationCase;
@@ -1288,7 +1316,9 @@ export class CasesService {
       return;
     }
     if (caseRow.specialistUserId !== actor.id) {
-      throw new ForbiddenException('Specialist can access chat only for assigned cases');
+      throw new ForbiddenException(
+        'Specialist can access chat only for assigned cases',
+      );
     }
   }
 }

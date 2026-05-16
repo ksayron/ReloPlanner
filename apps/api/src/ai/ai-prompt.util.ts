@@ -100,8 +100,7 @@ export function parseAiSummaryJson(
   const executiveSummary = String(parsed.executiveSummary ?? '').trim();
   const recommendedStrategy = String(parsed.recommendedStrategy ?? '').trim();
   const advisoryDisclaimer =
-    String(parsed.advisoryDisclaimer ?? '').trim() ||
-    texts.advisoryDisclaimer;
+    String(parsed.advisoryDisclaimer ?? '').trim() || texts.advisoryDisclaimer;
   const topStrengths = sanitizeList(parsed.topStrengths);
   const topRisks = sanitizeList(parsed.topRisks);
 
@@ -116,13 +115,8 @@ export function parseAiSummaryJson(
   return {
     executiveSummary,
     topStrengths:
-      topStrengths.length > 0
-        ? topStrengths
-        : [texts.missingStrengths],
-    topRisks:
-      topRisks.length > 0
-        ? topRisks
-        : [texts.missingRisks],
+      topStrengths.length > 0 ? topStrengths : [texts.missingStrengths],
+    topRisks: topRisks.length > 0 ? topRisks : [texts.missingRisks],
     recommendedStrategy,
     advisoryDisclaimer,
   };
@@ -155,13 +149,8 @@ export function buildMockSummary(
       snapshot.profileSummary.targetCountry,
     ),
     topStrengths:
-      topStrengths.length > 0
-        ? topStrengths
-        : [texts.mockNoStrengths],
-    topRisks:
-      topRisks.length > 0
-        ? topRisks
-        : [texts.mockNoRisks],
+      topStrengths.length > 0 ? topStrengths : [texts.mockNoStrengths],
+    topRisks: topRisks.length > 0 ? topRisks : [texts.mockNoRisks],
     recommendedStrategy: texts.mockStrategy,
     advisoryDisclaimer: texts.mockDisclaimer,
   };
