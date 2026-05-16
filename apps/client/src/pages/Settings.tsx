@@ -21,6 +21,7 @@ import { fetchCountriesCatalog } from '../api/countries';
 import { fetchMyPreferences, updateMyPreferences } from '../api/preferences';
 import PremiumUpgradeModal from '../components/PremiumUpgradeModal';
 import { buildCheckoutReturnUrls, pollCheckoutStatus } from '../utils/checkout';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 import type {
   BillingStatusResponse,
   CountriesCatalog,
@@ -124,6 +125,7 @@ function mapOAuthError(code: string | null) {
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user: authUser, token } = useAuth();
+  const { language, setLanguage } = useAppLanguage();
   const { setColorScheme } = useMantineColorScheme();
   const [user, setUser] = useState<SettingsUser | null>(null);
   const [loading, setLoading] = useState(false);
@@ -338,7 +340,7 @@ export default function Settings() {
     const normalizedCity = preferencesDraft.defaultTargetCity.trim();
 
     const payload: UpdateUserPreferencesPayload = {
-      preferredLanguage: preferencesDraft.preferredLanguage,
+      preferredLanguage: language,
       preferredTheme: preferencesDraft.preferredTheme,
       preferredCurrency: preferencesDraft.preferredCurrency,
       defaultTargetCountry: normalizedCountry || null,
@@ -355,6 +357,9 @@ export default function Settings() {
       setPreferences(updated);
       setPreferencesDraft(toDraft(updated));
       setColorScheme(updated.preferredTheme);
+      if (updated.preferredLanguage !== language) {
+        await setLanguage(updated.preferredLanguage);
+      }
       setPreferencesInfo('Preferences saved.');
     } catch (error) {
       const message = isAxiosError(error)
@@ -481,13 +486,15 @@ export default function Settings() {
             <Select
               label="Preferred Language"
               data={LANGUAGE_OPTIONS}
-              value={preferencesDraft.preferredLanguage}
-              onChange={(value) =>
+              value={language}
+              onChange={(value) => {
+                if (!value || (value !== 'en' && value !== 'ru')) return;
+                void setLanguage(value);
                 setPreferencesDraft((prev) => ({
                   ...prev,
-                  preferredLanguage: (value as 'en' | 'ru') || 'en',
-                }))
-              }
+                  preferredLanguage: value,
+                }));
+              }}
               disabled={preferencesLoading || preferencesSaving}
             />
             <Select

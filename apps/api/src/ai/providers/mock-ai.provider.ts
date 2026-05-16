@@ -13,7 +13,7 @@ export class MockAiProvider implements AiProvider {
 
   async summarizeReport(request: AiSummaryRequest): Promise<AiProviderResult> {
     return {
-      summary: buildMockSummary(request.snapshot),
+      summary: buildMockSummary(request.snapshot, request.locale),
       model: 'mock-summary-v1',
     };
   }

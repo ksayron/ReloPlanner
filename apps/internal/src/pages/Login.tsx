@@ -11,9 +11,11 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../api/AuthContext';
 
 export default function Login() {
+  const { t } = useTranslation('auth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -25,13 +27,13 @@ export default function Login() {
     const params = new URLSearchParams(location.search);
     const reason = params.get('lockout');
     if (reason === 'blocked') {
-      return 'Your account is blocked. Contact support or an administrator.';
+      return t('accountBlocked');
     }
     if (reason === 'session_expired') {
-      return 'Your session expired or is no longer valid. Please log in again.';
+      return t('sessionExpired');
     }
     return '';
-  }, [location.search]);
+  }, [location.search, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +42,7 @@ export default function Login() {
       await login(email, password);
       navigate('/sync');
     } catch {
-      setError('Invalid credentials');
+      setError(t('invalidCredentials'));
     }
   };
 
@@ -59,26 +61,26 @@ export default function Login() {
       <Paper withBorder radius="lg" p="xl" className="bg-white">
         <form onSubmit={handleSubmit}>
           <Stack>
-            <Title order={2}>Login</Title>
+            <Title order={2}>{t('login')}</Title>
             {lockoutMessage && <Alert color="orange">{lockoutMessage}</Alert>}
             {error && <Alert color="red">{error}</Alert>}
             <TextInput
-              label="Email"
+              label={t('email')}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}
               required
             />
             <PasswordInput
-              label="Password"
+              label={t('password')}
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
               required
             />
             <Button type="submit" loading={loading} color="brand.7" fullWidth>
-              Login
+              {t('login')}
             </Button>
-            <Divider label="or" labelPosition="center" />
+            <Divider label={t('or')} labelPosition="center" />
             <Button
               type="button"
               variant="light"
@@ -86,7 +88,7 @@ export default function Login() {
               onClick={handleGoogleLogin}
               fullWidth
             >
-              Continue with Google
+              {t('continueWithGoogle')}
             </Button>
             <Button
               type="button"
@@ -95,7 +97,7 @@ export default function Login() {
               onClick={handleGithubLogin}
               fullWidth
             >
-              Continue with GitHub
+              {t('continueWithGithub')}
             </Button>
             <Anchor
               component={RouterLink}
@@ -104,7 +106,7 @@ export default function Login() {
               c="dimmed"
               size="sm"
             >
-              No account? Register
+              {t('noAccountRegister')}
             </Anchor>
           </Stack>
         </form>

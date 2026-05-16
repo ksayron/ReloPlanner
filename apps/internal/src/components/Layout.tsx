@@ -10,6 +10,7 @@ import {
   Divider,
   Drawer,
   Group,
+  Select,
   Stack,
   Text,
   Tooltip,
@@ -19,8 +20,10 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useAuth, useRealtimeCase } from '@reloplanner/shared-frontend';
+import { useTranslation } from 'react-i18next';
 import { getCaseChatsUnreadCount } from '../api/cases';
 import { fetchMyPreferences, updateMyPreferences } from '../api/preferences';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 const colorSchemeStorageKey = 'reloplanner-color-scheme';
 
@@ -57,6 +60,8 @@ function MoonIcon() {
 }
 
 export default function Layout() {
+  const { t } = useTranslation(['layout', 'common']);
+  const { language, setLanguage } = useAppLanguage();
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [opened, { toggle, close }] = useDisclosure(false);
@@ -65,10 +70,10 @@ export default function Layout() {
   const { setColorScheme } = useMantineColorScheme();
   const computedColorScheme = useComputedColorScheme('light');
 
-  const adminLinks = useMemo(() => {
+  const navigationLinks = useMemo(() => {
     const links = [
-      { to: '/cases', label: 'Cases' },
-      { to: '/chats', label: 'Chats' },
+      { to: '/cases', label: t('cases', { ns: 'layout' }) },
+      { to: '/chats', label: t('chats', { ns: 'layout' }) },
       { to: '/sync', label: 'Sync' },
       { to: '/system', label: 'System' },
       { to: '/taxonomy', label: 'Taxonomy' },
@@ -79,7 +84,7 @@ export default function Layout() {
       return links.filter((link) => link.to === '/cases' || link.to === '/chats');
     }
     return links;
-  }, [user?.role]);
+  }, [t, user?.role]);
 
   const handleLogout = () => {
     logout();
@@ -163,7 +168,9 @@ export default function Layout() {
   };
 
   const themeToggleLabel =
-    computedColorScheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+    computedColorScheme === 'dark'
+      ? t('switchToLightMode', { ns: 'layout' })
+      : t('switchToDarkMode', { ns: 'layout' });
   const themeToggleIcon = computedColorScheme === 'dark' ? <SunIcon /> : <MoonIcon />;
 
   return (
@@ -172,14 +179,32 @@ export default function Layout() {
         <AppShell.Header style={{ borderBottom: '1px solid var(--app-border)' }}>
           <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between px-4">
             <Group gap="md">
-              <Burger opened={opened} onClick={toggle} size="sm" aria-label="Open internal menu" />
+              <Burger
+                opened={opened}
+                onClick={toggle}
+                size="sm"
+                aria-label={t('openInternalMenu', { ns: 'layout' })}
+              />
               <Anchor component={RouterLink} to="/cases" underline="never">
                 <Title order={3} c="brand.7">
-                  ReloPlanner Internal
+                  {t('appTitle', { ns: 'layout' })}
                 </Title>
               </Anchor>
             </Group>
             <Group gap="sm">
+              <Select
+                w={88}
+                aria-label={t('language', { ns: 'common' })}
+                value={language}
+                onChange={(value) => {
+                  if (!value || (value !== 'en' && value !== 'ru')) return;
+                  void setLanguage(value);
+                }}
+                data={[
+                  { value: 'en', label: 'EN' },
+                  { value: 'ru', label: 'RU' },
+                ]}
+              />
               <Tooltip label={themeToggleLabel} withArrow>
                 <ActionIcon
                   variant="subtle"
@@ -193,15 +218,15 @@ export default function Layout() {
               </Tooltip>
               {user ? <Text size="sm">{user.email}</Text> : null}
               <Button variant="subtle" component="a" href={clientAppUrl}>
-                Open Client App
+                {t('openClientApp', { ns: 'layout' })}
               </Button>
               {user ? (
                 <Button color="red" variant="light" onClick={handleLogout}>
-                  Logout
+                  {t('logout', { ns: 'layout' })}
                 </Button>
               ) : (
                 <Button component={RouterLink} to="/login" color="brand.7">
-                  Login
+                  {t('login', { ns: 'layout' })}
                 </Button>
               )}
             </Group>
@@ -217,16 +242,28 @@ export default function Layout() {
       <Drawer
         opened={opened}
         onClose={close}
-        title="Internal Navigation"
+        title={t('internalNavigation', { ns: 'layout' })}
         padding="md"
         size="xs"
         position="left"
       >
         <Stack gap="sm">
+          <Select
+            label={t('language', { ns: 'common' })}
+            value={language}
+            onChange={(value) => {
+              if (!value || (value !== 'en' && value !== 'ru')) return;
+              void setLanguage(value);
+            }}
+            data={[
+              { value: 'en', label: t('english', { ns: 'common' }) },
+              { value: 'ru', label: t('russian', { ns: 'common' }) },
+            ]}
+          />
           <Button variant="light" color="gray" onClick={handleThemeToggle}>
             {themeToggleLabel}
           </Button>
-          {adminLinks.map((link) => (
+          {navigationLinks.map((link) => (
             <Anchor
               key={link.to}
               component={RouterLink}
@@ -249,14 +286,14 @@ export default function Layout() {
             </Anchor>
           ))}
           <Anchor component={RouterLink} to="/settings" underline="never" onClick={close}>
-            Settings
+            {t('settings', { ns: 'layout' })}
           </Anchor>
           <Anchor component={RouterLink} to="/plan" underline="never" onClick={close}>
-            Plan
+            {t('plan', { ns: 'layout' })}
           </Anchor>
           <Divider />
           <Anchor component="a" href={clientAppUrl} underline="never" onClick={close}>
-            Open Client App
+            {t('openClientApp', { ns: 'layout' })}
           </Anchor>
         </Stack>
       </Drawer>

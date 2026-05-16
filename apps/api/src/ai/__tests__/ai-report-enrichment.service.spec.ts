@@ -120,6 +120,7 @@ describe('AiReportEnrichmentService', () => {
     const response = await service.summarizeSnapshot(
       snapshotFixture,
       'REASONING',
+      'en',
     );
     expect(response.meta.providerUsed).toBe('OPENROUTER');
     expect(response.meta.fallbackUsed).toBe(true);
@@ -139,6 +140,7 @@ describe('AiReportEnrichmentService', () => {
     const response = await service.summarizeSnapshot(
       snapshotFixture,
       'REASONING',
+      'en',
     );
     expect(response.meta.providerUsed).toBe('MOCK');
     expect(response.meta.fallbackUsed).toBe(true);
@@ -156,7 +158,7 @@ describe('AiReportEnrichmentService', () => {
     const originalFitScore = snapshotFixture.readiness.fitScore;
     const originalPrepMonths = snapshotFixture.readiness.totalPrepMonths;
 
-    await service.summarizeSnapshot(snapshotFixture, 'REASONING');
+    await service.summarizeSnapshot(snapshotFixture, 'REASONING', 'en');
 
     expect(snapshotFixture.readiness.fitScore).toBe(originalFitScore);
     expect(snapshotFixture.readiness.totalPrepMonths).toBe(originalPrepMonths);

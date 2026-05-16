@@ -11,6 +11,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import client from '../api/client';
 import type { GapStatus, RoadmapStep, TimeEstimate } from '../types';
 
@@ -21,6 +22,7 @@ interface RoadmapData {
 }
 
 export default function ProgressTracker() {
+  const { t } = useTranslation(['progress', 'components']);
   const { profileId } = useParams<{ profileId: string }>();
   const [roadmap, setRoadmap] = useState<RoadmapData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,9 +33,9 @@ export default function ProgressTracker() {
     client
       .get(`/profiles/${profileId}/roadmap`)
       .then((res) => setRoadmap(res.data))
-      .catch(() => setError('Failed to load roadmap'))
+      .catch(() => setError(t('progress:failedLoadRoadmap')))
       .finally(() => setLoading(false));
-  }, [profileId]);
+  }, [profileId, t]);
 
   const updateStatus = async (stepId: string, status: GapStatus) => {
     try {
@@ -46,7 +48,7 @@ export default function ProgressTracker() {
         };
       });
     } catch {
-      setError('Failed to update status');
+      setError(t('progress:failedUpdateStatus'));
     }
   };
 
@@ -63,18 +65,26 @@ export default function ProgressTracker() {
 
   return (
     <Stack className="mx-auto max-w-5xl" gap="lg">
-      <Title order={2}>Progress Tracker</Title>
+      <Title order={2}>{t('progress:title')}</Title>
       {error && <Alert color="red">{error}</Alert>}
 
       {roadmap && (
         <>
           <Card withBorder radius="lg" padding="lg" className="bg-white">
-            <Text fw={600}>Total Estimated Preparation: {roadmap.totalPrepMonths} months</Text>
+            <Text fw={600}>
+              {t('progress:totalEstimatedPrep', { months: roadmap.totalPrepMonths })}
+            </Text>
             {roadmap.timeEstimate && (
               <Group gap="md" mt="sm">
-                <Badge variant="light" color="brand.1">Optimistic: {roadmap.timeEstimate.optimisticHours}h</Badge>
-                <Badge variant="light" color="brand.1">Realistic: {roadmap.timeEstimate.realisticHours}h</Badge>
-                <Badge variant="light" color="brand.1">Critical Path: {roadmap.timeEstimate.criticalPathHours}h</Badge>
+                <Badge variant="light" color="brand.1">
+                  {t('progress:optimistic')}: {roadmap.timeEstimate.optimisticHours}h
+                </Badge>
+                <Badge variant="light" color="brand.1">
+                  {t('progress:realistic')}: {roadmap.timeEstimate.realisticHours}h
+                </Badge>
+                <Badge variant="light" color="brand.1">
+                  {t('progress:criticalPath')}: {roadmap.timeEstimate.criticalPathHours}h
+                </Badge>
               </Group>
             )}
           </Card>
@@ -90,16 +100,18 @@ export default function ProgressTracker() {
                       <Text fw={600}>{step.competencyName}</Text>
                     </Group>
                     <Group gap="sm" wrap="wrap">
-                      <Text size="sm" c="dimmed">{step.currentDisplayLevel} to {step.requiredDisplayLevel}</Text>
+                      <Text size="sm" c="dimmed">
+                        {step.currentDisplayLevel} {t('progress:to')} {step.requiredDisplayLevel}
+                      </Text>
                       <Badge variant="outline" color="brand.7">{step.estimatedHours}h</Badge>
                       <Select
                         size="xs"
                         w={140}
                         value={step.status}
                         data={[
-                          { value: 'PENDING', label: 'Pending' },
-                          { value: 'IN_PROGRESS', label: 'In Progress' },
-                          { value: 'COMPLETED', label: 'Completed' },
+                          { value: 'PENDING', label: t('components:pending') },
+                          { value: 'IN_PROGRESS', label: t('components:inProgress') },
+                          { value: 'COMPLETED', label: t('components:completed') },
                         ]}
                         onChange={(value) => value && updateStatus(step.id, value as GapStatus)}
                       />
@@ -109,7 +121,7 @@ export default function ProgressTracker() {
               ))}
           </Stack>
 
-          {roadmap.steps.length === 0 && <Text c="dimmed">No roadmap steps available.</Text>}
+          {roadmap.steps.length === 0 && <Text c="dimmed">{t('progress:noSteps')}</Text>}
         </>
       )}
     </Stack>

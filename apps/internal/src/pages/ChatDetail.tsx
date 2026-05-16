@@ -14,6 +14,7 @@ import {
   Textarea,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import type { CaseMessage, CaseReadState, RelocationCase, SpecialistCaseNote } from '@reloplanner/shared-contracts';
 import { useAuth, useRealtimeCase } from '@reloplanner/shared-frontend';
 import {
@@ -25,6 +26,7 @@ import {
   postCaseMessage,
   updateSpecialistCaseNote,
 } from '../api/cases';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 const statusColor: Record<string, string> = {
   DRAFT: 'gray',
@@ -35,7 +37,18 @@ const statusColor: Record<string, string> = {
   COMPLETED: 'teal',
 };
 
+const statusLabelKey: Record<string, string> = {
+  DRAFT: 'statusDraft',
+  SUBMITTED: 'statusSubmitted',
+  IN_PROGRESS: 'statusInProgress',
+  NEEDS_USER_INPUT: 'statusNeedsUserInput',
+  CANCELED: 'statusCanceled',
+  COMPLETED: 'statusCompleted',
+};
+
 export default function ChatDetail() {
+  const { t } = useTranslation(['chats', 'common']);
+  const { language } = useAppLanguage();
   const { caseId = '' } = useParams();
   const { token, user } = useAuth();
   const [item, setItem] = useState<RelocationCase | null>(null);
@@ -84,11 +97,11 @@ export default function ChatDetail() {
         }
       }
     } catch {
-      setError('Failed to load case chat');
+      setError(t('failedLoadCaseChat', { ns: 'chats' }));
     } finally {
       setLoading(false);
     }
-  }, [caseId, user?.role]);
+  }, [caseId, t, user?.role]);
 
   useEffect(() => {
     void load();
@@ -174,7 +187,7 @@ export default function ChatDetail() {
       setText('');
       await markCaseRead(caseId);
     } catch {
-      setError('Failed to send message');
+      setError(t('failedSendMessage', { ns: 'chats' }));
     } finally {
       setBusy(false);
     }
@@ -187,7 +200,7 @@ export default function ChatDetail() {
       const saved = await updateSpecialistCaseNote(caseId, noteDraft.trim());
       setNote(saved);
     } catch {
-      setError('Failed to save specialist note');
+      setError(t('failedSaveNote', { ns: 'chats' }));
     } finally {
       setNoteSaving(false);
     }
@@ -204,9 +217,9 @@ export default function ChatDetail() {
   if (!item) {
     return (
       <Stack>
-        <Alert color="red">Case not found</Alert>
+        <Alert color="red">{t('caseNotFound', { ns: 'chats' })}</Alert>
         <Button component={RouterLink} to="/chats" variant="light">
-          Back to chats
+          {t('backToChats', { ns: 'chats' })}
         </Button>
       </Stack>
     );
@@ -218,20 +231,23 @@ export default function ChatDetail() {
       <Group justify="space-between" align="start">
         <Stack gap={2}>
           <Button component={RouterLink} to="/chats" variant="subtle" color="gray">
-            Back to chats
+            {t('backToChats', { ns: 'chats' })}
           </Button>
           <Title order={2}>{item.title}</Title>
-          <Text c="dimmed">Client: {item.owner.displayName || item.owner.email}</Text>
           <Text c="dimmed">
-            Specialist: {item.specialist?.displayName || item.specialist?.email || 'Not assigned'}
+            {t('client', { ns: 'chats' })}: {item.owner.displayName || item.owner.email}
+          </Text>
+          <Text c="dimmed">
+            {t('specialist', { ns: 'chats' })}:{' '}
+            {item.specialist?.displayName || item.specialist?.email || t('notAssigned', { ns: 'common' })}
           </Text>
         </Stack>
         <Group>
           <Badge color={statusColor[item.status] ?? 'gray'} variant="light" size="lg">
-            {item.status.replaceAll('_', ' ')}
+            {t(statusLabelKey[item.status] ?? 'unknown', { ns: 'common' })}
           </Badge>
           <Button component={RouterLink} to={`/cases/${item.id}`} variant="light" color="gray">
-            Open case details
+            {t('openCaseDetails', { ns: 'chats' })}
           </Button>
         </Group>
       </Group>
@@ -239,23 +255,23 @@ export default function ChatDetail() {
       {(user?.role === 'SPECIALIST' || user?.role === 'ADMIN') && note ? (
         <Card withBorder radius="lg" p="md" className="bg-white">
           <Stack gap="sm">
-            <Title order={5}>Specialist Note</Title>
+            <Title order={5}>{t('specialistNote', { ns: 'chats' })}</Title>
             {user.role === 'SPECIALIST' ? (
               <>
                 <Textarea
                   value={noteDraft}
                   onChange={(event) => setNoteDraft(event.currentTarget.value)}
                   minRows={3}
-                  placeholder="Internal note visible only to internal users..."
+                  placeholder={t('specialistNotePlaceholder', { ns: 'chats' })}
                 />
                 <Group justify="flex-end">
                   <Button onClick={() => void handleSaveNote()} loading={noteSaving} color="brand.7">
-                    Save note
+                    {t('saveNote', { ns: 'chats' })}
                   </Button>
                 </Group>
               </>
             ) : (
-              <Text>{note.body || 'No note yet.'}</Text>
+              <Text>{note.body || t('noNoteYet', { ns: 'chats' })}</Text>
             )}
           </Stack>
         </Card>
@@ -263,15 +279,15 @@ export default function ChatDetail() {
 
       <Card withBorder radius="lg" p="lg" className="bg-white">
         <Stack gap="sm">
-          <Title order={4}>Case Chat</Title>
+          <Title order={4}>{t('caseChat', { ns: 'chats' })}</Title>
           <Group align="end">
             <TextInput
               className="flex-1"
-              label="Reply"
+              label={t('reply', { ns: 'chats' })}
               placeholder={
                 canSend
-                  ? 'Write a message...'
-                  : 'You cannot post in this chat from current role/assignment.'
+                  ? t('replyPlaceholder', { ns: 'chats' })
+                  : t('cannotPostByRole', { ns: 'chats' })
               }
               value={text}
               onChange={(event) => setText(event.currentTarget.value)}
@@ -288,11 +304,11 @@ export default function ChatDetail() {
               disabled={busy || !text.trim() || !canSend}
               color="brand.7"
             >
-              Send
+              {t('send', { ns: 'chats' })}
             </Button>
           </Group>
           <ScrollArea h={520} type="always" scrollbarSize={8} offsetScrollbars>
-            {messages.length === 0 ? <Text c="dimmed">No messages yet.</Text> : null}
+            {messages.length === 0 ? <Text c="dimmed">{t('noMessagesYet', { ns: 'chats' })}</Text> : null}
             {[...messages].reverse().map((message) => (
               <Card
                 key={message.id}
@@ -308,14 +324,18 @@ export default function ChatDetail() {
                         color={message.kind === 'SYSTEM' ? 'dark' : message.kind === 'SPECIALIST' ? 'indigo' : 'brand.7'}
                         variant="light"
                       >
-                        {message.kind}
+                        {message.kind === 'SYSTEM'
+                          ? t('roleSystem', { ns: 'common' })
+                          : message.kind === 'SPECIALIST'
+                            ? t('roleSpecialist', { ns: 'common' })
+                            : t('roleClient', { ns: 'common' })}
                       </Badge>
                       <Text size="sm" fw={600}>
-                        {message.author?.displayName || message.author?.email || 'System'}
+                        {message.author?.displayName || message.author?.email || t('roleSystem', { ns: 'common' })}
                       </Text>
                     </Group>
                     <Text size="xs" c="dimmed">
-                      {new Date(message.createdAt).toLocaleString()}
+                      {new Date(message.createdAt).toLocaleString(language)}
                     </Text>
                   </Group>
                   <Text>{message.content}</Text>

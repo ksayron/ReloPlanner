@@ -19,4 +19,28 @@ export class MarketDigestController {
   getDigest(@Query('country') country: string) {
     return this.marketDigestService.getCountryDigest(country);
   }
+
+  @Get('postings')
+  @ApiQuery({
+    name: 'country',
+    required: true,
+    example: 'DE',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    example: '1',
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    example: '6',
+  })
+  getCountryPostings(
+    @Query('country') country: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.marketDigestService.getCountryPostings(country, page, pageSize);
+  }
 }

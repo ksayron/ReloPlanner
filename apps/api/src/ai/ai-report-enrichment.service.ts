@@ -10,7 +10,10 @@ import { AiRoutingService } from './ai-routing.service.js';
 import { OpenAiProvider } from './providers/openai-ai.provider.js';
 import { OpenRouterProvider } from './providers/openrouter-ai.provider.js';
 import { MockAiProvider } from './providers/mock-ai.provider.js';
-import { RelocationReadinessReportSnapshot } from '../reports/reports.types.js';
+import {
+  RelocationReadinessReportSnapshot,
+  ReportLocale,
+} from '../reports/reports.types.js';
 import { buildMockSummary } from './ai-prompt.util.js';
 
 @Injectable()
@@ -34,6 +37,7 @@ export class AiReportEnrichmentService {
   async summarizeSnapshot(
     snapshot: RelocationReadinessReportSnapshot,
     grade: AiTaskGrade,
+    locale: ReportLocale = 'en',
   ): Promise<AiSummaryResponse> {
     const order = this.routing.resolveProviderOrder(grade);
     const requestedProvider = order[0];
@@ -54,11 +58,16 @@ export class AiReportEnrichmentService {
       }
 
       try {
-        const result = await provider.summarizeReport({ snapshot, grade });
+        const result = await provider.summarizeReport({
+          snapshot,
+          grade,
+          locale,
+        });
         return {
           summary: result.summary,
           meta: {
             grade,
+            localeUsed: locale,
             requestedProvider,
             attemptedProviders,
             providerUsed: providerName,
@@ -77,9 +86,10 @@ export class AiReportEnrichmentService {
 
     // Last-resort guard, should rarely happen due MOCK provider fallback.
     return {
-      summary: buildMockSummary(snapshot),
+      summary: buildMockSummary(snapshot, locale),
       meta: {
         grade,
+        localeUsed: locale,
         requestedProvider:
           requestedProvider && isAiProviderName(requestedProvider)
             ? requestedProvider

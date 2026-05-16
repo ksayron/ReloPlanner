@@ -6,6 +6,7 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import App from './App';
 import { appTheme } from './theme';
+import './i18n';
 import './index.css';
 
 const colorSchemeManager = localStorageColorSchemeManager({

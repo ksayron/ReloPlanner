@@ -2,6 +2,7 @@
 import client from '../api/client';
 import type { ProcessingJobSnapshot } from '../types';
 import { isTerminalJobStatus } from '../utils/jobProgress';
+import i18n from '../i18n';
 
 interface UsePersistentJobStreamOptions {
   enabled?: boolean;
@@ -126,7 +127,7 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
     }
 
     const maybeMessage = onFailedRef.current?.(snapshot);
-    setError(maybeMessage ?? snapshot.errorMessage ?? 'Job failed');
+    setError(maybeMessage ?? snapshot.errorMessage ?? i18n.t('jobs.jobFailed'));
   };
 
   const attachToJob = async (jobId: string, initialSnapshot?: ProcessingJobSnapshot) => {
@@ -148,7 +149,7 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
 
     const token = localStorage.getItem('token');
     if (!token) {
-      throw new Error('Missing auth token for SSE connection');
+      throw new Error(i18n.t('jobs.missingSseToken'));
     }
 
     const eventSource = new EventSource(`/api/jobs/${jobId}/events?access_token=${encodeURIComponent(token)}`);
@@ -180,7 +181,7 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
       const jobId = await createJob();
       await attachToJob(jobId);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Job failed';
+      const message = err instanceof Error ? err.message : i18n.t('jobs.jobFailed');
       setError(message);
       setRunning(false);
       closeStream();
@@ -259,3 +260,4 @@ export function usePersistentJobStream(options: UsePersistentJobStreamOptions) {
     reset,
   };
 }
+

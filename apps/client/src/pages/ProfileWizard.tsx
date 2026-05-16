@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -19,6 +19,7 @@ import {
   Title,
   ActionIcon,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import client from '../api/client';
 import { fetchCountriesCatalog } from '../api/countries';
 import { fetchMyPreferences } from '../api/preferences';
@@ -103,14 +104,6 @@ const CERT_LEVELS: CertificationStatus[] = [
 const CURRENCIES: CurrencyCode[] = ['USD', 'EUR', 'GBP', 'CAD', 'PLN', 'UAH'];
 const LIFESTYLES: LifestyleProfile[] = ['FRUGAL', 'STANDARD', 'COMFORTABLE'];
 
-const HARD_LEVEL_LABELS: Record<HardSkillLevel, string> = {
-  NONE: 'None - no practical knowledge yet',
-  BASIC: 'Basic - understand fundamentals and can read code/configuration',
-  PRACTICAL: 'Practical - can use it in simple tasks with some guidance',
-  CONFIDENT: 'Confident - can use it independently in day-to-day work',
-  ADVANCED: 'Advanced - can design solutions and mentor others',
-};
-
 const OTHER_CITY_VALUE = '__OTHER_CITY__';
 const LOW_CONFIDENCE_THRESHOLD = 0.65;
 
@@ -135,9 +128,10 @@ const fromBooleanSelectValue = (
 const getLevelLabel = (
   type: Competency['type'],
   level: HardSkillLevel | LanguageLevel | CertificationStatus,
+  hardLabels?: Partial<Record<HardSkillLevel, string>>,
 ) => {
   if (type === 'HARD_SKILL' || type === 'DOMAIN_KNOWLEDGE' || type === 'SOFT_SKILL') {
-    return HARD_LEVEL_LABELS[level as HardSkillLevel] ?? formatEnumLabel(level);
+    return hardLabels?.[level as HardSkillLevel] ?? formatEnumLabel(level);
   }
   return formatEnumLabel(level);
 };
@@ -176,6 +170,7 @@ function QuestionHelp({ text }: { text: string }) {
 }
 
 export default function ProfileWizard() {
+  const { t } = useTranslation('wizard');
   const navigate = useNavigate();
   const { profileId } = useParams<{ profileId?: string }>();
   const isEditing = Boolean(profileId);
@@ -231,6 +226,13 @@ export default function ProfileWizard() {
   const [manualSkillModalOpen, setManualSkillModalOpen] = useState(false);
   const [manualSkillSearch, setManualSkillSearch] = useState('');
   const [preferencesPrefillDone, setPreferencesPrefillDone] = useState(false);
+  const hardLevelLabels: Record<HardSkillLevel, string> = {
+    NONE: t('hardLevel.none'),
+    BASIC: t('hardLevel.basic'),
+    PRACTICAL: t('hardLevel.practical'),
+    CONFIDENT: t('hardLevel.confident'),
+    ADVANCED: t('hardLevel.advanced'),
+  };
 
   const suggestedCitiesByCountry = useMemo(
     () =>
@@ -345,12 +347,12 @@ export default function ProfileWizard() {
 
         setSelected(mappedSelected);
       } catch {
-        setError('Failed to load profile for editing.');
+        setError(t('failedLoadProfileForEditing'));
       } finally {
         setLoadingProfile(false);
       }
     })();
-  }, [profileId]);
+  }, [profileId, t]);
 
   const relevantCompetencyIds = useMemo(
     () => new Set(allCompetencies.map((competency) => competency.id)),
@@ -434,7 +436,7 @@ export default function ProfileWizard() {
         | null;
       const draft = resultPayload?.draft;
       if (!draft) {
-        setCvModalError('Resume parsing completed, but no draft data was returned.');
+        setCvModalError(t('resumeParsingNoDraft'));
         setCvModalStage('upload');
         return;
       }
@@ -456,7 +458,7 @@ export default function ProfileWizard() {
       setCvModalError('');
       setCvModalStage('review');
     },
-    onFailed: (snapshot) => snapshot.errorMessage ?? 'Resume parsing failed',
+    onFailed: (snapshot) => snapshot.errorMessage ?? t('resumeParsingFailed'),
   });
 
   const toggle = (competency: Competency) => {
@@ -517,26 +519,26 @@ export default function ProfileWizard() {
   const validateStep = (step: number) => {
     if (step === 0) {
       if (!targetCountry) {
-        setError('Destination page: desired country is required.');
+        setError(t('validation.destinationCountryRequired'));
         return false;
       }
       if (jobSearchMonths < 1) {
-        setError('Job-search duration must be at least 1 month.');
+        setError(t('validation.jobSearchDurationMin'));
         return false;
       }
       if (dependentsCount < 0) {
-        setError('Dependents count cannot be negative.');
+        setError(t('validation.dependentsNonNegative'));
         return false;
       }
     }
 
     if (step === 1) {
       if (!desiredRole || !currentCountry) {
-        setError('Job page: role and current country are required.');
+        setError(t('validation.jobRoleCountryRequired'));
         return false;
       }
       if (yearsExperience < 0) {
-        setError('Years of experience must be 0 or more.');
+        setError(t('validation.yearsExperienceNonNegative'));
         return false;
       }
     }
@@ -593,8 +595,14 @@ export default function ProfileWizard() {
         const res = await client.post('/profiles', payload);
         navigate(`/dashboard/${res.data.id}`);
       }
-    } catch {
-      setError(isEditing ? 'Failed to update profile' : 'Failed to create profile');
+    } catch (err: any) {
+      const code = String(err?.response?.data?.code ?? '');
+      const apiMessage = String(err?.response?.data?.message ?? '').trim();
+      if (!isEditing && code === 'PROFILE_LIMIT_REACHED') {
+        setError(apiMessage || 'Free plan allows up to 3 profiles. Upgrade to Premium to create more.');
+      } else {
+        setError(isEditing ? t('failedUpdateProfile') : t('failedCreateProfile'));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -610,7 +618,7 @@ export default function ProfileWizard() {
 
   const startCvParseJob = async () => {
     if (!cvFile) {
-      setCvModalError('Select a CV file before starting parsing.');
+      setCvModalError(t('selectCvFileBeforeParsing'));
       return;
     }
     setCvModalError('');
@@ -628,7 +636,7 @@ export default function ProfileWizard() {
       });
     } catch {
       setCvModalStage('upload');
-      setCvModalError('Failed to start resume parsing job.');
+      setCvModalError(t('failedStartResumeParsingJob'));
     }
   };
 
@@ -708,7 +716,7 @@ export default function ProfileWizard() {
     return (
       <div className="mt-10 flex justify-center">
         <Text c="dimmed">
-          {loadingProfile ? 'Loading profile data...' : 'Loading profile wizard...'}
+          {loadingProfile ? t('loadingProfileData') : t('loadingProfileWizard')}
         </Text>
       </div>
     );
@@ -717,14 +725,14 @@ export default function ProfileWizard() {
   return (
     <Stack className="mx-auto max-w-5xl" gap="lg">
       <Title order={2}>
-        {isEditing ? 'Edit Relocation Profile' : 'Create Relocation Profile'}
+        {isEditing ? t('editRelocationProfile') : t('createRelocationProfile')}
       </Title>
       {error && <Alert color="red">{error}</Alert>}
 
       <Modal
         opened={cvModalOpen}
         onClose={() => setCvModalOpen(false)}
-        title="CV Auto-Fill"
+        title={t('cvAutoFill')}
         size="lg"
         centered
       >
@@ -736,8 +744,7 @@ export default function ProfileWizard() {
           {cvModalStage === 'upload' && (
             <>
               <Text size="sm" c="dimmed">
-                Upload resume (PDF/TXT/DOCX). We will parse text, run AI extraction, and map to
-                role + experience + skills questionnaire fields.
+                {t('cvUploadDescription')}
               </Text>
               <input
                 type="file"
@@ -749,10 +756,10 @@ export default function ProfileWizard() {
               />
               <Group justify="space-between">
                 <Text size="sm" c="dimmed">
-                  {cvFile ? `Selected: ${cvFile.name}` : 'No file selected'}
+                  {cvFile ? t('selectedFile', { name: cvFile.name }) : t('noFileSelected')}
                 </Text>
                 <Button color="brand.7" onClick={startCvParseJob}>
-                  Start Parsing
+                  {t('startParsing')}
                 </Button>
               </Group>
             </>
@@ -760,7 +767,7 @@ export default function ProfileWizard() {
 
           {cvModalStage === 'processing' && (
             <JobProgressPanel
-              title="Resume Processing Progress"
+              title={t('resumeProcessingProgress')}
               job={
                 resumeJob ?? {
                   id: 'resume-parse-running',
@@ -779,24 +786,24 @@ export default function ProfileWizard() {
               }
               jobHistory={resumeJobHistory}
               onRetry={startCvParseJob}
-              retryLabel="Retry Parsing"
+              retryLabel={t('retryParsing')}
             />
           )}
 
           {cvModalStage === 'review' && cvDraft && (
             <>
               <Group justify="space-between" wrap="wrap">
-                <Title order={4}>Review Extracted Fields</Title>
+                <Title order={4}>{t('reviewExtractedFields')}</Title>
                 <Badge color={cvDraft.overallConfidence < LOW_CONFIDENCE_THRESHOLD ? 'yellow' : 'teal'}>
-                  Overall confidence: {confidencePercent(cvDraft.overallConfidence)}
+                  {t('overallConfidence')}: {confidencePercent(cvDraft.overallConfidence)}
                 </Badge>
               </Group>
               <Text size="sm" c="dimmed">
-                Highlighted fields have lower confidence. All fields are editable before applying.
+                {t('highlightedLowConfidenceHint')}
               </Text>
 
               <TextInput
-                label="Desired Role"
+                label={t('desiredRole')}
                 value={cvReviewRole}
                 onChange={(event) => setCvReviewRole(event.currentTarget.value)}
                 styles={{
@@ -812,7 +819,7 @@ export default function ProfileWizard() {
               />
 
               <NumberInput
-                label="Years of Experience"
+                label={t('yearsOfExperience')}
                 min={0}
                 max={50}
                 value={cvReviewYears}
@@ -824,14 +831,14 @@ export default function ProfileWizard() {
                 }}
               />
               <Text size="xs" c="dimmed">
-                Confidence: {confidencePercent(cvDraft.yearsExperience.confidence)}
+                {t('confidence')}: {confidencePercent(cvDraft.yearsExperience.confidence)}
               </Text>
 
               <Select
-                label="Current Country"
+                label={t('currentCountry')}
                 value={cvReviewCountry}
                 onChange={(value) => setCvReviewCountry(value || '')}
-                placeholder="Select country"
+                placeholder={t('selectCountry')}
                 data={countriesCatalog.source.map((country) => ({
                   value: country.code,
                   label: country.name,
@@ -843,15 +850,15 @@ export default function ProfileWizard() {
                 }}
               />
               <Text size="xs" c="dimmed">
-                Confidence: {confidencePercent(cvDraft.currentCountry.confidence)}
+                {t('confidence')}: {confidencePercent(cvDraft.currentCountry.confidence)}
               </Text>
 
               <Card withBorder radius="md" p="sm">
                 <Stack gap="xs">
                   <Group justify="space-between">
-                    <Title order={5}>Mapped Skills</Title>
+                    <Title order={5}>{t('mappedSkills')}</Title>
                     <Text size="sm" c="dimmed">
-                      {cvReviewCompetencies.filter((item) => item.enabled).length} selected
+                      {t('selectedCount', { count: cvReviewCompetencies.filter((item) => item.enabled).length })}
                     </Text>
                   </Group>
                   <ScrollArea h={240}>
@@ -910,7 +917,7 @@ export default function ProfileWizard() {
                                 }
                                 data={levelOptions(competencyType).map((level) => ({
                                   value: level,
-                                  label: getLevelLabel(competencyType, level),
+                                  label: getLevelLabel(competencyType, level, hardLevelLabels),
                                 }))}
                               />
                             </Group>
@@ -919,8 +926,7 @@ export default function ProfileWizard() {
                       })}
                       {cvReviewCompetencies.length === 0 && (
                         <Text size="sm" c="dimmed">
-                          No skills were mapped from this CV. You can still fill skills manually on
-                          page 3.
+                          {t('noMappedSkillsFromCv')}
                         </Text>
                       )}
                     </Stack>
@@ -931,7 +937,7 @@ export default function ProfileWizard() {
               {cvDraft.unmatchedSkills.length > 0 && (
                 <Card withBorder radius="md" p="sm">
                   <Stack gap={4}>
-                    <Title order={6}>Unmatched skills (not mapped)</Title>
+                    <Title order={6}>{t('unmatchedSkills')}</Title>
                     {cvDraft.unmatchedSkills.slice(0, 12).map((item, index) => (
                       <Text key={`${item.name}-${index}`} size="sm" c="dimmed">
                         {item.name} ({confidencePercent(item.confidence)})
@@ -943,10 +949,10 @@ export default function ProfileWizard() {
 
               <Group justify="space-between">
                 <Button variant="light" color="gray" onClick={() => setCvModalStage('upload')}>
-                  Upload Another CV
+                  {t('uploadAnotherCv')}
                 </Button>
                 <Button color="brand.7" onClick={applyCvDraftToQuestionary}>
-                  Apply to Questionnaire
+                  {t('applyToQuestionnaire')}
                 </Button>
               </Group>
             </>
@@ -957,17 +963,16 @@ export default function ProfileWizard() {
       <Modal
         opened={manualSkillModalOpen}
         onClose={() => setManualSkillModalOpen(false)}
-        title="Add Additional Skills"
+        title={t('addAdditionalSkills')}
         size="lg"
         centered
       >
         <Stack gap="sm">
           <Text size="sm" c="dimmed">
-            Skills below are not in the current role/country relevance list. Add any you still
-            want to include.
+            {t('additionalSkillsHint')}
           </Text>
           <TextInput
-            placeholder="Search unincluded skills..."
+            placeholder={t('searchUnincludedSkills')}
             value={manualSkillSearch}
             onChange={(event) => setManualSkillSearch(event.currentTarget.value)}
           />
@@ -997,14 +1002,14 @@ export default function ProfileWizard() {
                         disabled={added}
                         onClick={() => addManualSkill(competency)}
                       >
-                        {added ? 'Added' : 'Add'}
+                        {added ? t('added') : t('add')}
                       </Button>
                     </Group>
                   );
                 })}
                 {manualModalCompetencies.length === 0 && (
                   <Text size="sm" c="dimmed">
-                    No unincluded skills found.
+                    {t('noUnincludedSkillsFound')}
                   </Text>
                 )}
               </Stack>
@@ -1012,24 +1017,24 @@ export default function ProfileWizard() {
           </Card>
           <Group justify="flex-end">
             <Button variant="light" color="gray" onClick={() => setManualSkillModalOpen(false)}>
-              Close
+              {t('close')}
             </Button>
           </Group>
         </Stack>
       </Modal>
 
       <Stepper active={currentStep}>
-        <Stepper.Step label="Page 1" description="Destination & constraints">
+        <Stepper.Step label={t('page1Label')} description={t('page1Description')}>
           <Card withBorder radius="lg" p="lg" className="bg-white">
             <Stack>
               <Select
-                label="Desired Country *"
+                label={t('desiredCountryRequired')}
                 value={targetCountry}
                 onChange={(value) => {
                   setTargetCountry(value || '');
                   setTargetCity('');
                 }}
-                placeholder="Select country"
+                placeholder={t('selectCountry')}
                 data={countriesCatalog.target.map((country) => ({
                   value: country.code,
                   label: country.name,
@@ -1037,29 +1042,27 @@ export default function ProfileWizard() {
               />
 
               <Select
-                label="City (optional)"
+                label={t('cityOptional')}
                 value={targetCity}
                 onChange={(value) => setTargetCity(value || '')}
-                placeholder="Select city (optional)"
+                placeholder={t('selectCityOptional')}
                 disabled={!targetCountry}
-                data={[{ value: '', label: '-- Select city (optional) --' }]
+                data={[{ value: '', label: t('selectCityOptionalPlaceholder') }]
                   .concat(
                     (suggestedCitiesByCountry[targetCountry] || []).map((city) => ({
                       value: city,
                       label: city,
                     })),
                   )
-                  .concat([
-                    { value: OTHER_CITY_VALUE, label: 'Other / Not listed (use country average)' },
-                  ])}
+                  .concat([{ value: OTHER_CITY_VALUE, label: t('otherCityNotListed') }])}
               />
 
               <Group grow>
                 <NumberInput
                   label={
                     <Group gap={6} wrap="nowrap">
-                      <Text component="span">Savings Amount (optional)</Text>
-                      <QuestionHelp text="How much liquid money you currently have for relocation and first months after arrival." />
+                      <Text component="span">{t('savingsAmountOptional')}</Text>
+                      <QuestionHelp text={t('help.savingsAmount')} />
                     </Group>
                   }
                   min={0}
@@ -1071,8 +1074,8 @@ export default function ProfileWizard() {
                 <Select
                   label={
                     <Group gap={6} wrap="nowrap">
-                      <Text component="span">Savings Currency</Text>
-                      <QuestionHelp text="Currency of your savings amount. Use the same currency as the value entered on the left." />
+                      <Text component="span">{t('savingsCurrency')}</Text>
+                      <QuestionHelp text={t('help.savingsCurrency')} />
                     </Group>
                   }
                   value={savingsCurrency}
@@ -1085,8 +1088,8 @@ export default function ProfileWizard() {
                 <NumberInput
                   label={
                     <Group gap={6} wrap="nowrap">
-                      <Text component="span">Monthly Budget (optional)</Text>
-                      <QuestionHelp text="Planned monthly spending limit in target location while settling and searching for work." />
+                      <Text component="span">{t('monthlyBudgetOptional')}</Text>
+                      <QuestionHelp text={t('help.monthlyBudget')} />
                     </Group>
                   }
                   min={0}
@@ -1100,8 +1103,8 @@ export default function ProfileWizard() {
                 <Select
                   label={
                     <Group gap={6} wrap="nowrap">
-                      <Text component="span">Monthly Budget Currency</Text>
-                      <QuestionHelp text="Currency used for your monthly budget number." />
+                      <Text component="span">{t('monthlyBudgetCurrency')}</Text>
+                      <QuestionHelp text={t('help.monthlyBudgetCurrency')} />
                     </Group>
                   }
                   value={monthlyBudgetCurrency}
@@ -1114,8 +1117,8 @@ export default function ProfileWizard() {
                 <NumberInput
                   label={
                     <Group gap={6} wrap="nowrap">
-                      <Text component="span">Expected Net Salary (optional)</Text>
-                      <QuestionHelp text="Estimated monthly take-home salary after taxes in your target country, if known." />
+                      <Text component="span">{t('expectedNetSalaryOptional')}</Text>
+                      <QuestionHelp text={t('help.expectedNetSalary')} />
                     </Group>
                   }
                   min={0}
@@ -1129,8 +1132,8 @@ export default function ProfileWizard() {
                 <Select
                   label={
                     <Group gap={6} wrap="nowrap">
-                      <Text component="span">Expected Salary Currency</Text>
-                      <QuestionHelp text="Currency for your expected net salary value." />
+                      <Text component="span">{t('expectedSalaryCurrency')}</Text>
+                      <QuestionHelp text={t('help.expectedSalaryCurrency')} />
                     </Group>
                   }
                   value={expectedNetSalaryCurrency}
@@ -1145,8 +1148,8 @@ export default function ProfileWizard() {
                 <NumberInput
                   label={
                     <Group gap={6} wrap="nowrap">
-                      <Text component="span">Dependents Count</Text>
-                      <QuestionHelp text="People financially depending on you (for example partner, children, or parents)." />
+                      <Text component="span">{t('dependentsCount')}</Text>
+                      <QuestionHelp text={t('help.dependentsCount')} />
                     </Group>
                   }
                   min={0}
@@ -1157,15 +1160,15 @@ export default function ProfileWizard() {
                 <Select
                   label={
                     <Group gap={6} wrap="nowrap">
-                      <Text component="span">Lifestyle</Text>
-                      <QuestionHelp text="Spending style used for estimates: frugal, standard, or comfortable living costs." />
+                      <Text component="span">{t('lifestyle')}</Text>
+                      <QuestionHelp text={t('help.lifestyle')} />
                     </Group>
                   }
                   value={lifestyle}
                   onChange={(value) => setLifestyle((value as LifestyleProfile) || 'STANDARD')}
                   data={LIFESTYLES.map((item) => ({
                     value: item,
-                    label: formatEnumLabel(item),
+                    label: t(`lifestyleOption.${item}`),
                   }))}
                 />
               </Group>
@@ -1173,8 +1176,8 @@ export default function ProfileWizard() {
               <NumberInput
                 label={
                   <Group gap={6} wrap="nowrap">
-                    <Text component="span">Planned Job Search Duration (months)</Text>
-                    <QuestionHelp text="How many months you expect to search before receiving an offer. Used for financial runway and risk checks." />
+                    <Text component="span">{t('plannedJobSearchDurationMonths')}</Text>
+                    <QuestionHelp text={t('help.plannedJobSearchDurationMonths')} />
                   </Group>
                 }
                 min={1}
@@ -1183,13 +1186,13 @@ export default function ProfileWizard() {
                 onChange={(value) => setJobSearchMonths(Math.max(1, Number(value) || 1))}
               />
 
-              <Title order={5}>Legal Readiness Inputs</Title>
+              <Title order={5}>{t('legalReadinessInputs')}</Title>
 
               <Select
                 label={
                   <Group gap={6} wrap="nowrap">
-                    <Text component="span">Existing work authorization for target country</Text>
-                    <QuestionHelp text="Whether you already hold valid residence/work rights for the target country." />
+                    <Text component="span">{t('existingWorkAuthorization')}</Text>
+                    <QuestionHelp text={t('help.existingWorkAuthorization')} />
                   </Group>
                 }
                 value={booleanSelectValue(hasExistingWorkAuthorization)}
@@ -1197,99 +1200,99 @@ export default function ProfileWizard() {
                   setHasExistingWorkAuthorization(fromBooleanSelectValue(value))
                 }
                 data={[
-                  { value: 'unknown', label: 'Unknown / Not sure' },
-                  { value: 'yes', label: 'Yes' },
-                  { value: 'no', label: 'No' },
+                  { value: 'unknown', label: t('unknownNotSure') },
+                  { value: 'yes', label: t('yes') },
+                  { value: 'no', label: t('no') },
                 ]}
               />
 
               <Select
                 label={
                   <Group gap={6} wrap="nowrap">
-                    <Text component="span">Confirmed job offer</Text>
-                    <QuestionHelp text="Whether you already have a signed or formally confirmed offer from an employer in the target country." />
+                    <Text component="span">{t('confirmedJobOffer')}</Text>
+                    <QuestionHelp text={t('help.confirmedJobOffer')} />
                   </Group>
                 }
                 value={booleanSelectValue(hasJobOffer)}
                 onChange={(value) => setHasJobOffer(fromBooleanSelectValue(value))}
                 data={[
-                  { value: 'unknown', label: 'Unknown / Not sure' },
-                  { value: 'yes', label: 'Yes' },
-                  { value: 'no', label: 'No' },
+                  { value: 'unknown', label: t('unknownNotSure') },
+                  { value: 'yes', label: t('yes') },
+                  { value: 'no', label: t('no') },
                 ]}
               />
 
               <Select
                 label={
                   <Group gap={6} wrap="nowrap">
-                    <Text component="span">Recognized degree</Text>
-                    <QuestionHelp text="Whether your degree is recognized or likely comparable for the target country’s skilled-worker routes." />
+                    <Text component="span">{t('recognizedDegree')}</Text>
+                    <QuestionHelp text={t('help.recognizedDegree')} />
                   </Group>
                 }
                 value={booleanSelectValue(hasRecognizedDegree)}
                 onChange={(value) => setHasRecognizedDegree(fromBooleanSelectValue(value))}
                 data={[
-                  { value: 'unknown', label: 'Unknown / Not sure' },
-                  { value: 'yes', label: 'Yes' },
-                  { value: 'no', label: 'No' },
+                  { value: 'unknown', label: t('unknownNotSure') },
+                  { value: 'yes', label: t('yes') },
+                  { value: 'no', label: t('no') },
                 ]}
               />
 
               <Select
                 label={
                   <Group gap={6} wrap="nowrap">
-                    <Text component="span">Formal education</Text>
-                    <QuestionHelp text="Whether you have structured formal education (for example university or accredited vocational program)." />
+                    <Text component="span">{t('formalEducation')}</Text>
+                    <QuestionHelp text={t('help.formalEducation')} />
                   </Group>
                 }
                 value={booleanSelectValue(hasFormalEducation)}
                 onChange={(value) => setHasFormalEducation(fromBooleanSelectValue(value))}
                 data={[
-                  { value: 'unknown', label: 'Unknown / Not sure' },
-                  { value: 'yes', label: 'Yes' },
-                  { value: 'no', label: 'No' },
+                  { value: 'unknown', label: t('unknownNotSure') },
+                  { value: 'yes', label: t('yes') },
+                  { value: 'no', label: t('no') },
                 ]}
               />
 
               <Select
                 label={
                   <Group gap={6} wrap="nowrap">
-                    <Text component="span">Relocating with family</Text>
-                    <QuestionHelp text="Family relocation can affect legal steps, required documents, timeline, and monthly expenses." />
+                    <Text component="span">{t('relocatingWithFamily')}</Text>
+                    <QuestionHelp text={t('help.relocatingWithFamily')} />
                   </Group>
                 }
                 value={booleanSelectValue(relocationWithFamily)}
                 onChange={(value) => setRelocationWithFamily(fromBooleanSelectValue(value))}
                 data={[
-                  { value: 'unknown', label: 'Unknown / Not sure' },
-                  { value: 'yes', label: 'Yes' },
-                  { value: 'no', label: 'No' },
+                  { value: 'unknown', label: t('unknownNotSure') },
+                  { value: 'yes', label: t('yes') },
+                  { value: 'no', label: t('no') },
                 ]}
               />
             </Stack>
           </Card>
         </Stepper.Step>
 
-        <Stepper.Step label="Page 2" description="Role and experience">
+        <Stepper.Step label={t('page2Label')} description={t('page2Description')}>
           <Card withBorder radius="lg" p="lg" className="bg-white">
             <Stack>
               <Group justify="space-between" wrap="wrap">
-                <Title order={4}>Job Profile</Title>
+                <Title order={4}>{t('jobProfile')}</Title>
                 <Button variant="filled" color="brand.7" onClick={openCvModal}>
-                  Upload CV and Auto-Fill
+                  {t('uploadCvAndAutofill')}
                 </Button>
               </Group>
 
               <Select
-                label="Desired Role *"
+                label={t('desiredRoleRequired')}
                 value={desiredRole}
                 onChange={(value) => setDesiredRole(value || '')}
-                placeholder="Select role"
-                data={ROLES.map((role) => ({ value: role, label: role }))}
+                placeholder={t('selectRole')}
+                data={ROLES.map((role) => ({ value: role, label: t(`role.${role}`) }))}
               />
 
               <NumberInput
-                label="Years of Experience (min 0)"
+                label={t('yearsOfExperienceMin0')}
                 min={0}
                 max={40}
                 value={yearsExperience}
@@ -1297,10 +1300,10 @@ export default function ProfileWizard() {
               />
 
               <Select
-                label="Current Country *"
+                label={t('currentCountryRequired')}
                 value={currentCountry}
                 onChange={(value) => setCurrentCountry(value || '')}
-                placeholder="Select country"
+                placeholder={t('selectCountry')}
                 data={countriesCatalog.source.map((country) => ({
                   value: country.code,
                   label: country.name,
@@ -1310,21 +1313,21 @@ export default function ProfileWizard() {
           </Card>
         </Stepper.Step>
 
-        <Stepper.Step label="Page 3" description="Skills">
+        <Stepper.Step label={t('page3Label')} description={t('page3Description')}>
           <Stack>
             <Card withBorder radius="lg" p="lg" className="bg-white">
               <Stack gap="xs">
-                <Title order={4}>Skill Levels</Title>
+                <Title order={4}>{t('skillLevels')}</Title>
                 {HARD_LEVELS.map((level) => (
                   <Text key={level} size="sm">
-                    {HARD_LEVEL_LABELS[level]}
+                    {hardLevelLabels[level]}
                   </Text>
                 ))}
               </Stack>
             </Card>
 
             <TextInput
-              placeholder="Search relevant competencies..."
+              placeholder={t('searchRelevantCompetencies')}
               value={filter}
               onChange={(e) => setFilter(e.currentTarget.value)}
             />
@@ -1367,7 +1370,7 @@ export default function ProfileWizard() {
                           }
                           data={levelOptions(competency.type).map((level) => ({
                             value: level,
-                            label: getLevelLabel(competency.type, level),
+                            label: getLevelLabel(competency.type, level, hardLevelLabels),
                           }))}
                         />
                       )}
@@ -1375,7 +1378,7 @@ export default function ProfileWizard() {
                   ))}
 
                   {filtered.length === 0 && (
-                    <Text c="dimmed">No competencies found for current role/country filter.</Text>
+                    <Text c="dimmed">{t('noCompetenciesFound')}</Text>
                   )}
                 </Stack>
               </ScrollArea>
@@ -1390,11 +1393,11 @@ export default function ProfileWizard() {
               }}
               w="fit-content"
             >
-              Add skills not in suggested list
+              {t('addSkillsNotSuggested')}
             </Button>
 
             <Text size="sm" c="dimmed">
-              {selected.length} competency(s) selected
+              {t('competenciesSelectedCount', { count: selected.length })}
             </Text>
           </Stack>
         </Stepper.Step>
@@ -1402,18 +1405,21 @@ export default function ProfileWizard() {
 
       <Group justify="space-between">
         <Button variant="light" color="gray" onClick={prevStep} disabled={currentStep === 0}>
-          Back
+          {t('back')}
         </Button>
         {currentStep < 2 ? (
           <Button color="brand.7" onClick={nextStep}>
-            Next
+            {t('next')}
           </Button>
         ) : (
           <Button color="brand.7" onClick={handleSubmit} loading={submitting}>
-            {isEditing ? 'Update Profile' : 'Create Profile'}
+            {isEditing ? t('updateProfile') : t('createProfile')}
           </Button>
         )}
       </Group>
     </Stack>
   );
 }
+
+
+

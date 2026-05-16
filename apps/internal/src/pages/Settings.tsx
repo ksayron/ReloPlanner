@@ -14,6 +14,7 @@ import {
   useMantineColorScheme,
 } from '@mantine/core';
 import { isAxiosError } from 'axios';
+import { useTranslation } from 'react-i18next';
 import client from '../api/client';
 import { useAuth } from '../api/AuthContext';
 import { getBillingStatus, startPremiumCheckout } from '../api/billing';
@@ -21,6 +22,7 @@ import { fetchCountriesCatalog } from '../api/countries';
 import { fetchMyPreferences, updateMyPreferences } from '../api/preferences';
 import PremiumUpgradeModal from '../components/PremiumUpgradeModal';
 import { buildCheckoutReturnUrls, pollCheckoutStatus } from '../utils/checkout';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 import type {
   BillingStatusResponse,
   CountriesCatalog,
@@ -50,16 +52,6 @@ type PreferencesDraft = {
   weeklyStudyHours: number;
   preferredReportLanguage: 'en' | 'ru';
 };
-
-const LANGUAGE_OPTIONS = [
-  { value: 'en', label: 'English (en)' },
-  { value: 'ru', label: 'Russian (ru)' },
-] as const;
-
-const THEME_OPTIONS = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-] as const;
 
 const CURRENCY_OPTIONS: CurrencyCode[] = ['USD', 'EUR', 'GBP', 'CAD', 'PLN', 'UAH'];
 
@@ -101,29 +93,31 @@ function buildGoogleLinkUrl(token: string | null) {
   return `/api/auth/google/link?${params.toString()}`;
 }
 
-function mapOAuthError(code: string | null) {
+function mapOAuthError(code: string | null, t: (key: string) => string) {
   if (!code) return null;
   if (code === 'oauth_identity_conflict') {
-    return 'This OAuth account is already linked to another user.';
+    return t('oauthIdentityConflict');
   }
   if (code === 'oauth_invalid_state') {
-    return 'OAuth link session expired. Please try again.';
+    return t('oauthInvalidState');
   }
   if (code === 'oauth_provider_failure') {
-    return 'OAuth flow failed. Please retry.';
+    return t('oauthProviderFailure');
   }
   if (code === 'oauth_email_mismatch') {
-    return 'Google account email must match your ReloPlanner account email for linking.';
+    return t('oauthEmailMismatch');
   }
   if (code === 'email_verify_invalid') {
-    return 'Email verification link is invalid or expired. Request a new one.';
+    return t('oauthEmailVerifyInvalid');
   }
-  return 'OAuth linking failed.';
+  return t('oauthLinkingFailed');
 }
 
 export default function Settings() {
+  const { t } = useTranslation(['settings', 'common']);
   const [searchParams, setSearchParams] = useSearchParams();
   const { user: authUser, token } = useAuth();
+  const { language, setLanguage } = useAppLanguage();
   const { setColorScheme } = useMantineColorScheme();
   const [user, setUser] = useState<SettingsUser | null>(null);
   const [loading, setLoading] = useState(false);
@@ -153,7 +147,23 @@ export default function Settings() {
   const successEmailVerified = searchParams.get('emailVerified') === '1';
   const checkoutAction = searchParams.get('checkout');
   const checkoutSessionId = searchParams.get('session_id');
-  const oauthError = mapOAuthError(searchParams.get('error'));
+  const oauthError = mapOAuthError(searchParams.get('error'), (key) => t(key, { ns: 'settings' }));
+
+  const languageOptions = useMemo(
+    () => [
+      { value: 'en', label: `${t('english', { ns: 'common' })} (en)` },
+      { value: 'ru', label: `${t('russian', { ns: 'common' })} (ru)` },
+    ],
+    [t],
+  );
+
+  const themeOptions = useMemo(
+    () => [
+      { value: 'light', label: t('lightTheme', { ns: 'settings' }) },
+      { value: 'dark', label: t('darkTheme', { ns: 'settings' }) },
+    ],
+    [t],
+  );
 
   const clearCheckoutParams = useCallback(() => {
     const next = new URLSearchParams(searchParams);
@@ -181,16 +191,14 @@ export default function Settings() {
           googleLinked: false,
           googleEmail: null,
         });
-        setLoadError(
-          'Backend /auth/me endpoint is unavailable. Restart backend to see current OAuth link status.',
-        );
+        setLoadError(t('backendAuthUnavailable', { ns: 'settings' }));
       } else {
-        setLoadError('Failed to load settings.');
+        setLoadError(t('failedLoadSettings', { ns: 'settings' }));
       }
     } finally {
       setLoading(false);
     }
-  }, [authUser]);
+  }, [authUser, t]);
 
   const loadBilling = useCallback(async () => {
     if (!authUser) {
@@ -216,7 +224,7 @@ export default function Settings() {
       if (!current) {
         setPreferences(null);
         setPreferencesDraft(emptyPreferencesDraft);
-        setPreferencesError('Failed to load user preferences.');
+        setPreferencesError(t('failedLoadPreferences', { ns: 'settings' }));
         return;
       }
       setPreferences(current);
@@ -224,7 +232,7 @@ export default function Settings() {
     } finally {
       setPreferencesLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -246,15 +254,15 @@ export default function Settings() {
       }>('/auth/email/resend-verification');
 
       if (response.data.alreadyVerified) {
-        setResendInfo('Email is already verified.');
+        setResendInfo(t('emailAlreadyVerified', { ns: 'settings' }));
       } else if (response.data.sent) {
-        setResendInfo('Verification email sent.');
+        setResendInfo(t('verificationEmailSent', { ns: 'settings' }));
       } else {
-        setResendInfo('SMTP is not configured, verification email was not sent.');
+        setResendInfo(t('smtpNotConfigured', { ns: 'settings' }));
       }
       await load();
     } catch {
-      setResendInfo('Failed to resend verification email.');
+      setResendInfo(t('failedResendVerification', { ns: 'settings' }));
     } finally {
       setResending(false);
     }
@@ -268,13 +276,13 @@ export default function Settings() {
       const urls = buildCheckoutReturnUrls('/settings', searchParams);
       const checkout = await startPremiumCheckout(urls);
       if (!checkout.checkoutUrl) {
-        throw new Error('Checkout URL was not returned by billing provider.');
+        throw new Error(t('checkoutMissingUrl', { ns: 'plan' }));
       }
       window.location.assign(checkout.checkoutUrl);
     } catch (error) {
       const message = isAxiosError(error)
         ? String(error.response?.data?.message ?? error.message)
-        : 'Upgrade failed';
+        : t('upgradeFailed', { ns: 'plan' });
       setUpgradeError(message);
       await loadBilling();
     } finally {
@@ -296,17 +304,13 @@ export default function Settings() {
 
         if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
           setUpgradeModalOpened(false);
-          setResendInfo('Premium activated successfully.');
+          setResendInfo(t('premiumActivated', { ns: 'plan' }));
         } else if (resolved.paymentStatus === 'CANCELED' || checkoutAction === 'cancel') {
-          setUpgradeError('Checkout was canceled before completion.');
+          setUpgradeError(t('checkoutCanceled', { ns: 'plan' }));
         } else if (resolved.paymentStatus === 'PENDING') {
-          setUpgradeError(
-            'Checkout is still pending webhook confirmation. Refresh shortly if status does not update.',
-          );
+          setUpgradeError(t('checkoutPending', { ns: 'plan' }));
         } else {
-          setUpgradeError(
-            resolved.errorMessage ?? 'Checkout failed. Please retry with Stripe test card details.',
-          );
+          setUpgradeError(resolved.errorMessage ?? t('checkoutFailed', { ns: 'plan' }));
         }
 
         await Promise.all([load(), loadBilling()]);
@@ -314,7 +318,7 @@ export default function Settings() {
         if (canceled) return;
         const message = isAxiosError(error)
           ? String(error.response?.data?.message ?? error.message)
-          : 'Failed to resolve checkout status.';
+          : t('failedResolveCheckout', { ns: 'plan' });
         setUpgradeError(message);
       } finally {
         if (canceled) return;
@@ -326,11 +330,11 @@ export default function Settings() {
     return () => {
       canceled = true;
     };
-  }, [checkoutAction, checkoutSessionId, clearCheckoutParams, load, loadBilling]);
+  }, [checkoutAction, checkoutSessionId, clearCheckoutParams, load, loadBilling, t]);
 
   const handleSavePreferences = async () => {
     if (preferencesDraft.weeklyStudyHours < 1 || preferencesDraft.weeklyStudyHours > 40) {
-      setPreferencesError('Weekly study hours must be between 1 and 40.');
+      setPreferencesError(t('weeklyHoursRange', { ns: 'settings' }));
       return;
     }
 
@@ -338,7 +342,7 @@ export default function Settings() {
     const normalizedCity = preferencesDraft.defaultTargetCity.trim();
 
     const payload: UpdateUserPreferencesPayload = {
-      preferredLanguage: preferencesDraft.preferredLanguage,
+      preferredLanguage: language,
       preferredTheme: preferencesDraft.preferredTheme,
       preferredCurrency: preferencesDraft.preferredCurrency,
       defaultTargetCountry: normalizedCountry || null,
@@ -355,11 +359,14 @@ export default function Settings() {
       setPreferences(updated);
       setPreferencesDraft(toDraft(updated));
       setColorScheme(updated.preferredTheme);
-      setPreferencesInfo('Preferences saved.');
+      if (updated.preferredLanguage !== language) {
+        await setLanguage(updated.preferredLanguage);
+      }
+      setPreferencesInfo(t('preferencesSaved', { ns: 'settings' }));
     } catch (error) {
       const message = isAxiosError(error)
         ? String(error.response?.data?.message ?? error.message)
-        : 'Failed to save preferences.';
+        : t('failedSavePreferences', { ns: 'settings' });
       setPreferencesError(message);
     } finally {
       setPreferencesSaving(false);
@@ -371,40 +378,40 @@ export default function Settings() {
       return null;
     }
     if (user.emailVerified) {
-      return <Badge color="teal">Verified</Badge>;
+      return <Badge color="teal">{t('verified', { ns: 'settings' })}</Badge>;
     }
-    return <Badge color="orange">Unverified</Badge>;
-  }, [user]);
+    return <Badge color="orange">{t('unverified', { ns: 'settings' })}</Badge>;
+  }, [t, user]);
 
   const currentPlanCode =
     billingStatus?.plan.code ??
     (user?.role === 'PREMIUM' ? 'PREMIUM' : user?.role === 'ADMIN' ? 'PREMIUM' : 'FREE');
   const currentPlanName = billingStatus?.plan.name ??
-    (currentPlanCode === 'PREMIUM' ? 'Premium' : 'Free');
+    (currentPlanCode === 'PREMIUM' ? t('premium', { ns: 'common' }) : t('free', { ns: 'common' }));
   const jobMatchLimit =
     billingStatus?.entitlements?.features?.JOB_MATCH_LIMIT?.limit ?? null;
 
   const githubStatus = useMemo(() => {
     if (!user?.githubLinked) {
-      return <Badge color="gray">Not linked</Badge>;
+      return <Badge color="gray">{t('notLinked', { ns: 'settings' })}</Badge>;
     }
     return (
       <Badge color="teal">
-        Linked{user.githubLogin ? ` (@${user.githubLogin})` : ''}
+        {t('linked', { ns: 'settings' })}{user.githubLogin ? ` (@${user.githubLogin})` : ''}
       </Badge>
     );
-  }, [user]);
+  }, [t, user]);
 
   const googleStatus = useMemo(() => {
     if (!user?.googleLinked) {
-      return <Badge color="gray">Not linked</Badge>;
+      return <Badge color="gray">{t('notLinked', { ns: 'settings' })}</Badge>;
     }
     return (
       <Badge color="teal">
-        Linked{user.googleEmail ? ` (${user.googleEmail})` : ''}
+        {t('linked', { ns: 'settings' })}{user.googleEmail ? ` (${user.googleEmail})` : ''}
       </Badge>
     );
-  }, [user]);
+  }, [t, user]);
 
   const handleLinkGithub = () => {
     window.location.assign(buildGithubLinkUrl(token));
@@ -419,7 +426,7 @@ export default function Settings() {
       await client.post('/auth/github/unlink');
       await load();
     } catch {
-      setLoadError('Failed to unlink GitHub account.');
+      setLoadError(t('failedUnlinkGithub', { ns: 'settings' }));
     }
   };
 
@@ -428,7 +435,7 @@ export default function Settings() {
       await client.post('/auth/google/unlink');
       await load();
     } catch {
-      setLoadError('Failed to unlink Google account.');
+      setLoadError(t('failedUnlinkGoogle', { ns: 'settings' }));
     }
   };
 
@@ -452,20 +459,20 @@ export default function Settings() {
   return (
     <div className="mx-auto mt-8 max-w-2xl">
       <Stack gap="lg">
-        <Title order={2}>Settings</Title>
+        <Title order={2}>{t('title', { ns: 'settings' })}</Title>
 
         {successLinked && (
-          <Alert color="teal">GitHub profile linked successfully.</Alert>
+          <Alert color="teal">{t('githubLinkedSuccess', { ns: 'settings' })}</Alert>
         )}
         {successGoogleLinked && (
-          <Alert color="teal">Google profile linked successfully.</Alert>
+          <Alert color="teal">{t('googleLinkedSuccess', { ns: 'settings' })}</Alert>
         )}
         {successEmailVerified && (
-          <Alert color="teal">Email verified successfully.</Alert>
+          <Alert color="teal">{t('emailVerifiedSuccess', { ns: 'settings' })}</Alert>
         )}
         {oauthError && <Alert color="red">{oauthError}</Alert>}
         {checkoutProcessing && (
-          <Alert color="blue">Processing Stripe checkout status...</Alert>
+          <Alert color="blue">{t('processingCheckout', { ns: 'settings' })}</Alert>
         )}
         {loadError && <Alert color="red">{loadError}</Alert>}
         {resendInfo && <Alert color="blue">{resendInfo}</Alert>}
@@ -474,25 +481,27 @@ export default function Settings() {
 
         <Paper withBorder radius="lg" p="xl" className="bg-white">
           <Stack gap="md">
-            <Title order={4}>Preferences</Title>
+            <Title order={4}>{t('preferences', { ns: 'settings' })}</Title>
             <Text size="sm" c="dimmed">
-              Personalization settings used across knowledge base, profile defaults, and report locale.
+              {t('preferencesDescription', { ns: 'settings' })}
             </Text>
             <Select
-              label="Preferred Language"
-              data={LANGUAGE_OPTIONS}
-              value={preferencesDraft.preferredLanguage}
-              onChange={(value) =>
+              label={t('preferredLanguage', { ns: 'settings' })}
+              data={languageOptions}
+              value={language}
+              onChange={(value) => {
+                if (!value || (value !== 'en' && value !== 'ru')) return;
+                void setLanguage(value);
                 setPreferencesDraft((prev) => ({
                   ...prev,
-                  preferredLanguage: (value as 'en' | 'ru') || 'en',
-                }))
-              }
+                  preferredLanguage: value,
+                }));
+              }}
               disabled={preferencesLoading || preferencesSaving}
             />
             <Select
-              label="Preferred Report Language"
-              data={LANGUAGE_OPTIONS}
+              label={t('preferredReportLanguage', { ns: 'settings' })}
+              data={languageOptions}
               value={preferencesDraft.preferredReportLanguage}
               onChange={(value) =>
                 setPreferencesDraft((prev) => ({
@@ -503,8 +512,8 @@ export default function Settings() {
               disabled={preferencesLoading || preferencesSaving}
             />
             <Select
-              label="Preferred Theme"
-              data={THEME_OPTIONS}
+              label={t('preferredTheme', { ns: 'settings' })}
+              data={themeOptions}
               value={preferencesDraft.preferredTheme}
               onChange={(value) =>
                 setPreferencesDraft((prev) => ({
@@ -512,11 +521,11 @@ export default function Settings() {
                   preferredTheme: (value as 'light' | 'dark') || 'light',
                 }))
               }
-              description="Applied globally after saving preferences."
+              description={t('preferredThemeHint', { ns: 'settings' })}
               disabled={preferencesLoading || preferencesSaving}
             />
             <Select
-              label="Preferred Currency"
+              label={t('preferredCurrency', { ns: 'settings' })}
               data={CURRENCY_OPTIONS.map((value) => ({ value, label: value }))}
               value={preferencesDraft.preferredCurrency}
               onChange={(value) =>
@@ -528,7 +537,7 @@ export default function Settings() {
               disabled={preferencesLoading || preferencesSaving}
             />
             <Select
-              label="Default Target Country"
+              label={t('defaultTargetCountry', { ns: 'settings' })}
               data={countryOptions}
               value={preferencesDraft.defaultTargetCountry || null}
               clearable
@@ -542,8 +551,8 @@ export default function Settings() {
               disabled={preferencesLoading || preferencesSaving}
             />
             <TextInput
-              label="Default Target City"
-              placeholder="Optional city (e.g., Berlin)"
+              label={t('defaultTargetCity', { ns: 'settings' })}
+              placeholder={t('defaultTargetCityPlaceholder', { ns: 'settings' })}
               value={preferencesDraft.defaultTargetCity}
               onChange={(event) =>
                 setPreferencesDraft((prev) => ({
@@ -553,13 +562,13 @@ export default function Settings() {
               }
               description={
                 suggestedCities.length > 0
-                  ? `Suggested for selected country: ${suggestedCities.join(', ')}`
-                  : 'Can be a custom non-empty city value.'
+                  ? t('suggestedCities', { ns: 'settings', cities: suggestedCities.join(', ') })
+                  : t('customCityHint', { ns: 'settings' })
               }
               disabled={preferencesLoading || preferencesSaving}
             />
             <NumberInput
-              label="Weekly Study Hours"
+              label={t('weeklyStudyHours', { ns: 'settings' })}
               min={1}
               max={40}
               value={preferencesDraft.weeklyStudyHours}
@@ -577,11 +586,12 @@ export default function Settings() {
               loading={preferencesSaving}
               disabled={preferencesLoading}
             >
-              Save Preferences
+              {t('savePreferences', { ns: 'settings' })}
             </Button>
             {preferences && (
               <Text size="xs" c="dimmed">
-                Last updated: {new Date(preferences.updatedAt).toLocaleString()}
+                {t('lastUpdated', { ns: 'settings' })}:{' '}
+                {new Date(preferences.updatedAt).toLocaleString(language)}
               </Text>
             )}
           </Stack>
@@ -589,11 +599,11 @@ export default function Settings() {
 
         <Paper withBorder radius="lg" p="xl" className="bg-white">
           <Stack gap="md">
-            <Title order={4}>Email Verification</Title>
+            <Title order={4}>{t('emailVerification', { ns: 'settings' })}</Title>
             <Text size="sm" c="dimmed">
-              Email: {user?.email || authUser?.email || 'unknown'}
+              {t('emailLabel', { ns: 'settings' })}: {user?.email || authUser?.email || t('unknown', { ns: 'settings' })}
             </Text>
-            {loading ? <Text size="sm">Loading...</Text> : emailStatus}
+            {loading ? <Text size="sm">{t('loading', { ns: 'common' })}</Text> : emailStatus}
             <Button
               color="brand.7"
               variant={user?.emailVerified ? 'light' : 'filled'}
@@ -601,43 +611,47 @@ export default function Settings() {
               loading={resending}
               disabled={loading || !user || Boolean(user.emailVerified)}
             >
-              {user?.emailVerified ? 'Email Verified' : 'Resend Verification Email'}
+              {user?.emailVerified
+                ? t('emailVerified', { ns: 'settings' })
+                : t('resendVerification', { ns: 'settings' })}
             </Button>
           </Stack>
         </Paper>
 
         <Paper withBorder radius="lg" p="xl" className="bg-white">
           <Stack gap="md">
-            <Title order={4}>Subscription</Title>
+            <Title order={4}>{t('subscription', { ns: 'settings' })}</Title>
             <Text size="sm" c="dimmed">
-              Current plan and billing status for premium feature access.
+              {t('subscriptionDescription', { ns: 'settings' })}
             </Text>
             <Badge
               color={currentPlanCode === 'PREMIUM' ? 'teal' : 'gray'}
               variant="light"
               w="fit-content"
             >
-              Plan: {currentPlanName}
+              {t('plan', { ns: 'settings' })}: {currentPlanName}
             </Badge>
             {billingLoading ? (
-              <Text size="sm">Loading billing status...</Text>
+              <Text size="sm">{t('loadingBillingStatus', { ns: 'settings' })}</Text>
             ) : (
               <Stack gap={6}>
                 <Text size="sm" c="dimmed">
-                  Subscription status: {billingStatus?.subscription.status ?? 'UNKNOWN'}
+                  {t('subscriptionStatus', { ns: 'settings' })}:{' '}
+                  {billingStatus?.subscription.status ?? 'UNKNOWN'}
                 </Text>
                 <Text size="sm" c="dimmed">
-                  Subscription end: {billingStatus?.subscription.expiresAt
-                    ? new Date(billingStatus.subscription.expiresAt).toLocaleString()
-                    : 'n/a'}
+                  {t('subscriptionEnd', { ns: 'settings' })}:{' '}
+                  {billingStatus?.subscription.expiresAt
+                    ? new Date(billingStatus.subscription.expiresAt).toLocaleString(language)
+                    : t('na', { ns: 'common' })}
                 </Text>
                 {jobMatchLimit ? (
                   <Text size="sm" c="dimmed">
-                    Job matching usage: Top {jobMatchLimit} of 20
+                    {t('jobMatchingUsage', { ns: 'settings', count: jobMatchLimit })}
                   </Text>
                 ) : null}
                 <Text size="sm" c="dimmed">
-                  Open full plan details to view Stripe subscription status and full payment history.
+                  {t('planDetailsHint', { ns: 'settings' })}
                 </Text>
               </Stack>
             )}
@@ -647,7 +661,7 @@ export default function Settings() {
               variant="outline"
               color="brand.8"
             >
-              Open Plan and Billing
+              {t('openPlanAndBilling', { ns: 'settings' })}
             </Button>
             {currentPlanCode !== 'PREMIUM' ? (
               <Button
@@ -658,11 +672,11 @@ export default function Settings() {
                 }}
                 disabled={upgradeLoading}
               >
-                Upgrade to Premium
+                {t('upgradeToPremium', { ns: 'settings' })}
               </Button>
             ) : (
               <Button color="teal" variant="light" disabled>
-                Premium Active
+                {t('premiumActive', { ns: 'settings' })}
               </Button>
             )}
           </Stack>
@@ -670,18 +684,19 @@ export default function Settings() {
 
         <Paper withBorder radius="lg" p="xl" className="bg-white">
           <Stack gap="md">
-            <Title order={4}>GitHub Integration</Title>
+            <Title order={4}>{t('githubIntegration', { ns: 'settings' })}</Title>
             <Text size="sm" c="dimmed">
-              Link your GitHub profile to unlock GitHub-based profile analysis
-              flows in upcoming features.
+              {t('githubIntegrationDescription', { ns: 'settings' })}
             </Text>
-            {loading ? <Text size="sm">Loading...</Text> : githubStatus}
+            {loading ? <Text size="sm">{t('loading', { ns: 'common' })}</Text> : githubStatus}
             <Button
               color="brand.7"
               variant={user?.githubLinked ? 'light' : 'filled'}
               onClick={handleLinkGithub}
             >
-              {user?.githubLinked ? 'Relink GitHub Profile' : 'Link GitHub Profile'}
+              {user?.githubLinked
+                ? t('relinkGithub', { ns: 'settings' })
+                : t('linkGithub', { ns: 'settings' })}
             </Button>
             <Button
               variant="outline"
@@ -689,25 +704,26 @@ export default function Settings() {
               onClick={handleUnlinkGithub}
               disabled={!user?.githubLinked}
             >
-              Unlink GitHub Profile
+              {t('unlinkGithub', { ns: 'settings' })}
             </Button>
           </Stack>
         </Paper>
 
         <Paper withBorder radius="lg" p="xl" className="bg-white">
           <Stack gap="md">
-            <Title order={4}>Google Integration</Title>
+            <Title order={4}>{t('googleIntegration', { ns: 'settings' })}</Title>
             <Text size="sm" c="dimmed">
-              Link your Google profile to support Google-based login and future
-              account signals.
+              {t('googleIntegrationDescription', { ns: 'settings' })}
             </Text>
-            {loading ? <Text size="sm">Loading...</Text> : googleStatus}
+            {loading ? <Text size="sm">{t('loading', { ns: 'common' })}</Text> : googleStatus}
             <Button
               color="brand.7"
               variant={user?.googleLinked ? 'light' : 'filled'}
               onClick={handleLinkGoogle}
             >
-              {user?.googleLinked ? 'Relink Google Profile' : 'Link Google Profile'}
+              {user?.googleLinked
+                ? t('relinkGoogle', { ns: 'settings' })
+                : t('linkGoogle', { ns: 'settings' })}
             </Button>
             <Button
               variant="outline"
@@ -715,7 +731,7 @@ export default function Settings() {
               onClick={handleUnlinkGoogle}
               disabled={!user?.googleLinked}
             >
-              Unlink Google Profile
+              {t('unlinkGoogle', { ns: 'settings' })}
             </Button>
           </Stack>
         </Paper>
@@ -725,7 +741,7 @@ export default function Settings() {
           onClose={() => setUpgradeModalOpened(false)}
           onUpgrade={handleUpgrade}
           loading={upgradeLoading}
-          featureName="Premium billing access"
+          featureName={t('premiumBillingAccess', { ns: 'settings' })}
           errorMessage={upgradeError}
         />
       </Stack>

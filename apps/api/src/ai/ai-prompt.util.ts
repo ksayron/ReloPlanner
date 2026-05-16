@@ -1,9 +1,12 @@
 import { RelocationReadinessReportSnapshot } from '../reports/reports.types.js';
+import { ReportLocale } from '../reports/reports.types.js';
 import { AiReportSummary } from './ai.types.js';
 
 export function buildAiSummaryPrompt(
   snapshot: RelocationReadinessReportSnapshot,
+  locale: ReportLocale,
 ): string {
+  const localeLabel = locale === 'ru' ? 'Russian' : 'English';
   const payload = JSON.stringify(snapshot);
   const persona = [
     `Target role: ${snapshot.profileSummary.desiredRole}`,
@@ -14,6 +17,7 @@ export function buildAiSummaryPrompt(
   ].join(' | ');
   return [
     'You are generating an advisory summary for a relocation readiness report.',
+    `Return every field in ${localeLabel}.`,
     'Use ONLY the snapshot JSON provided by the user. Do not invent facts.',
     'Keep deterministic metrics authoritative and unchanged.',
     'Make the text personal to this candidate context and current readiness.',
@@ -33,6 +37,52 @@ export function buildAiSummaryPrompt(
   ].join('\n');
 }
 
+const localizedDefaults = (locale: ReportLocale) => {
+  if (locale === 'ru') {
+    return {
+      advisoryDisclaimer:
+        'AI-сгенерированный консультационный текст. Проверьте вывод по детерминированным метрикам отчета.',
+      missingStrengths:
+        'Базовые данные профиля доступны, но сильные стороны не удалось раскрыть.',
+      missingRisks: 'Детали рисков в сгенерированном AI-выводе ограничены.',
+      mockExecutiveSummary: (
+        fitScorePct: number,
+        role: string,
+        country: string,
+      ) =>
+        `Текущая готовность составляет ${fitScorePct}% для роли ${role} в ${country}. Основной фокус должен оставаться на выполнении приоритетных шагов дорожной карты.`,
+      mockNoStrengths:
+        'По данным snapshot не обнаружено выраженных совпадений компетенций.',
+      mockNoRisks: 'Критические риски в actionable gaps не выявлены.',
+      mockStrategy:
+        'Сначала закройте верхние пункты дорожной карты, затем повторно запустите анализ после измеримого прогресса, чтобы подтвердить снижение рисков и рост fit score.',
+      mockDisclaimer:
+        'AI-сгенерированный консультационный текст. Детерминированные fit score, gaps и roadmap остаются источником истины.',
+    };
+  }
+
+  return {
+    advisoryDisclaimer:
+      'AI-generated advisory text. Verify with deterministic report metrics.',
+    missingStrengths:
+      'Core profile data is available but strengths could not be expanded.',
+    missingRisks: 'Risk details were limited in the generated AI output.',
+    mockExecutiveSummary: (
+      fitScorePct: number,
+      role: string,
+      country: string,
+    ) =>
+      `Current readiness is ${fitScorePct}% for ${role} in ${country}. Focus should remain on prioritized roadmap execution.`,
+    mockNoStrengths:
+      'No strong competency matches were detected from snapshot data.',
+    mockNoRisks: 'No critical risks were detected in actionable gaps.',
+    mockStrategy:
+      'Address top roadmap items first, then re-run analysis after measurable progress to confirm risk reduction and fit-score improvement.',
+    mockDisclaimer:
+      'AI-generated advisory text. Deterministic fit score, gaps, and roadmap remain the source of truth.',
+  };
+};
+
 const sanitizeList = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   return value
@@ -41,18 +91,26 @@ const sanitizeList = (value: unknown): string[] => {
     .slice(0, 3);
 };
 
-export function parseAiSummaryJson(raw: string): AiReportSummary {
+export function parseAiSummaryJson(
+  raw: string,
+  locale: ReportLocale,
+): AiReportSummary {
+  const texts = localizedDefaults(locale);
   const parsed = JSON.parse(raw) as Partial<AiReportSummary>;
   const executiveSummary = String(parsed.executiveSummary ?? '').trim();
   const recommendedStrategy = String(parsed.recommendedStrategy ?? '').trim();
   const advisoryDisclaimer =
     String(parsed.advisoryDisclaimer ?? '').trim() ||
-    'AI-generated advisory text. Verify with deterministic report metrics.';
+    texts.advisoryDisclaimer;
   const topStrengths = sanitizeList(parsed.topStrengths);
   const topRisks = sanitizeList(parsed.topRisks);
 
   if (!executiveSummary || !recommendedStrategy) {
-    throw new Error('AI response is missing required summary fields');
+    throw new Error(
+      locale === 'ru'
+        ? 'AI-ответ не содержит обязательные поля сводки'
+        : 'AI response is missing required summary fields',
+    );
   }
 
   return {
@@ -60,13 +118,11 @@ export function parseAiSummaryJson(raw: string): AiReportSummary {
     topStrengths:
       topStrengths.length > 0
         ? topStrengths
-        : [
-            'Core profile data is available but strengths could not be expanded.',
-          ],
+        : [texts.missingStrengths],
     topRisks:
       topRisks.length > 0
         ? topRisks
-        : ['Risk details were limited in the generated AI output.'],
+        : [texts.missingRisks],
     recommendedStrategy,
     advisoryDisclaimer,
   };
@@ -74,7 +130,9 @@ export function parseAiSummaryJson(raw: string): AiReportSummary {
 
 export function buildMockSummary(
   snapshot: RelocationReadinessReportSnapshot,
+  locale: ReportLocale,
 ): AiReportSummary {
+  const texts = localizedDefaults(locale);
   const fitScorePct = Math.round(snapshot.readiness.fitScore * 100);
   const topStrengths = snapshot.skillBreakdown
     .slice()
@@ -91,18 +149,20 @@ export function buildMockSummary(
     .map((item) => `${item.competencyName} (${item.severity})`);
 
   return {
-    executiveSummary: `Current readiness is ${fitScorePct}% for ${snapshot.profileSummary.desiredRole} in ${snapshot.profileSummary.targetCountry}. Focus should remain on prioritized roadmap execution.`,
+    executiveSummary: texts.mockExecutiveSummary(
+      fitScorePct,
+      snapshot.profileSummary.desiredRole,
+      snapshot.profileSummary.targetCountry,
+    ),
     topStrengths:
       topStrengths.length > 0
         ? topStrengths
-        : ['No strong competency matches were detected from snapshot data.'],
+        : [texts.mockNoStrengths],
     topRisks:
       topRisks.length > 0
         ? topRisks
-        : ['No critical risks were detected in actionable gaps.'],
-    recommendedStrategy:
-      'Address top roadmap items first, then re-run analysis after measurable progress to confirm risk reduction and fit-score improvement.',
-    advisoryDisclaimer:
-      'AI-generated advisory text. Deterministic fit score, gaps, and roadmap remain the source of truth.',
+        : [texts.mockNoRisks],
+    recommendedStrategy: texts.mockStrategy,
+    advisoryDisclaimer: texts.mockDisclaimer,
   };
 }

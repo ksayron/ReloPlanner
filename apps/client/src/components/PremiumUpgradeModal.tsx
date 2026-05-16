@@ -1,4 +1,5 @@
-import { Alert, Button, Group, List, Modal, Stack, Text, Title } from '@mantine/core';
+﻿import { Alert, Button, Group, List, Modal, Stack, Text, Title } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 
 type PremiumUpgradeModalProps = {
   opened: boolean;
@@ -17,27 +18,29 @@ export default function PremiumUpgradeModal({
   featureName,
   errorMessage,
 }: PremiumUpgradeModalProps) {
+  const { t } = useTranslation(['components', 'common']);
+
   return (
-    <Modal opened={opened} onClose={onClose} centered size="lg" title="Upgrade to Premium">
+    <Modal opened={opened} onClose={onClose} centered size="lg" title={t('upgradeToPremium', { ns: 'components' })}>
       <Stack gap="md">
-        <Title order={4}>Unlock Premium Features</Title>
+        <Title order={4}>{t('unlockPremiumFeatures', { ns: 'components' })}</Title>
         <Text size="sm" c="dimmed">
           {featureName
-            ? `${featureName} is available on Premium.`
-            : 'This feature is available on Premium.'}
+            ? t('premiumFeatureAvailable', { ns: 'components', feature: featureName })
+            : t('premiumFeatureAvailableGeneric', { ns: 'components' })}
         </Text>
         <List spacing="xs">
-          <List.Item>Top 20 job matches instead of 3.</List.Item>
-          <List.Item>AI-detailed analysis report generation.</List.Item>
-          <List.Item>PDF report export for defense/demo scenarios.</List.Item>
+          <List.Item>{t('premiumBenefitMatches', { ns: 'components' })}</List.Item>
+          <List.Item>{t('premiumBenefitAiReport', { ns: 'components' })}</List.Item>
+          <List.Item>{t('premiumBenefitPdf', { ns: 'components' })}</List.Item>
         </List>
         {errorMessage ? <Alert color="red">{errorMessage}</Alert> : null}
         <Group justify="flex-end">
           <Button variant="subtle" color="gray" onClick={onClose} disabled={loading}>
-            Cancel
+            {t('cancel', { ns: 'common' })}
           </Button>
           <Button color="brand.7" onClick={onUpgrade} loading={loading}>
-            Upgrade Now
+            {t('upgradeNow', { ns: 'components' })}
           </Button>
         </Group>
       </Stack>

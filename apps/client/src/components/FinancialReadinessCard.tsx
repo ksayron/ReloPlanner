@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Alert, Badge, Card, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import client from '../api/client';
 import type { FinancialReadinessResult } from '../types';
 
@@ -11,6 +12,7 @@ function riskColor(level: FinancialReadinessResult['financialRiskLevel']) {
 }
 
 export default function FinancialReadinessCard({ profileId }: { profileId: string }) {
+  const { t } = useTranslation(['components', 'common']);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [result, setResult] = useState<FinancialReadinessResult | null>(null);
@@ -25,18 +27,18 @@ export default function FinancialReadinessCard({ profileId }: { profileId: strin
         );
         setResult(response.data);
       } catch {
-        setError('Failed to evaluate financial readiness.');
+        setError(t('failedFinancialReadiness', { ns: 'components' }));
       } finally {
         setLoading(false);
       }
     })();
-  }, [profileId]);
+  }, [profileId, t]);
 
   return (
     <Card withBorder radius="lg" p="lg" className="bg-white">
       <Stack gap="md">
         <Group justify="space-between" wrap="wrap">
-          <Title order={3}>Financial Readiness</Title>
+          <Title order={3}>{t('financialReadiness', { ns: 'components' })}</Title>
           {loading ? <Loader size="sm" color="brand.7" /> : null}
         </Group>
 
@@ -45,33 +47,33 @@ export default function FinancialReadinessCard({ profileId }: { profileId: strin
           <>
             <Group gap="sm" wrap="wrap">
               <Badge color={riskColor(result.financialRiskLevel)} variant="light">
-                Risk: {result.financialRiskLevel}
+                {t('risk', { ns: 'components' })}: {result.financialRiskLevel}
               </Badge>
               <Badge color="brand.1" variant="light">
-                CoL Source: {result.costEstimate.source}
+                {t('colSource', { ns: 'components' })}: {result.costEstimate.source}
               </Badge>
               <Badge color="brand.1" variant="light">
-                Monthly Need: {result.costEstimate.totalMonthlyEstimateUsd.toFixed(2)} USD
+                {t('monthlyNeed', { ns: 'components' })}: {result.costEstimate.totalMonthlyEstimateUsd.toFixed(2)} USD
               </Badge>
               <Badge color="brand.1" variant="light">
-                Runway:{' '}
+                {t('runway', { ns: 'components' })}:{' '}
                 {result.runwayMonths !== null
-                  ? `${result.runwayMonths.toFixed(1)} months`
-                  : 'Unavailable'}
+                  ? `${result.runwayMonths.toFixed(1)} ${t('months', { ns: 'common' })}`
+                  : t('unavailable', { ns: 'components' })}
               </Badge>
             </Group>
 
             <Text size="sm">{result.summary}</Text>
             <Text size="sm" c="dimmed">
-              Recommended savings: {result.recommendedSavingsAmount.toFixed(2)}{' '}
+              {t('recommendedSavings', { ns: 'components' })}: {result.recommendedSavingsAmount.toFixed(2)}{' '}
               {result.recommendedSavingsCurrency}
             </Text>
 
             <Stack gap={6}>
-              <Text fw={700}>Warnings</Text>
+              <Text fw={700}>{t('warnings', { ns: 'components' })}</Text>
               {result.warnings.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No specific warnings.
+                  {t('noSpecificWarnings', { ns: 'components' })}
                 </Text>
               ) : (
                 result.warnings.map((warning) => (
@@ -83,10 +85,10 @@ export default function FinancialReadinessCard({ profileId }: { profileId: strin
             </Stack>
 
             <Stack gap={6}>
-              <Text fw={700}>Advice</Text>
+              <Text fw={700}>{t('advice', { ns: 'components' })}</Text>
               {result.advice.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No additional advice.
+                  {t('noAdditionalAdvice', { ns: 'components' })}
                 </Text>
               ) : (
                 result.advice.map((advice) => (

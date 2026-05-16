@@ -22,6 +22,7 @@ import Cases from './pages/Cases';
 import CaseDetail from './pages/CaseDetail';
 import Chats from './pages/Chats';
 import ChatDetail from './pages/ChatDetail';
+import { AppLanguageProvider } from './i18n/AppLanguageProvider';
 
 function AppRoutes() {
   return (
@@ -61,7 +62,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <AppLanguageProvider>
+          <AppRoutes />
+        </AppLanguageProvider>
       </AuthProvider>
     </BrowserRouter>
   );

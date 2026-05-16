@@ -1,4 +1,5 @@
 import { RelocationReadinessReportSnapshot } from '../reports/reports.types.js';
+import { ReportLocale } from '../reports/reports.types.js';
 
 export type AiProviderName = 'OPENAI' | 'OPENROUTER' | 'MOCK';
 export type AiTaskGrade = 'EASY' | 'REASONING';
@@ -14,6 +15,7 @@ export interface AiReportSummary {
 export interface AiSummaryRequest {
   snapshot: RelocationReadinessReportSnapshot;
   grade: AiTaskGrade;
+  locale: ReportLocale;
 }
 
 export interface AiProviderResult {
@@ -23,6 +25,7 @@ export interface AiProviderResult {
 
 export interface AiSummaryMeta {
   grade: AiTaskGrade;
+  localeUsed: ReportLocale;
   requestedProvider: AiProviderName;
   attemptedProviders: AiProviderName[];
   providerUsed: AiProviderName;

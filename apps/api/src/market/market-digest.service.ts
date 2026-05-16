@@ -4,6 +4,8 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import type {
+  CountryJobPostingsResponse,
+  JobPosting,
   MarketDigestCountryResponse,
   MarketDigestRoleCount,
   MarketDigestSkillDemand,
@@ -150,6 +152,55 @@ export class MarketDigestService {
     return this.toResponse(row);
   }
 
+  async getCountryPostings(
+    countryCodeRaw: string,
+    pageRaw?: string,
+    pageSizeRaw?: string,
+  ): Promise<CountryJobPostingsResponse> {
+    const countryCode = (countryCodeRaw ?? '').trim().toUpperCase();
+    if (!countryCode) {
+      throw new BadRequestException('country is required');
+    }
+    if (!TARGET_COUNTRY_CODES.includes(countryCode)) {
+      throw new BadRequestException(
+        `country must be one of: ${TARGET_COUNTRY_CODES.join(', ')}`,
+      );
+    }
+
+    const parsedPage = Number(pageRaw ?? 1);
+    const page = Number.isFinite(parsedPage)
+      ? Math.max(1, Math.trunc(parsedPage))
+      : 1;
+    const parsedPageSize = Number(pageSizeRaw ?? 6);
+    const pageSize = Number.isFinite(parsedPageSize)
+      ? Math.max(1, Math.min(30, Math.trunc(parsedPageSize)))
+      : 6;
+
+    const jobPostingModel = this.getJobPostingModel();
+    const total = await jobPostingModel.count({
+      where: { countryCode },
+    });
+    const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0;
+    const safePage = totalPages > 0 ? Math.min(page, totalPages) : 1;
+    const skip = (safePage - 1) * pageSize;
+
+    const rows = await jobPostingModel.findMany({
+      where: { countryCode },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip,
+      take: pageSize,
+    });
+
+    return {
+      countryCode,
+      page: safePage,
+      pageSize,
+      total,
+      totalPages,
+      items: rows.map((row: any) => this.toPostingResponse(row)),
+    };
+  }
+
   private toResponse(row: MarketDigestRow): MarketDigestCountryResponse {
     const roles = this.normalizeRoles(row.roles);
     const topSkills = this.normalizeTopSkills(row.topSkills);
@@ -291,6 +342,29 @@ export class MarketDigestService {
           : b.frequency - a.frequency,
       )
       .slice(0, 10);
+  }
+
+  private toPostingResponse(posting: any): JobPosting {
+    return {
+      id: posting.id,
+      countryCode: posting.countryCode,
+      roleName: posting.roleName,
+      title: posting.title,
+      company: posting.company,
+      location: posting.location,
+      source: posting.source,
+      sourceUrl: posting.sourceUrl,
+      salaryMinUsd: posting.salaryMinUsd,
+      salaryMaxUsd: posting.salaryMaxUsd,
+      salaryCurrency: posting.salaryCurrency,
+      requirements: Array.isArray(posting.requirements)
+        ? posting.requirements
+        : [],
+      createdAt:
+        posting.createdAt instanceof Date
+          ? posting.createdAt.toISOString()
+          : String(posting.createdAt),
+    };
   }
 
   private getMarketDigestModel() {

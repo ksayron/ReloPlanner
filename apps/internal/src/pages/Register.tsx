@@ -12,12 +12,14 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../api/AuthContext';
 
 const passwordPolicy =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
 
 export default function Register() {
+  const { t } = useTranslation('auth');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,13 +32,11 @@ export default function Register() {
     e.preventDefault();
     setError('');
     if (!passwordPolicy.test(password)) {
-      setError(
-        'Password must be at least 8 chars and include uppercase, lowercase, number, and symbol.',
-      );
+      setError(t('passwordPolicy'));
       return;
     }
     if (password !== confirmPassword) {
-      setError('Password confirmation does not match.');
+      setError(t('passwordMismatch'));
       return;
     }
     try {
@@ -51,7 +51,7 @@ export default function Register() {
           ?.data?.message === 'string'
           ? (err as { response?: { data?: { message?: string } } }).response!
               .data!.message!
-          : 'Registration failed';
+          : t('registrationFailed');
       setError(message);
     }
   };
@@ -71,43 +71,42 @@ export default function Register() {
       <Paper withBorder radius="lg" p="xl" className="bg-white">
         <form onSubmit={handleSubmit}>
           <Stack>
-            <Title order={2}>Register</Title>
+            <Title order={2}>{t('register')}</Title>
             {error && <Alert color="red">{error}</Alert>}
             <TextInput
-              label="Display name"
+              label={t('displayName')}
               value={displayName}
               onChange={(e) => setDisplayName(e.currentTarget.value)}
-              description="How specialists should refer to you."
+              description={t('displayNameDescription')}
               required
             />
             <TextInput
-              label="Email"
+              label={t('email')}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}
               required
             />
             <PasswordInput
-              label="Password"
+              label={t('password')}
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
-              description="Min 8 chars, uppercase, lowercase, number, special symbol."
+              description={t('passwordHint')}
               required
             />
             <PasswordInput
-              label="Confirm password"
+              label={t('confirmPassword')}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.currentTarget.value)}
               required
             />
             <Text size="xs" c="dimmed">
-              Password policy: 8+ characters, at least one uppercase, one lowercase, one number,
-              and one special symbol.
+              {t('passwordPolicyShort')}
             </Text>
             <Button type="submit" loading={loading} color="brand.7" fullWidth>
-              Register
+              {t('register')}
             </Button>
-            <Divider label="or" labelPosition="center" />
+            <Divider label={t('or')} labelPosition="center" />
             <Button
               type="button"
               variant="light"
@@ -115,7 +114,7 @@ export default function Register() {
               onClick={handleGoogleRegister}
               fullWidth
             >
-              Continue with Google
+              {t('continueWithGoogle')}
             </Button>
             <Button
               type="button"
@@ -124,7 +123,7 @@ export default function Register() {
               onClick={handleGithubRegister}
               fullWidth
             >
-              Continue with GitHub
+              {t('continueWithGithub')}
             </Button>
             <Anchor
               component={RouterLink}
@@ -133,7 +132,7 @@ export default function Register() {
               c="dimmed"
               size="sm"
             >
-              Already have an account? Login
+              {t('haveAccountLogin')}
             </Anchor>
           </Stack>
         </form>

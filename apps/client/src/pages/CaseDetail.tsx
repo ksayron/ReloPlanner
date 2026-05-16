@@ -13,6 +13,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import type { CaseMessage, CaseReadState, RelocationCase } from '@reloplanner/shared-contracts';
 import { useAuth, useRealtimeCase } from '@reloplanner/shared-frontend';
 import {
@@ -27,6 +28,7 @@ import {
   postCaseMessage,
   submitCase,
 } from '../api/cases';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 const statusColor: Record<string, string> = {
   DRAFT: 'gray',
@@ -37,7 +39,32 @@ const statusColor: Record<string, string> = {
   COMPLETED: 'teal',
 };
 
+const formatCaseStatus = (status: string, t: (key: string) => string) => {
+  const keyMap: Record<string, string> = {
+    DRAFT: 'statusDraft',
+    SUBMITTED: 'statusSubmitted',
+    IN_PROGRESS: 'statusInProgress',
+    NEEDS_USER_INPUT: 'statusNeedsUserInput',
+    CANCELED: 'statusCanceled',
+    COMPLETED: 'statusCompleted',
+  };
+  const key = keyMap[status];
+  return key ? t(key) : status.replaceAll('_', ' ');
+};
+
+const formatMessageKind = (kind: string, t: (key: string) => string) => {
+  const keyMap: Record<string, string> = {
+    SYSTEM: 'kindSystem',
+    SPECIALIST: 'kindSpecialist',
+    CLIENT: 'kindClient',
+  };
+  const key = keyMap[kind];
+  return key ? t(key) : kind;
+};
+
 export default function CaseDetail() {
+  const { t } = useTranslation(['caseDetail', 'common']);
+  const { language } = useAppLanguage();
   const { caseId = '' } = useParams();
   const navigate = useNavigate();
   const { token, user } = useAuth();
@@ -75,7 +102,7 @@ export default function CaseDetail() {
       setMessages(messageData);
       setReadStates(readData);
     } catch {
-      setError('Failed to load case details');
+      setError(t('caseDetail:failedLoad'));
     } finally {
       setLoading(false);
     }
@@ -213,7 +240,7 @@ export default function CaseDetail() {
       setText('');
       await markCaseRead(caseId);
     } catch {
-      setError('Failed to send message');
+      setError(t('caseDetail:failedSend'));
     } finally {
       setBusy(false);
     }
@@ -227,7 +254,7 @@ export default function CaseDetail() {
       if (action === 'complete') await completeCase(caseId);
       await loadAll();
     } catch {
-      setError(`Failed to ${action} case`);
+      setError(t('caseDetail:failedAction', { action: t(`caseDetail:action${action[0].toUpperCase()}${action.slice(1)}`) }));
     } finally {
       setBusy(false);
     }
@@ -240,7 +267,7 @@ export default function CaseDetail() {
       await archiveCase(caseId);
       navigate('/cases');
     } catch {
-      setError('Failed to archive case');
+      setError(t('caseDetail:failedArchive'));
     } finally {
       setBusy(false);
     }
@@ -253,7 +280,7 @@ export default function CaseDetail() {
       await deleteCaseForCurrentUser(caseId);
       navigate('/cases');
     } catch {
-      setError('Failed to delete case');
+      setError(t('caseDetail:failedDelete'));
     } finally {
       setBusy(false);
     }
@@ -270,9 +297,9 @@ export default function CaseDetail() {
   if (!item) {
     return (
       <Stack>
-        <Alert color="red">Case not found</Alert>
+        <Alert color="red">{t('caseDetail:caseNotFound')}</Alert>
         <Button component={RouterLink} to="/cases" variant="light">
-          Back to cases
+          {t('caseDetail:backToCases')}
         </Button>
       </Stack>
     );
@@ -284,20 +311,20 @@ export default function CaseDetail() {
       <Group justify="space-between" align="start">
         <Stack gap={2}>
           <Button component={RouterLink} to="/cases" variant="subtle" color="gray">
-            Back to cases
+            {t('caseDetail:backToCases')}
           </Button>
           <Title order={2}>{item.title}</Title>
           <Text c="dimmed">
             {item.profile
-              ? `Profile: ${item.profile.desiredRole} -> ${item.profile.targetCountry}${item.profile.targetCity ? `, ${item.profile.targetCity}` : ''}`
-              : 'No profile attached.'}
+              ? `${t('caseDetail:profilePrefix')}: ${item.profile.desiredRole} -> ${item.profile.targetCountry}${item.profile.targetCity ? `, ${item.profile.targetCity}` : ''}`
+              : t('caseDetail:noProfileAttached')}
           </Text>
           {item.additionalNotes ? (
-            <Text c="dimmed">Notes: {item.additionalNotes}</Text>
+            <Text c="dimmed">{t('caseDetail:notes')}: {item.additionalNotes}</Text>
           ) : null}
         </Stack>
         <Badge color={statusColor[item.status] ?? 'gray'} variant="light" size="lg">
-          {item.status.replaceAll('_', ' ')}
+          {formatCaseStatus(item.status, (key) => t(`common:${key}`))}
         </Badge>
       </Group>
 
@@ -309,7 +336,7 @@ export default function CaseDetail() {
             color="brand.7"
             variant="light"
           >
-            Submit
+            {t('caseDetail:submit')}
           </Button>
           <Button
             onClick={() => void handleArchive()}
@@ -317,7 +344,7 @@ export default function CaseDetail() {
             variant="light"
             disabled={busy}
           >
-            Archive
+            {t('caseDetail:archive')}
           </Button>
           <Button
             onClick={() => void handleStatusAction('cancel')}
@@ -325,7 +352,7 @@ export default function CaseDetail() {
             color="red"
             variant="light"
           >
-            Cancel
+            {t('caseDetail:cancel')}
           </Button>
           <Button
             onClick={() => void handleStatusAction('complete')}
@@ -333,14 +360,14 @@ export default function CaseDetail() {
             color="teal"
             variant="light"
           >
-            Complete
+            {t('caseDetail:complete')}
           </Button>
           <Button onClick={() => void handleDelete()} disabled={busy} color="red" variant="subtle">
-            Delete (hide for me)
+            {t('caseDetail:deleteForMe')}
           </Button>
           {currentReadState ? (
             <Badge color={currentReadState.unreadCount > 0 ? 'red' : 'teal'}>
-              Unread: {currentReadState.unreadCount}
+              {t('caseDetail:unread', { count: currentReadState.unreadCount })}
             </Badge>
           ) : null}
         </Group>
@@ -348,9 +375,9 @@ export default function CaseDetail() {
 
       <Card withBorder radius="lg" p="lg" className="bg-white">
         <Stack gap="sm">
-          <Title order={4}>Case Chat</Title>
+          <Title order={4}>{t('caseDetail:caseChat')}</Title>
           <ScrollArea h={420} type="always" scrollbarSize={8} offsetScrollbars>
-            {messages.length === 0 ? <Text c="dimmed">No messages yet.</Text> : null}
+            {messages.length === 0 ? <Text c="dimmed">{t('caseDetail:noMessagesYet')}</Text> : null}
             {messages.map((message) => (
               <Card
                 key={message.id}
@@ -366,14 +393,14 @@ export default function CaseDetail() {
                         color={message.kind === 'SYSTEM' ? 'dark' : message.kind === 'SPECIALIST' ? 'indigo' : 'brand.7'}
                         variant="light"
                       >
-                        {message.kind}
+                        {formatMessageKind(message.kind, (key) => t(`caseDetail:${key}`))}
                       </Badge>
                       <Text size="sm" fw={600}>
-                        {message.author?.displayName || message.author?.email || 'System'}
+                        {message.author?.displayName || message.author?.email || t('caseDetail:system')}
                       </Text>
                     </Group>
                     <Text size="xs" c="dimmed">
-                      {new Date(message.createdAt).toLocaleString()}
+                      {new Date(message.createdAt).toLocaleString(language)}
                     </Text>
                   </Group>
                   <Text>{message.content}</Text>
@@ -385,8 +412,8 @@ export default function CaseDetail() {
           <Group align="end">
             <TextInput
               className="flex-1"
-              label="New message"
-              placeholder="Ask your specialist a focused question..."
+              label={t('caseDetail:newMessage')}
+              placeholder={t('caseDetail:newMessagePlaceholder')}
               value={text}
               onChange={(event) => setText(event.currentTarget.value)}
               onKeyDown={(event) => {
@@ -397,7 +424,7 @@ export default function CaseDetail() {
               }}
             />
             <Button onClick={() => void handleSend()} disabled={busy || !text.trim()} color="brand.7">
-              Send
+              {t('caseDetail:send')}
             </Button>
           </Group>
         </Stack>

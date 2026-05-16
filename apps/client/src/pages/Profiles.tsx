@@ -13,7 +13,10 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 import client from '../api/client';
+import ProfileComparisonModal from '../components/ProfileComparisonModal';
 
 interface ProfileSummary {
   id: string;
@@ -39,17 +42,20 @@ const COUNTRY_NAMES: Record<string, string> = {
 };
 
 export default function Profiles() {
+  const { t } = useTranslation(['layout', 'common']);
+  const { language } = useAppLanguage();
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [comparisonOpened, setComparisonOpened] = useState(false);
 
   useEffect(() => {
     client
       .get('/profiles')
       .then((res) => setProfiles(res.data))
-      .catch(() => setError('Failed to load profiles'))
+      .catch(() => setError(t('failedToLoadProfiles', { ns: 'common' })))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   if (loading) {
     return (
@@ -62,8 +68,20 @@ export default function Profiles() {
   return (
     <Stack className="mx-auto max-w-5xl" gap="lg">
       <Group justify="space-between" align="center">
-        <Title order={2}>My Profiles</Title>
-        <Button component={RouterLink} to="/wizard" color="brand.7">+ New Profile</Button>
+        <Title order={2}>{t('myProfiles', { ns: 'layout' })}</Title>
+        <Group>
+          <Button
+            variant="light"
+            color="brand.1"
+            onClick={() => setComparisonOpened(true)}
+            disabled={profiles.length < 2}
+          >
+            Compare profiles
+          </Button>
+          <Button component={RouterLink} to="/wizard" color="brand.7">
+            + {t('newProfile', { ns: 'layout' })}
+          </Button>
+        </Group>
       </Group>
 
       {error && <Alert color="red">{error}</Alert>}
@@ -71,9 +89,9 @@ export default function Profiles() {
       {profiles.length === 0 && !error && (
         <Paper withBorder radius="lg" p="xl" className="bg-white text-center">
           <Stack align="center">
-            <Text c="dimmed">You haven't created any profiles yet.</Text>
+            <Text c="dimmed">{t('youHaveNoProfiles', { ns: 'common' })}</Text>
             <Button component={RouterLink} to="/wizard" color="brand.7">
-              Create Your First Profile
+              {t('createFirstProfile', { ns: 'common' })}
             </Button>
           </Stack>
         </Paper>
@@ -92,7 +110,7 @@ export default function Profiles() {
               <Stack gap="xs">
                 <Group justify="space-between" align="flex-start">
                   <Text fw={700}>{profile.desiredRole}</Text>
-                  <Badge variant="light" color="brand.1">{profile.yearsExperience} yrs</Badge>
+                  <Badge variant="light" color="brand.1">{profile.yearsExperience} {t('yearsShort', { ns: 'common' })}</Badge>
                 </Group>
                 <Text size="sm" c="dimmed">
                   {(COUNTRY_NAMES[profile.currentCountry] || profile.currentCountry)}
@@ -100,7 +118,7 @@ export default function Profiles() {
                   {(COUNTRY_NAMES[profile.targetCountry] || profile.targetCountry)}
                   {profile.targetCity ? `, ${profile.targetCity}` : ''}
                 </Text>
-                <Text size="xs" c="dimmed">Created: {new Date(profile.createdAt).toLocaleDateString()}</Text>
+                <Text size="xs" c="dimmed">{t('createdAt', { ns: 'common' })}: {new Date(profile.createdAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US')}</Text>
                 <Group gap="xs" pt="xs">
                   <Button
                     component={RouterLink}
@@ -108,7 +126,7 @@ export default function Profiles() {
                     size="xs"
                     color="brand.7"
                   >
-                    Open Dashboard
+                    {t('openDashboard', { ns: 'common' })}
                   </Button>
                   <Button
                     component={RouterLink}
@@ -117,7 +135,7 @@ export default function Profiles() {
                     variant="light"
                     color="brand.1"
                   >
-                    Edit Profile
+                    {t('editProfile', { ns: 'common' })}
                   </Button>
                 </Group>
               </Stack>
@@ -125,6 +143,17 @@ export default function Profiles() {
           ))}
         </SimpleGrid>
       )}
+
+      <ProfileComparisonModal
+        opened={comparisonOpened}
+        onClose={() => setComparisonOpened(false)}
+        profiles={profiles.map((profile) => ({
+          id: profile.id,
+          desiredRole: profile.desiredRole,
+          targetCountry: profile.targetCountry,
+          targetCity: profile.targetCity,
+        }))}
+      />
     </Stack>
   );
 }

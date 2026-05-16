@@ -1,3 +1,5 @@
+﻿import i18n from '../i18n';
+
 export const formatEnumLabel = (value: string) =>
   value
     .toLowerCase()
@@ -6,20 +8,20 @@ export const formatEnumLabel = (value: string) =>
     .join(' ');
 
 export const defaultJobStepLabel: Record<string, string> = {
-  QUEUED: 'Queued',
-  STARTED: 'Started',
-  LOAD_PROFILE: 'Load profile',
-  LOAD_REQUIREMENTS: 'Load market requirements',
-  LOAD_MARKET_SNAPSHOT: 'Load market snapshot',
-  PREPARE_INPUTS: 'Prepare analysis inputs',
-  COMPUTE_ANALYSIS: 'Compute score and roadmap',
-  SAVE_RESULTS: 'Save analysis result',
-  BUILDING_SNAPSHOT: 'Build report snapshot',
-  ARTIFACT_READY: 'Prepare export artifact',
-  FILE_PARSED: 'File parsed',
-  AI_EXTRACTION: 'AI extraction',
-  MAPPING_TO_QUESTIONNAIRE: 'Map to questionnaire',
-  COMPLETED: 'Completed',
+  QUEUED: 'jobs.queued',
+  STARTED: 'jobs.started',
+  LOAD_PROFILE: 'jobs.loadProfile',
+  LOAD_REQUIREMENTS: 'jobs.loadRequirements',
+  LOAD_MARKET_SNAPSHOT: 'jobs.loadMarketSnapshot',
+  PREPARE_INPUTS: 'jobs.prepareInputs',
+  COMPUTE_ANALYSIS: 'jobs.computeAnalysis',
+  SAVE_RESULTS: 'jobs.saveResults',
+  BUILDING_SNAPSHOT: 'jobs.buildingSnapshot',
+  ARTIFACT_READY: 'jobs.artifactReady',
+  FILE_PARSED: 'jobs.fileParsed',
+  AI_EXTRACTION: 'jobs.aiExtraction',
+  MAPPING_TO_QUESTIONNAIRE: 'jobs.mapToQuestionnaire',
+  COMPLETED: 'components.completed',
 };
 
 export const isTerminalJobStatus = (status: string) =>
@@ -30,14 +32,24 @@ export const getJobStepLabel = (
   overrides: Record<string, string> = {},
 ) => {
   if (step.startsWith('SYNCING_COUNTRY:')) {
-    const country = step.split(':')[1] ?? 'Unknown';
-    return `Syncing ${country}`;
+    const country = step.split(':')[1] ?? i18n.t('jobs.unknown');
+    return i18n.t('jobs.syncingCountry', { country });
   }
   if (step.startsWith('COUNTRY_DONE:')) {
     const parts = step.split(':');
-    const country = parts[1] ?? 'Unknown';
+    const country = parts[1] ?? i18n.t('jobs.unknown');
     const status = (parts[2] ?? '').toLowerCase();
-    return `Completed ${country}${status ? ` (${status})` : ''}`;
+    return i18n.t('jobs.completedCountry', {
+      country,
+      status: status ? i18n.t('jobs.completedCountryStatus', { status }) : '',
+    });
   }
-  return overrides[step] ?? defaultJobStepLabel[step] ?? formatEnumLabel(step);
+
+  const override = overrides[step];
+  if (override) return override;
+
+  const key = defaultJobStepLabel[step];
+  if (key) return i18n.t(key);
+
+  return formatEnumLabel(step);
 };

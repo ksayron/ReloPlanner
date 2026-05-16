@@ -1,4 +1,5 @@
-import { Card, Stack, Text, Title, useComputedColorScheme } from '@mantine/core';
+﻿import { Card, Stack, Text, Title, useComputedColorScheme } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import type { AnalysisItem } from '../types';
 
 interface SkillFitRadarChartProps {
@@ -43,6 +44,7 @@ const polygonPoints = (
     .join(' ');
 
 export default function SkillFitRadarChart({ items, maxItems = 8 }: SkillFitRadarChartProps) {
+  const { t } = useTranslation('components');
   const colorScheme = useComputedColorScheme('light');
   const data: RadarPoint[] = items
     .map((item) => ({
@@ -58,8 +60,8 @@ export default function SkillFitRadarChart({ items, maxItems = 8 }: SkillFitRada
     return (
       <Card withBorder radius="lg" p="lg" className="bg-white">
         <Stack>
-          <Title order={3}>Skill Fit Radar</Title>
-          <Text c="dimmed" size="sm">Not enough competencies to render a radar chart.</Text>
+          <Title order={3}>{t('skillFitRadar')}</Title>
+          <Text c="dimmed" size="sm">{t('radarNotEnough')}</Text>
         </Stack>
       </Card>
     );
@@ -82,12 +84,10 @@ export default function SkillFitRadarChart({ items, maxItems = 8 }: SkillFitRada
   return (
     <Card radius="lg" p="lg" className="bg-white">
       <Stack>
-        <Title order={3}>Skill Fit Radar</Title>
-        <Text size="sm" c="dimmed">
-          Blue area: your current level. Dark outline: required market level. Hover points for exact values.
-        </Text>
+        <Title order={3}>{t('skillFitRadar')}</Title>
+        <Text size="sm" c="dimmed">{t('radarLegend')}</Text>
         <div style={{ width: '100%', overflowX: 'auto' }}>
-          <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', minWidth: 360, height: 'auto' }} role="img" aria-label="Skill fit radar chart">
+          <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', minWidth: 360, height: 'auto' }} role="img" aria-label={t('radarAria')}>
             {levels.map((level) => (
               <circle
                 key={`level-${level}`}

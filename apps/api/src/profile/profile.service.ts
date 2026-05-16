@@ -1,11 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class ProfileService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly billingService: BillingService,
+  ) {}
 
   findAllByUser(userId: string) {
     return this.prisma.relocationProfile.findMany({
@@ -31,6 +35,8 @@ export class ProfileService {
   }
 
   async create(userId: string, dto: CreateProfileDto) {
+    await this.assertCreateProfileAllowed(userId);
+
     const { competencies, ...profileData } = dto;
 
     return this.prisma.$transaction(async (tx: any) => {
@@ -96,5 +102,26 @@ export class ProfileService {
 
       return profile;
     });
+  }
+
+  private async assertCreateProfileAllowed(userId: string) {
+    const subscription = await this.billingService.getCurrentSubscriptionForUser(userId);
+    if (subscription.plan.code !== 'FREE') {
+      return;
+    }
+
+    const existingCount = await this.prisma.relocationProfile.count({
+      where: { userId },
+    });
+
+    const freePlanLimit = 3;
+    if (existingCount >= freePlanLimit) {
+      throw new ForbiddenException({
+        code: 'PROFILE_LIMIT_REACHED',
+        message: `Free plan allows up to ${freePlanLimit} profiles. Upgrade to Premium to create more.`,
+        currentPlan: 'FREE',
+        limit: freePlanLimit,
+      });
+    }
   }
 }

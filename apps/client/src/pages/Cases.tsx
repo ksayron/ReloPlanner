@@ -14,8 +14,10 @@ import {
   Title,
 } from '@mantine/core';
 import { Link as RouterLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import type { RelocationCase, RelocationProfile } from '@reloplanner/shared-contracts';
 import { createCase, listCases } from '../api/cases';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 import { listProfiles } from '../api/profiles';
 
 const statusColor: Record<string, string> = {
@@ -27,7 +29,22 @@ const statusColor: Record<string, string> = {
   COMPLETED: 'teal',
 };
 
+const formatCaseStatus = (status: string, t: (key: string) => string) => {
+  const keyMap: Record<string, string> = {
+    DRAFT: 'statusDraft',
+    SUBMITTED: 'statusSubmitted',
+    IN_PROGRESS: 'statusInProgress',
+    NEEDS_USER_INPUT: 'statusNeedsUserInput',
+    CANCELED: 'statusCanceled',
+    COMPLETED: 'statusCompleted',
+  };
+  const key = keyMap[status];
+  return key ? t(key) : status.replaceAll('_', ' ');
+};
+
 export default function Cases() {
+  const { t } = useTranslation(['cases', 'common']);
+  const { language } = useAppLanguage();
   const [items, setItems] = useState<RelocationCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +67,7 @@ export default function Cases() {
       setItems(cases);
       setProfiles(profileRows);
     } catch {
-      setError('Failed to load cases or profiles');
+      setError(t('cases:failedLoad'));
     } finally {
       setLoading(false);
     }
@@ -75,7 +92,7 @@ export default function Cases() {
       setAdditionalNotes('');
       await load();
     } catch {
-      setError('Failed to create case');
+      setError(t('cases:failedCreate'));
     } finally {
       setCreating(false);
     }
@@ -91,24 +108,24 @@ export default function Cases() {
 
   return (
     <Stack className="mx-auto max-w-5xl" gap="lg">
-      <Title order={2}>Relocation Cases</Title>
+      <Title order={2}>{t('cases:title')}</Title>
       {error ? <Alert color="red">{error}</Alert> : null}
 
       <Card withBorder radius="lg" p="lg" className="bg-white">
         <Stack>
-          <Title order={4}>Create New Case</Title>
+          <Title order={4}>{t('cases:createNew')}</Title>
           <TextInput
-            label="Case title"
-            placeholder="Example: Germany relocation with family"
+            label={t('cases:caseTitle')}
+            placeholder={t('cases:caseTitlePlaceholder')}
             value={title}
             onChange={(event) => setTitle(event.currentTarget.value)}
           />
           <Select
-            label="Attached profile"
-            placeholder="Select profile"
+            label={t('cases:attachedProfile')}
+            placeholder={t('cases:selectProfile')}
             data={profiles.map((profile) => ({
               value: profile.id,
-              label: `${profile.desiredRole} to ${profile.targetCountry}${profile.targetCity ? `, ${profile.targetCity}` : ''}`,
+            label: `${profile.desiredRole} -> ${profile.targetCountry}${profile.targetCity ? `, ${profile.targetCity}` : ''}`,
             }))}
             value={profileId}
             onChange={setProfileId}
@@ -116,12 +133,12 @@ export default function Cases() {
           />
           {profiles.length === 0 ? (
             <Text size="sm" c="dimmed">
-              No profiles found. Create a profile first, then open Cases again.
+              {t('cases:noProfiles')}
             </Text>
           ) : null}
           <Textarea
-            label="Additional notes (optional)"
-            placeholder="Any details that are not already covered by profile."
+            label={t('cases:additionalNotes')}
+            placeholder={t('cases:additionalNotesPlaceholder')}
             minRows={3}
             autosize
             value={additionalNotes}
@@ -134,7 +151,7 @@ export default function Cases() {
               disabled={!canCreate}
               loading={creating}
             >
-              Create case
+              {t('cases:createCase')}
             </Button>
           </Group>
         </Stack>
@@ -142,7 +159,7 @@ export default function Cases() {
 
       <Stack>
         {items.length === 0 ? (
-          <Text c="dimmed">No cases yet. Create your first case above.</Text>
+          <Text c="dimmed">{t('cases:noCases')}</Text>
         ) : null}
         {items.map((item) => (
           <Card key={item.id} withBorder radius="lg" p="lg" className="bg-white">
@@ -163,19 +180,19 @@ export default function Cases() {
                   ) : null}
                 </Stack>
                 <Badge color={statusColor[item.status] ?? 'gray'} variant="light">
-                  {item.status.replaceAll('_', ' ')}
+                  {formatCaseStatus(item.status, (key) => t(`common:${key}`))}
                 </Badge>
               </Group>
               <Group justify="space-between">
                 <Text size="sm" c="dimmed">
-                  Updated: {new Date(item.updatedAt).toLocaleString()}
+                  {t('cases:updated')}: {new Date(item.updatedAt).toLocaleString(language)}
                 </Text>
                 <Group gap="sm">
                   {typeof item.unreadCount === 'number' && item.unreadCount > 0 ? (
-                    <Badge color="red">{item.unreadCount} unread</Badge>
+                    <Badge color="red">{t('cases:unread', { count: item.unreadCount })}</Badge>
                   ) : null}
                   <Button component={RouterLink} to={`/cases/${item.id}`} variant="light" color="brand.7">
-                    Open case
+                    {t('cases:openCase')}
                   </Button>
                 </Group>
               </Group>

@@ -100,6 +100,7 @@ export interface ReportAiSummary {
 
 export interface ReportAiSummaryMeta {
   grade: 'EASY' | 'REASONING';
+  localeUsed?: ReportLocale;
   requestedProvider: 'OPENAI' | 'OPENROUTER' | 'MOCK';
   attemptedProviders: Array<'OPENAI' | 'OPENROUTER' | 'MOCK'>;
   providerUsed: 'OPENAI' | 'OPENROUTER' | 'MOCK';

@@ -11,6 +11,7 @@ import {
   Drawer,
   Group,
   Menu,
+  Select,
   Stack,
   Text,
   Tooltip,
@@ -25,6 +26,8 @@ import { getCaseChatsUnreadCount } from '../api/cases';
 import { fetchMyPreferences, updateMyPreferences } from '../api/preferences';
 import type { BillingPlanCode } from '../types';
 import { useRealtimeCase } from '@reloplanner/shared-frontend';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
+import { useTranslation } from 'react-i18next';
 
 const linkClass = 'text-[var(--app-nav-link)] hover:text-[var(--app-nav-link-hover)]';
 const colorSchemeStorageKey = 'reloplanner-color-scheme';
@@ -62,7 +65,9 @@ function MoonIcon() {
 }
 
 export default function Layout() {
+  const { t } = useTranslation(['layout', 'common']);
   const { user, token, logout } = useAuth();
+  const { language, setLanguage } = useAppLanguage();
   const navigate = useNavigate();
   const [opened, { toggle, close }] = useDisclosure(false);
   const [planCode, setPlanCode] = useState<BillingPlanCode | null>(null);
@@ -132,8 +137,13 @@ export default function Layout() {
     close();
   };
 
+  const effectivePlan = user?.role === 'ADMIN' ? null : planCode;
+  const canAccessCasesAndChats = Boolean(
+    user && (user.role === 'ADMIN' || effectivePlan === 'PREMIUM'),
+  );
+
   const refreshUnreadCount = useCallback(async () => {
-    if (!user) {
+    if (!user || !canAccessCasesAndChats) {
       setChatUnread(0);
       return;
     }
@@ -143,14 +153,14 @@ export default function Layout() {
     } catch {
       // Keep UI non-blocking.
     }
-  }, [user]);
+  }, [canAccessCasesAndChats, user]);
 
   useEffect(() => {
     void refreshUnreadCount();
   }, [refreshUnreadCount]);
 
   useRealtimeCase({
-    token,
+    token: canAccessCasesAndChats ? token : null,
     onCaseMessageCreated: () => {
       void refreshUnreadCount();
     },
@@ -175,12 +185,16 @@ export default function Layout() {
   };
 
   const themeToggleLabel =
-    computedColorScheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+    computedColorScheme === 'dark'
+      ? t('switchToLightMode', { ns: 'layout' })
+      : t('switchToDarkMode', { ns: 'layout' });
   const themeToggleIcon = computedColorScheme === 'dark' ? <SunIcon /> : <MoonIcon />;
 
-  const effectivePlan = user?.role === 'ADMIN' ? null : planCode;
   const planColor = effectivePlan === 'PREMIUM' ? 'teal' : 'gray';
-  const planLabel = effectivePlan === 'PREMIUM' ? 'Premium' : 'Free';
+  const planLabel =
+    effectivePlan === 'PREMIUM'
+      ? t('premium', { ns: 'common' })
+      : t('free', { ns: 'common' });
   const internalAppUrl = import.meta.env.DEV
     ? 'http://localhost:5174/internal/sync'
     : '/internal/sync';
@@ -202,11 +216,11 @@ export default function Layout() {
                 opened={opened}
                 onClick={toggle}
                 size="sm"
-                aria-label="Open navigation menu"
+                aria-label={t('openNavigationMenu', { ns: 'layout' })}
               />
               <Anchor component={RouterLink} to="/" underline="never">
                 <Title order={3} c="brand.7">
-                  ReloPlanner
+                  {t('appTitle', { ns: 'layout' })}
                 </Title>
               </Anchor>
             </Group>
@@ -214,19 +228,11 @@ export default function Layout() {
             <Group gap="lg" visibleFrom="md">
               <Anchor
                 component={RouterLink}
-                to="/cost-of-living"
-                className={linkClass}
-                underline="never"
-              >
-                Cost of Living
-              </Anchor>
-              <Anchor
-                component={RouterLink}
                 to="/knowledge"
                 className={linkClass}
                 underline="never"
               >
-                Knowledge Base
+                {t('knowledgeBase', { ns: 'layout' })}
               </Anchor>
               {user && (
                 <>
@@ -236,7 +242,7 @@ export default function Layout() {
                     className={linkClass}
                     underline="never"
                   >
-                    Jobs
+                    {t('jobs', { ns: 'layout' })}
                   </Anchor>
                   <Anchor
                     component={RouterLink}
@@ -244,44 +250,53 @@ export default function Layout() {
                     className={linkClass}
                     underline="never"
                   >
-                    My Profiles
+                    {t('myProfiles', { ns: 'layout' })}
                   </Anchor>
-                  <Anchor
-                    component={RouterLink}
-                    to="/cases"
-                    className={linkClass}
-                    underline="never"
-                  >
-                    Cases
-                  </Anchor>
-                  <Anchor
-                    component={RouterLink}
-                    to="/chats"
-                    className={linkClass}
-                    underline="never"
-                  >
-                    <Group gap={6}>
-                      <span>Chats</span>
-                      {chatUnread > 0 ? (
-                        <Badge color="red" size="xs" variant="filled">
-                          {chatUnread}
-                        </Badge>
-                      ) : null}
-                    </Group>
-                  </Anchor>
-                  <Anchor
-                    component={RouterLink}
-                    to="/wizard"
-                    className={linkClass}
-                    underline="never"
-                  >
-                    New Profile
-                  </Anchor>
+                  {canAccessCasesAndChats ? (
+                    <>
+                      <Anchor
+                        component={RouterLink}
+                        to="/cases"
+                        className={linkClass}
+                        underline="never"
+                      >
+                        {t('cases', { ns: 'layout' })}
+                      </Anchor>
+                      <Anchor
+                        component={RouterLink}
+                        to="/chats"
+                        className={linkClass}
+                        underline="never"
+                      >
+                        <Group gap={6}>
+                          <span>{t('chats', { ns: 'layout' })}</span>
+                          {chatUnread > 0 ? (
+                            <Badge color="red" size="xs" variant="filled">
+                              {chatUnread}
+                            </Badge>
+                          ) : null}
+                        </Group>
+                      </Anchor>
+                    </>
+                  ) : null}
                 </>
               )}
             </Group>
 
             <Group gap="sm" visibleFrom="md">
+              <Select
+                w={112}
+                aria-label={t('language', { ns: 'common' })}
+                value={language}
+                onChange={(value) => {
+                  if (!value || (value !== 'en' && value !== 'ru')) return;
+                  void setLanguage(value);
+                }}
+                data={[
+                  { value: 'en', label: 'EN' },
+                  { value: 'ru', label: 'RU' },
+                ]}
+              />
               <Tooltip label={themeToggleLabel} withArrow>
                 <ActionIcon
                   variant="subtle"
@@ -302,22 +317,22 @@ export default function Layout() {
                       </Button>
                     </Menu.Target>
                     <Menu.Dropdown>
-                      <Menu.Label>Account</Menu.Label>
+                      <Menu.Label>{t('account', { ns: 'layout' })}</Menu.Label>
                       {user.role === 'ADMIN' ? (
                         <Menu.Item component="a" href={internalAppUrl}>
-                          Open Internal Workspace
+                          {t('openInternalWorkspace', { ns: 'layout' })}
                         </Menu.Item>
                       ) : null}
                       <Menu.Item component={RouterLink} to="/settings">
-                        Settings
+                        {t('settings', { ns: 'layout' })}
                       </Menu.Item>
                       <Menu.Item component={RouterLink} to="/plan">
-                        Plan
+                        {t('plan', { ns: 'layout' })}
                       </Menu.Item>
-                      <Menu.Item disabled>More options soon</Menu.Item>
+                      <Menu.Item disabled>{t('moreOptionsSoon', { ns: 'layout' })}</Menu.Item>
                       <Menu.Divider />
                       <Menu.Item color="red" onClick={handleLogout}>
-                        Logout
+                        {t('logout', { ns: 'layout' })}
                       </Menu.Item>
                     </Menu.Dropdown>
                   </Menu>
@@ -335,10 +350,10 @@ export default function Layout() {
                     variant="subtle"
                     color="brand.7"
                   >
-                    Login
+                    {t('login', { ns: 'layout' })}
                   </Button>
                   <Button component={RouterLink} to="/register" color="brand.7">
-                    Register
+                    {t('register', { ns: 'layout' })}
                   </Button>
                 </>
               )}
@@ -356,19 +371,19 @@ export default function Layout() {
       <Drawer
         opened={opened}
         onClose={close}
-        title="Navigation"
+        title={t('navigation', { ns: 'layout' })}
         padding="md"
         size="xs"
         position="left"
       >
-        <Stack gap="sm">
+      <Stack gap="sm">
           <Anchor
             component={RouterLink}
             to="/cost-of-living"
             underline="never"
             onClick={close}
           >
-            Cost of Living
+            {t('costOfLiving', { ns: 'layout' })}
           </Anchor>
           <Anchor
             component={RouterLink}
@@ -376,11 +391,8 @@ export default function Layout() {
             underline="never"
             onClick={close}
           >
-            Knowledge Base
+            {t('knowledgeBase', { ns: 'layout' })}
           </Anchor>
-          <Button variant="light" color="gray" onClick={handleThemeToggle}>
-            {themeToggleLabel}
-          </Button>
           {user && (
             <>
               <Anchor
@@ -389,7 +401,7 @@ export default function Layout() {
                 underline="never"
                 onClick={close}
               >
-                Jobs
+                {t('jobs', { ns: 'layout' })}
               </Anchor>
               <Anchor
                 component={RouterLink}
@@ -397,38 +409,42 @@ export default function Layout() {
                 underline="never"
                 onClick={close}
               >
-                My Profiles
+                {t('myProfiles', { ns: 'layout' })}
               </Anchor>
-              <Anchor
-                component={RouterLink}
-                to="/cases"
-                underline="never"
-                onClick={close}
-              >
-                Cases
-              </Anchor>
-              <Anchor
-                component={RouterLink}
-                to="/chats"
-                underline="never"
-                onClick={close}
-              >
-                <Group gap={6}>
-                  <span>Chats</span>
-                  {chatUnread > 0 ? (
-                    <Badge color="red" size="xs" variant="filled">
-                      {chatUnread}
-                    </Badge>
-                  ) : null}
-                </Group>
-              </Anchor>
+              {canAccessCasesAndChats ? (
+                <>
+                  <Anchor
+                    component={RouterLink}
+                    to="/cases"
+                    underline="never"
+                    onClick={close}
+                  >
+                    {t('cases', { ns: 'layout' })}
+                  </Anchor>
+                  <Anchor
+                    component={RouterLink}
+                    to="/chats"
+                    underline="never"
+                    onClick={close}
+                  >
+                    <Group gap={6}>
+                      <span>{t('chats', { ns: 'layout' })}</span>
+                      {chatUnread > 0 ? (
+                        <Badge color="red" size="xs" variant="filled">
+                          {chatUnread}
+                        </Badge>
+                      ) : null}
+                    </Group>
+                  </Anchor>
+                </>
+              ) : null}
               <Anchor
                 component={RouterLink}
                 to="/wizard"
                 underline="never"
                 onClick={close}
               >
-                New Profile
+                {t('newProfile', { ns: 'layout' })}
               </Anchor>
               <Anchor
                 component={RouterLink}
@@ -436,7 +452,7 @@ export default function Layout() {
                 underline="never"
                 onClick={close}
               >
-                Settings
+                {t('settings', { ns: 'layout' })}
               </Anchor>
               <Anchor
                 component={RouterLink}
@@ -444,7 +460,7 @@ export default function Layout() {
                 underline="never"
                 onClick={close}
               >
-                Plan
+                {t('plan', { ns: 'layout' })}
               </Anchor>
             </>
           )}
@@ -452,10 +468,10 @@ export default function Layout() {
             <>
               <Divider />
               <Text size="xs" c="dimmed" fw={700} tt="uppercase">
-                Internal Workspace
+                {t('internalWorkspace', { ns: 'layout' })}
               </Text>
               <Anchor component="a" href={internalAppUrl} underline="never" onClick={close}>
-                Open Internal App
+                {t('openInternalApp', { ns: 'layout' })}
               </Anchor>
             </>
           ) : null}
@@ -467,11 +483,11 @@ export default function Layout() {
               </Text>
               {effectivePlan ? (
                 <Badge color={planColor} variant="light" w="fit-content">
-                  Current plan: {planLabel}
+                  {t('currentPlan', { ns: 'layout', plan: planLabel })}
                 </Badge>
               ) : null}
               <Button color="brand.7" onClick={handleLogout}>
-                Logout
+                {t('logout', { ns: 'layout' })}
               </Button>
             </>
           ) : (
@@ -483,7 +499,7 @@ export default function Layout() {
                 color="brand.7"
                 onClick={close}
               >
-                Login
+                {t('login', { ns: 'layout' })}
               </Button>
               <Button
                 component={RouterLink}
@@ -491,10 +507,25 @@ export default function Layout() {
                 color="brand.7"
                 onClick={close}
               >
-                Register
+                {t('register', { ns: 'layout' })}
               </Button>
             </Group>
           )}
+                    <Select
+            label={t('language', { ns: 'common' })}
+            value={language}
+            onChange={(value) => {
+              if (!value || (value !== 'en' && value !== 'ru')) return;
+              void setLanguage(value);
+            }}
+            data={[
+              { value: 'en', label: t('english', { ns: 'common' }) },
+              { value: 'ru', label: t('russian', { ns: 'common' }) },
+            ]}
+          />
+          <Button variant="light" color="gray" onClick={handleThemeToggle}>
+            {themeToggleLabel}
+          </Button>
         </Stack>
       </Drawer>
     </>

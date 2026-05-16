@@ -320,6 +320,68 @@ export interface AnalysisHistoryItem {
   } | null;
 }
 
+export interface CompareProfilesRequest {
+  firstProfileId: string;
+  secondProfileId: string;
+}
+
+export type ProfileComparisonRecommendation =
+  | 'FIRST_PROFILE_STRONGER'
+  | 'SECOND_PROFILE_STRONGER'
+  | 'SIMILAR_OPTIONS'
+  | 'INSUFFICIENT_DATA';
+
+export interface ComparedProfileResult {
+  profileId: string;
+  profileName?: string | null;
+  sourceCountry?: string | null;
+  targetCountry?: string | null;
+  targetCity?: string | null;
+  targetRole?: string | null;
+  overallScore: number;
+  scores: {
+    careerReadinessScore: number;
+    marketOpportunityScore: number;
+    financialReadinessScore: number;
+    immigrationSimplicityScore: number;
+    preparationEffortScore: number;
+    dataConfidenceScore: number;
+  };
+  risks: {
+    immigrationRisk?: 'LOW' | 'MODERATE' | 'HIGH' | null;
+    financialRisk?: 'LOW' | 'MODERATE' | 'HIGH' | null;
+    marketConfidence?: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+    overallRisk?: 'LOW' | 'MODERATE' | 'HIGH' | null;
+  };
+  strengths: string[];
+  weaknesses: string[];
+  bestNextAction: string;
+}
+
+export interface ProfileComparisonCategoryResult {
+  category:
+    | 'CAREER_READINESS'
+    | 'MARKET_OPPORTUNITY'
+    | 'FINANCIAL_READINESS'
+    | 'IMMIGRATION_SIMPLICITY'
+    | 'PREPARATION_EFFORT'
+    | 'DATA_CONFIDENCE';
+  firstProfileScore: number;
+  secondProfileScore: number;
+  betterProfileId: string | null;
+  explanation: string;
+}
+
+export interface CompareProfilesResponse {
+  firstProfile: ComparedProfileResult;
+  secondProfile: ComparedProfileResult;
+  winnerProfileId: string | null;
+  recommendation: ProfileComparisonRecommendation;
+  summary: string;
+  categoryResults: ProfileComparisonCategoryResult[];
+  disclaimer: string;
+}
+
 export interface CostComparison {
   city1: string;
   city2: string;
@@ -469,6 +531,15 @@ export interface MarketDigestCountryResponse {
   roles: MarketDigestRoleCount[];
   topSkills: MarketDigestSkillDemand[];
   computedAt: string | null;
+}
+
+export interface CountryJobPostingsResponse {
+  countryCode: string;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  items: JobPosting[];
 }
 
 export interface TopMatchesResponse {

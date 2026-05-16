@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Loader, Paper, Stack, Text, Title } from '@mantine/core';
 import { useAuth } from '../api/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 const exchangedCodes = new Set<string>();
 const exchangeInFlight = new Map<string, Promise<void>>();
@@ -11,20 +12,6 @@ function normalizeReturnTo(value: string | null) {
   if (!value.startsWith('/')) return '/wizard';
   if (value.startsWith('//')) return '/wizard';
   return value;
-}
-
-function humanizeOAuthError(code: string | null) {
-  if (!code) return null;
-  if (code === 'oauth_invalid_state') {
-    return 'OAuth state is invalid or expired. Please try again.';
-  }
-  if (code === 'oauth_exchange_invalid') {
-    return 'OAuth code is invalid or expired. Please try again.';
-  }
-  if (code === 'oauth_identity_conflict') {
-    return 'This account is linked to another GitHub identity.';
-  }
-  return 'GitHub login failed. Please try again.';
 }
 
 function exchangeOnce(code: string, exchangeOAuthCode: (code: string) => Promise<void>) {
@@ -50,6 +37,7 @@ function exchangeOnce(code: string, exchangeOAuthCode: (code: string) => Promise
 }
 
 export default function OAuthGithubCallback() {
+  const { t } = useTranslation('auth');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { exchangeOAuthCode } = useAuth();
@@ -63,14 +51,25 @@ export default function OAuthGithubCallback() {
   const oauthError = searchParams.get('error');
 
   useEffect(() => {
-    const mappedError = humanizeOAuthError(oauthError);
-    if (mappedError) {
-      setError(mappedError);
+    if (oauthError === 'oauth_invalid_state') {
+      setError(t('oauthStateInvalidOrExpired'));
+      return;
+    }
+    if (oauthError === 'oauth_exchange_invalid') {
+      setError(t('oauthCodeInvalidOrExpired'));
+      return;
+    }
+    if (oauthError === 'oauth_identity_conflict') {
+      setError(t('oauthIdentityConflictGithub'));
+      return;
+    }
+    if (oauthError) {
+      setError(t('githubLoginFailed'));
       return;
     }
 
     if (!code) {
-      setError('Missing OAuth code. Please try again.');
+      setError(t('oauthMissingCode'));
       return;
     }
 
@@ -83,7 +82,7 @@ export default function OAuthGithubCallback() {
         }
       } catch {
         if (!cancelled && !exchangedCodes.has(code)) {
-          setError('Failed to complete GitHub login. Please try again.');
+          setError(t('oauthCompleteFailure', { provider: 'GitHub' }));
         }
       }
     };
@@ -92,20 +91,20 @@ export default function OAuthGithubCallback() {
     return () => {
       cancelled = true;
     };
-  }, [code, oauthError, exchangeOAuthCode, navigate, returnTo]);
+  }, [code, oauthError, exchangeOAuthCode, navigate, returnTo, t]);
 
   return (
     <div className="mx-auto mt-8 max-w-md">
       <Paper withBorder radius="lg" p="xl" className="bg-white">
         <Stack gap="md">
-          <Title order={2}>GitHub Login</Title>
+          <Title order={2}>{t('githubLoginTitle')}</Title>
           {error ? (
             <Alert color="red">{error}</Alert>
           ) : (
             <>
               <Loader size="sm" />
               <Text c="dimmed" size="sm">
-                Completing GitHub sign-in...
+                {t('completingGithubSignIn')}
               </Text>
             </>
           )}

@@ -202,6 +202,7 @@ export class JobsRunnerService {
           await this.reportsService.generateAndPersistAiSummary(
             analysisId,
             userId,
+            locale,
           );
         } else {
           await this.reportsService.generateSnapshot(

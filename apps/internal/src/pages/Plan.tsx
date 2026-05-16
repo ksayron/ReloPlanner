@@ -4,13 +4,17 @@ import { getPlanSummary, startPremiumCheckout } from '../api/billing';
 import { buildCheckoutReturnUrls, pollCheckoutStatus } from '../utils/checkout';
 import type { BillingPlanSummaryResponse } from '../types';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return 'n/a';
-  return new Date(value).toLocaleString();
+function formatDate(value: string | null | undefined, language: string, fallback: string) {
+  if (!value) return fallback;
+  return new Date(value).toLocaleString(language);
 }
 
 export default function Plan() {
+  const { t } = useTranslation('plan');
+  const { language } = useAppLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const [summary, setSummary] = useState<BillingPlanSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,11 +33,11 @@ export default function Plan() {
       const data = await getPlanSummary();
       setSummary(data);
     } catch (err: any) {
-      setError(String(err?.response?.data?.message ?? 'Failed to load plan summary.'));
+      setError(String(err?.response?.data?.message ?? t('failedLoadSummary')));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const clearCheckoutParams = useCallback(() => {
     const next = new URLSearchParams(searchParams);
@@ -59,22 +63,18 @@ export default function Plan() {
         if (canceled) return;
 
         if (resolved.paymentStatus === 'SUCCEEDED' && resolved.planCode === 'PREMIUM') {
-          setInfo('Premium activated successfully.');
+          setInfo(t('premiumActivated'));
         } else if (resolved.paymentStatus === 'CANCELED' || checkoutAction === 'cancel') {
-          setError('Checkout was canceled before completion.');
+          setError(t('checkoutCanceled'));
         } else if (resolved.paymentStatus === 'PENDING') {
-          setError(
-            'Checkout is still pending webhook confirmation. Refresh shortly if status does not update.',
-          );
+          setError(t('checkoutPending'));
         } else {
-          setError(
-            resolved.errorMessage ?? 'Checkout failed. Please retry with Stripe test card details.',
-          );
+          setError(resolved.errorMessage ?? t('checkoutFailed'));
         }
         await loadSummary();
       } catch (err: any) {
         if (canceled) return;
-        setError(String(err?.response?.data?.message ?? 'Failed to resolve checkout status.'));
+        setError(String(err?.response?.data?.message ?? t('failedResolveCheckout')));
       } finally {
         if (canceled) return;
         setCheckoutProcessing(false);
@@ -85,7 +85,7 @@ export default function Plan() {
     return () => {
       canceled = true;
     };
-  }, [checkoutAction, checkoutSessionId, clearCheckoutParams, loadSummary]);
+  }, [checkoutAction, checkoutSessionId, clearCheckoutParams, loadSummary, t]);
 
   const handleUpgrade = async () => {
     setUpgrading(true);
@@ -95,11 +95,11 @@ export default function Plan() {
       const urls = buildCheckoutReturnUrls('/plan', searchParams);
       const checkout = await startPremiumCheckout(urls);
       if (!checkout.checkoutUrl) {
-        throw new Error('Checkout URL was not returned by billing provider.');
+        throw new Error(t('checkoutMissingUrl'));
       }
       window.location.assign(checkout.checkoutUrl);
     } catch (err: any) {
-      setError(String(err?.response?.data?.message ?? err?.message ?? 'Upgrade failed.'));
+      setError(String(err?.response?.data?.message ?? err?.message ?? t('upgradeFailed')));
       setUpgrading(false);
     }
   };
@@ -114,38 +114,41 @@ export default function Plan() {
 
   return (
     <Stack gap="lg" maw={960}>
-      <Title order={2}>Plan and Billing</Title>
-      {checkoutProcessing ? <Alert color="blue">Processing Stripe checkout status...</Alert> : null}
+      <Title order={2}>{t('title')}</Title>
+      {checkoutProcessing ? <Alert color="blue">{t('processingCheckout')}</Alert> : null}
       {info ? <Alert color="teal">{info}</Alert> : null}
       {error ? <Alert color="red">{error}</Alert> : null}
 
       <Card withBorder radius="lg" p="lg">
         <Stack gap="sm">
           <Group justify="space-between" wrap="wrap">
-            <Text fw={700}>Current Plan</Text>
+            <Text fw={700}>{t('currentPlan')}</Text>
             <Badge color={isPremium ? 'teal' : 'gray'} variant="light">
-              {summary?.plan.name ?? 'Unknown'}
+              {summary?.plan.name ?? t('unknown')}
             </Badge>
           </Group>
           <Text size="sm" c="dimmed">
-            Subscription status: {summary?.subscription.status ?? 'UNKNOWN'}
+            {t('subscriptionStatus')}: {summary?.subscription.status ?? 'UNKNOWN'}
           </Text>
           <Text size="sm" c="dimmed">
-            Started: {formatDate(summary?.subscription.startedAt)}
+            {t('started')}:{' '}
+            {formatDate(summary?.subscription.startedAt, language, t('na'))}
           </Text>
           <Text size="sm" c="dimmed">
-            Expires / period end: {formatDate(summary?.subscription.expiresAt)}
+            {t('expires')}:{' '}
+            {formatDate(summary?.subscription.expiresAt, language, t('na'))}
           </Text>
           {summary?.stripe.subscription ? (
             <>
               <Text size="sm" c="dimmed">
-                Stripe subscription: {summary.stripe.subscription.id}
+                {t('stripeSubscription')}: {summary.stripe.subscription.id}
               </Text>
               <Text size="sm" c="dimmed">
-                Stripe status: {summary.stripe.subscription.status}
+                {t('stripeStatus')}: {summary.stripe.subscription.status}
               </Text>
               <Text size="sm" c="dimmed">
-                Cancel at period end: {summary.stripe.subscription.cancelAtPeriodEnd ? 'yes' : 'no'}
+                {t('cancelAtPeriodEnd')}:{' '}
+                {summary.stripe.subscription.cancelAtPeriodEnd ? t('yes', { ns: 'common' }) : t('no', { ns: 'common' })}
               </Text>
             </>
           ) : null}
@@ -154,21 +157,21 @@ export default function Plan() {
 
       <Card withBorder radius="lg" p="lg">
         <Stack gap="sm">
-          <Text fw={700}>Premium Plan</Text>
+          <Text fw={700}>{t('premiumPlan')}</Text>
           <Text size="sm">
-            Price in Stripe: {summary?.premiumPricing.basePriceUsd.toFixed(2)} USD / month
+            {t('priceInStripe')}: {summary?.premiumPricing.basePriceUsd.toFixed(2)} USD {t('perMonth')}
           </Text>
           <Text size="sm" c="dimmed">
-            Converted price: {summary?.premiumPricing.convertedPrice.toFixed(2)}{' '}
-            {summary?.premiumPricing.convertedCurrency} (using app fixed rates)
+            {t('convertedPrice')}: {summary?.premiumPricing.convertedPrice.toFixed(2)}{' '}
+            {summary?.premiumPricing.convertedCurrency} {t('fixedRatesHint')}
           </Text>
           {!isPremium ? (
             <Button color="brand.7" onClick={handleUpgrade} loading={upgrading || checkoutProcessing}>
-              Upgrade to Premium
+              {t('upgradeToPremium')}
             </Button>
           ) : (
             <Button variant="light" color="teal" disabled>
-              Premium Active
+              {t('premiumActive')}
             </Button>
           )}
         </Stack>
@@ -176,35 +179,35 @@ export default function Plan() {
 
       <Card withBorder radius="lg" p="lg">
         <Stack gap="sm">
-          <Text fw={700}>Payment History</Text>
+          <Text fw={700}>{t('paymentHistory')}</Text>
           {summary?.payments?.length ? (
             <Table withTableBorder withColumnBorders striped>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Date</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Amount</Table.Th>
-                  <Table.Th>Plan</Table.Th>
-                  <Table.Th>Error</Table.Th>
+                  <Table.Th>{t('date')}</Table.Th>
+                  <Table.Th>{t('status')}</Table.Th>
+                  <Table.Th>{t('amount')}</Table.Th>
+                  <Table.Th>{t('plan')}</Table.Th>
+                  <Table.Th>{t('error')}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {summary.payments.slice(0, 20).map((payment) => (
                   <Table.Tr key={payment.id}>
-                    <Table.Td>{new Date(payment.createdAt).toLocaleString()}</Table.Td>
+                    <Table.Td>{new Date(payment.createdAt).toLocaleString(language)}</Table.Td>
                     <Table.Td>{payment.status}</Table.Td>
                     <Table.Td>
                       {payment.amount.toFixed(2)} {payment.currency}
                     </Table.Td>
                     <Table.Td>{payment.planCode}</Table.Td>
-                    <Table.Td>{payment.errorMessage ?? '-'}</Table.Td>
+                    <Table.Td>{payment.errorMessage ?? t('dash')}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
           ) : (
             <Text size="sm" c="dimmed">
-              No payments yet.
+              {t('noPayments')}
             </Text>
           )}
         </Stack>

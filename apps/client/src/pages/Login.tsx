@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { useLocation, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -12,8 +12,10 @@ import {
   Title,
 } from '@mantine/core';
 import { useAuth } from '../api/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 export default function Login() {
+  const { t } = useTranslation(['auth', 'common']);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -25,13 +27,13 @@ export default function Login() {
     const params = new URLSearchParams(location.search);
     const reason = params.get('lockout');
     if (reason === 'blocked') {
-      return 'Your account is blocked. Contact support or an administrator.';
+      return t('accountBlocked', { ns: 'auth' });
     }
     if (reason === 'session_expired') {
-      return 'Your session expired or is no longer valid. Please log in again.';
+      return t('sessionExpired', { ns: 'auth' });
     }
     return '';
-  }, [location.search]);
+  }, [location.search, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +42,7 @@ export default function Login() {
       await login(email, password);
       navigate('/wizard');
     } catch {
-      setError('Invalid credentials');
+      setError(t('invalidCredentials', { ns: 'auth' }));
     }
   };
 
@@ -59,26 +61,26 @@ export default function Login() {
       <Paper withBorder radius="lg" p="xl" className="bg-white">
         <form onSubmit={handleSubmit}>
           <Stack>
-            <Title order={2}>Login</Title>
+            <Title order={2}>{t('login', { ns: 'auth' })}</Title>
             {lockoutMessage && <Alert color="orange">{lockoutMessage}</Alert>}
             {error && <Alert color="red">{error}</Alert>}
             <TextInput
-              label="Email"
+              label={t('email', { ns: 'auth' })}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}
               required
             />
             <PasswordInput
-              label="Password"
+              label={t('password', { ns: 'auth' })}
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
               required
             />
             <Button type="submit" loading={loading} color="brand.7" fullWidth>
-              Login
+              {t('login', { ns: 'auth' })}
             </Button>
-            <Divider label="or" labelPosition="center" />
+            <Divider label={t('or', { ns: 'common' })} labelPosition="center" />
             <Button
               type="button"
               variant="light"
@@ -86,7 +88,7 @@ export default function Login() {
               onClick={handleGoogleLogin}
               fullWidth
             >
-              Continue with Google
+              {t('googleLogin', { ns: 'auth' })}
             </Button>
             <Button
               type="button"
@@ -95,7 +97,7 @@ export default function Login() {
               onClick={handleGithubLogin}
               fullWidth
             >
-              Continue with GitHub
+              {t('githubLogin', { ns: 'auth' })}
             </Button>
             <Anchor
               component={RouterLink}
@@ -104,7 +106,7 @@ export default function Login() {
               c="dimmed"
               size="sm"
             >
-              No account? Register
+              {t('noAccountRegister', { ns: 'auth' })}
             </Anchor>
           </Stack>
         </form>

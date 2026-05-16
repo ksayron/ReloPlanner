@@ -59,6 +59,14 @@ const scoreColor = (score: number) => {
   return 'red';
 };
 
+const extractPostingCity = (location: string) => {
+  const normalized = location.trim();
+  if (!normalized) return null;
+  const [firstChunk] = normalized.split(',');
+  const city = firstChunk?.trim();
+  return city || normalized;
+};
+
 const formatSnapshotContext = (snapshot: AnalysisHistoryItem['snapshotMetadata']) => {
   if (!snapshot) {
     return 'Based on unavailable market snapshot metadata.';
@@ -542,7 +550,7 @@ export default function Dashboard() {
     billingStatus?.entitlements?.features?.JOB_MATCH_LIMIT?.limit ??
     null;
   const jobMatchRequestedLimit = topMatchesAccess?.requestedLimit ?? 20;
-  const displayedTopMatches = topMatches.slice(0, 3);
+  const displayedTopMatches = topMatches;
   const isPremiumPlan = billingStatus?.plan.code === 'PREMIUM';
 
   return (
@@ -817,22 +825,22 @@ export default function Dashboard() {
           <Card withBorder radius="lg" p="lg" className="bg-white">
             <Stack>
               <Group justify="space-between" wrap="wrap">
-                <Title order={3}>Top Matching Jobs</Title>
+                <Title order={3}>Job postings for you</Title>
                 <Group gap="xs">
                   {jobMatchLimit ? (
                     <Badge color="gray" variant="light">
-                      Top {jobMatchLimit} of {jobMatchRequestedLimit}
+                      Showing {jobMatchLimit} of {jobMatchRequestedLimit}
                     </Badge>
                   ) : null}
                   <Badge color="grape" variant="light">
-                    Premium: Top 20
+                    Premium: up to 20
                   </Badge>
                 </Group>
               </Group>
               {topMatchesAccess?.upgradeRequired ? (
                 <Alert color="yellow">
-                  Current plan allows top {topMatchesAccess.maxAllowedLimit ?? 0} matches.
-                  Premium unlocks up to {topMatchesAccess.requestedLimit} matches.
+                  Current plan allows {topMatchesAccess.maxAllowedLimit ?? 0} job postings.
+                  Premium unlocks up to {topMatchesAccess.requestedLimit} job postings.
                   <Group mt="xs">
                     <Button
                       size="xs"
@@ -846,10 +854,9 @@ export default function Dashboard() {
               ) : null}
               {!topMatchesAccess?.upgradeRequired ? (
                 <Alert color="blue">
-                  Showing top 3 jobs in dashboard.
                   {isPremiumPlan
-                    ? ' Expanded premium jobs view is in development.'
-                    : ' Upgrade to Premium to access expanded jobs (feature page in development).'}
+                    ? 'Expanded premium jobs view is in development.'
+                    : 'Upgrade to Premium to access expanded jobs (feature page in development).'}
                 </Alert>
               ) : null}
               {topMatches.length === 0 && (
@@ -858,20 +865,10 @@ export default function Dashboard() {
               {displayedTopMatches.map((match) => (
                 <Card key={match.posting.id} withBorder radius="md" p="sm">
                   <Stack gap={6}>
-                    <Group justify="space-between" wrap="wrap">
-                      <Text fw={700}>{match.posting.title}</Text>
-                      <Badge color="brand.1" variant="light">{Math.round(match.score * 100)}%</Badge>
-                    </Group>
-                    <Text size="sm">{match.posting.company} - {match.posting.location}</Text>
-                    <Text size="sm" c="dimmed">
-                      {match.posting.salaryMinUsd && match.posting.salaryMaxUsd
-                        ? `${match.posting.salaryMinUsd.toLocaleString()}-${match.posting.salaryMaxUsd.toLocaleString()} ${match.posting.salaryCurrency ?? 'USD'}`
-                        : 'Salary not specified'}
-                    </Text>
-                    <Text size="sm">{match.rationale}</Text>
-                    <Text size="xs" c="dimmed">
-                      Matched: {match.matchedSkills.slice(0, 3).join(', ') || 'none'} | Missing: {match.missingSkills.slice(0, 3).join(', ') || 'none'}
-                    </Text>
+                    <Text fw={700}>{match.posting.title}</Text>
+                    {extractPostingCity(match.posting.location) ? (
+                      <Text size="sm" c="dimmed">{extractPostingCity(match.posting.location)}</Text>
+                    ) : null}
                     {match.posting.sourceUrl ? (
                       <Button
                         component="a"

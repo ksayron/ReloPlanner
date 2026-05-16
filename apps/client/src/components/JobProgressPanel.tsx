@@ -1,4 +1,5 @@
-import { Button, Card, Group, Progress, Stack, Text, Title } from '@mantine/core';
+﻿import { Button, Card, Group, Progress, Stack, Text, Title } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import type { ProcessingJobSnapshot } from '../types';
 import { formatEnumLabel, getJobStepLabel } from '../utils/jobProgress';
 
@@ -15,24 +16,26 @@ export default function JobProgressPanel({
   job,
   jobHistory,
   onRetry,
-  retryLabel = 'Retry',
+  retryLabel,
 }: JobProgressPanelProps) {
+  const { t } = useTranslation(['components', 'common']);
+
   return (
     <Card withBorder radius="md" p="md" className="bg-[var(--app-bg)]/60">
       <Stack gap="xs">
         <Title order={5}>{title}</Title>
         <Text size="sm">
-          Status: <strong>{formatEnumLabel(job.status)}</strong>
+          {t('jobStatus', { ns: 'components' })}: <strong>{formatEnumLabel(job.status)}</strong>
         </Text>
         <Text size="sm">
-          Current step: <strong>{getJobStepLabel(job.currentStep)}</strong>
+          {t('jobCurrentStep', { ns: 'components' })}: <strong>{getJobStepLabel(job.currentStep)}</strong>
         </Text>
         <Progress
           value={Math.max(0, Math.min(100, job.progressPercent))}
           color={job.status === 'FAILED' ? 'red' : 'teal'}
         />
         <Text size="sm" c="dimmed">
-          {job.progressPercent}% complete
+          {t('jobCompletePercent', { ns: 'components', value: job.progressPercent })}
         </Text>
         {jobHistory.map((item, idx) => (
           <Group
@@ -52,7 +55,7 @@ export default function JobProgressPanel({
         ))}
         {job.status === 'FAILED' && onRetry ? (
           <Button onClick={onRetry} color="brand.7" w="fit-content">
-            {retryLabel}
+            {retryLabel || t('retry', { ns: 'common' })}
           </Button>
         ) : null}
       </Stack>

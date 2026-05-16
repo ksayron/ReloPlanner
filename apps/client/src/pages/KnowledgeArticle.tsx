@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -11,16 +11,19 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import { fetchKnowledgeArticle } from '../api/knowledge';
 import { startPremiumCheckout } from '../api/billing';
-import { fetchMyPreferences } from '../api/preferences';
 import PremiumUpgradeModal from '../components/PremiumUpgradeModal';
 import { buildCheckoutReturnUrls, pollCheckoutStatus } from '../utils/checkout';
 import type { KnowledgeArticleDetail } from '../types';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 export default function KnowledgeArticle() {
+  const { t } = useTranslation('knowledge');
+  const { language: appLanguage } = useAppLanguage();
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [article, setArticle] = useState<KnowledgeArticleDetail | null>(null);
@@ -30,12 +33,14 @@ export default function KnowledgeArticle() {
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeError, setUpgradeError] = useState('');
   const [checkoutProcessing, setCheckoutProcessing] = useState(false);
-  const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'ru'>('en');
 
   const urlLanguage = searchParams.get('language');
   const checkoutAction = searchParams.get('checkout');
   const checkoutSessionId = searchParams.get('session_id');
-  const language = (urlLanguage ?? preferredLanguage).toLowerCase();
+  const language = useMemo(
+    () => ((urlLanguage ?? appLanguage).toLowerCase() === 'ru' ? 'ru' : 'en'),
+    [appLanguage, urlLanguage],
+  );
 
   const clearCheckoutParams = useCallback(() => {
     const next = new URLSearchParams(searchParams);
@@ -43,16 +48,6 @@ export default function KnowledgeArticle() {
     next.delete('session_id');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
-
-  useEffect(() => {
-    if (urlLanguage) return;
-    void (async () => {
-      const preferences = await fetchMyPreferences();
-      if (preferences?.preferredLanguage === 'ru') {
-        setPreferredLanguage('ru');
-      }
-    })();
-  }, [urlLanguage]);
 
   useEffect(() => {
     if (!slug) return;
@@ -64,15 +59,15 @@ export default function KnowledgeArticle() {
         setArticle(response);
       } catch (err: any) {
         if (err?.response?.data?.code === 'UPGRADE_REQUIRED') {
-          setError('This article is locked on Free plan.');
+          setError(t('articleLocked'));
         } else {
-          setError('Knowledge article not found or unavailable.');
+          setError(t('articleMissing'));
         }
       } finally {
         setLoading(false);
       }
     })();
-  }, [language, slug]);
+  }, [language, slug, t]);
 
   useEffect(() => {
     if (!checkoutAction || !checkoutSessionId) return;
@@ -93,19 +88,17 @@ export default function KnowledgeArticle() {
           setArticle(response);
           setError('');
         } else if (resolved.paymentStatus === 'CANCELED' || checkoutAction === 'cancel') {
-          setUpgradeError('Checkout was canceled before completion.');
+          setUpgradeError(t('checkoutCanceled'));
         } else if (resolved.paymentStatus === 'PENDING') {
-          setUpgradeError(
-            'Checkout is still pending webhook confirmation. Refresh shortly if status does not update.',
-          );
+          setUpgradeError(t('checkoutPending'));
         } else {
           setUpgradeError(
-            resolved.errorMessage ?? 'Checkout failed. Please retry with Stripe test card details.',
+            resolved.errorMessage ?? t('checkoutFailed'),
           );
         }
       } catch (err: any) {
         if (canceled) return;
-        setUpgradeError(String(err?.response?.data?.message ?? 'Failed to resolve checkout status.'));
+        setUpgradeError(String(err?.response?.data?.message ?? t('resolveCheckoutFailed')));
       } finally {
         if (canceled) return;
         setLoading(false);
@@ -117,7 +110,7 @@ export default function KnowledgeArticle() {
     return () => {
       canceled = true;
     };
-  }, [checkoutAction, checkoutSessionId, clearCheckoutParams, language, slug]);
+  }, [checkoutAction, checkoutSessionId, clearCheckoutParams, language, slug, t]);
 
   if (loading) {
     return (
@@ -130,13 +123,13 @@ export default function KnowledgeArticle() {
   return (
     <Stack gap="lg">
       <Button component={RouterLink} to="/knowledge" variant="subtle" color="brand.7" w="fit-content">
-        Back to Knowledge Base
+        {t('backToKnowledge')}
       </Button>
 
       {error && (
         <Alert color="red">
           {error}
-          {error.includes('locked') ? (
+          {error.includes(t('articleLocked')) ? (
             <Group mt="xs">
               <Button
                 size="xs"
@@ -146,14 +139,14 @@ export default function KnowledgeArticle() {
                   setUpgradeOpened(true);
                 }}
               >
-                Upgrade
+                {t('upgrade')}
               </Button>
             </Group>
           ) : null}
         </Alert>
       )}
       {checkoutProcessing ? (
-        <Alert color="blue">Processing Stripe checkout status...</Alert>
+        <Alert color="blue">{t('processingCheckout')}</Alert>
       ) : null}
 
       {!error && article && (
@@ -180,7 +173,7 @@ export default function KnowledgeArticle() {
             </Group>
 
             <Text size="sm" c="dimmed">
-              Updated: {new Date(article.updatedAt).toLocaleString()}
+              Updated: {new Date(article.updatedAt).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')}
             </Text>
 
             <div className="space-y-3 leading-7 text-slate-800">
@@ -202,11 +195,11 @@ export default function KnowledgeArticle() {
             const urls = buildCheckoutReturnUrls(window.location.pathname, searchParams);
             const checkout = await startPremiumCheckout(urls);
             if (!checkout.checkoutUrl) {
-              throw new Error('Checkout URL was not returned by billing provider.');
+              throw new Error(t('checkoutMissingUrl'));
             }
             window.location.assign(checkout.checkoutUrl);
           } catch (err: any) {
-            setUpgradeError(String(err?.response?.data?.message ?? 'Upgrade failed'));
+            setUpgradeError(String(err?.response?.data?.message ?? t('upgradeFailed')));
           } finally {
             setUpgradeLoading(false);
           }

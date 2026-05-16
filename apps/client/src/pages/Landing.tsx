@@ -1,30 +1,31 @@
 ﻿import { Link as RouterLink } from 'react-router-dom';
 import { Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
 import { useAuth } from '../api/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 export default function Landing() {
+  const { t } = useTranslation(['landing', 'layout']);
   const { user } = useAuth();
 
   return (
     <div className="mx-auto mt-12 max-w-3xl">
       <Paper radius="lg" p="xl" className="bg-white shadow-sm">
         <Stack align="center" gap="lg">
-          <Title order={1} c="brand.8">ReloPlanner</Title>
+          <Title order={1} c="brand.8">{t('appTitle', { ns: 'layout' })}</Title>
           <Text ta="center" c="dimmed" maw={680}>
-            Plan your international relocation with data-driven IT job market analysis.
-            Get a personalized preparation roadmap based on your skills and target market.
+            {t('subtitle', { ns: 'landing' })} {t('subtitle2', { ns: 'landing' })}
           </Text>
           {user ? (
             <Button component={RouterLink} to="/wizard" size="md" color="brand.7">
-              Create Profile
+              {t('createProfile', { ns: 'landing' })}
             </Button>
           ) : (
             <Group>
               <Button component={RouterLink} to="/register" color="brand.7">
-                Get Started
+                {t('getStarted', { ns: 'landing' })}
               </Button>
               <Button component={RouterLink} to="/login" variant="outline" color="brand.7">
-                Login
+                {t('login', { ns: 'layout' })}
               </Button>
             </Group>
           )}

@@ -21,6 +21,57 @@ import { AiReportEnrichmentService } from '../ai/ai-report-enrichment.service.js
 import { LegalKnowledgeEngineService } from '../legal-readiness/legal-knowledge-engine.service.js';
 import { FinancialKnowledgeEngineService } from '../financial-readiness/financial-knowledge-engine.service.js';
 
+const reportTexts = (locale: ReportLocale) => {
+  if (locale === 'ru') {
+    return {
+      aiSummaryMissing:
+        'AI-сводка еще не сгенерирована. Сначала сгенерируйте ее, затем экспортируйте.',
+      pdfTitleAi: 'AI-сводка готовности к релокации',
+      pdfTitleSnapshot: 'Снимок готовности к релокации',
+      unknownError: 'Неизвестная ошибка',
+      topGapsPrefix: 'Ключевые пробелы',
+      noMajorGaps: 'Критичных пробелов не обнаружено.',
+      marketSnapshotNote: (
+        country: string,
+        source: string,
+        gapText: string,
+      ) => `Снимок рынка ${country} из ${source}. ${gapText}`,
+      aiFallbackExecutiveSummary:
+        'AI-сводка недоступна. Базовые данные snapshot остаются доступными.',
+      aiFallbackStrength: 'AI-вывод для этого запуска недоступен.',
+      aiFallbackRisk: 'AI-вывод для этого запуска недоступен.',
+      aiFallbackStrategy:
+        'Используйте детерминированные разделы дорожной карты и пробелов из snapshot профиля, пока доступ провайдера не восстановлен.',
+      aiFallbackDisclaimer:
+        'AI-консультационный текст был недоступен для этого экспорта. Детерминированные значения отчета остаются приоритетным источником.',
+      providerUnavailable: 'Недоступно',
+      viaFallback: ' через fallback',
+    };
+  }
+
+  return {
+    aiSummaryMissing:
+      'AI summary has not been generated yet. Generate it first, then export.',
+    pdfTitleAi: 'Relocation Readiness AI Summary',
+    pdfTitleSnapshot: 'Relocation Readiness Snapshot',
+    unknownError: 'Unknown error',
+    topGapsPrefix: 'Top gaps',
+    noMajorGaps: 'No major gaps detected.',
+    marketSnapshotNote: (country: string, source: string, gapText: string) =>
+      `${country} market snapshot from ${source}. ${gapText}`,
+    aiFallbackExecutiveSummary:
+      'AI summary is unavailable. Baseline snapshot data remains available.',
+    aiFallbackStrength: 'AI output unavailable for this run.',
+    aiFallbackRisk: 'AI output unavailable for this run.',
+    aiFallbackStrategy:
+      'Use deterministic roadmap and gap sections from profile snapshot while provider access is restored.',
+    aiFallbackDisclaimer:
+      'AI-generated advisory text was unavailable for this export. Deterministic report values remain authoritative.',
+    providerUnavailable: 'Unavailable',
+    viaFallback: ' via fallback',
+  };
+};
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -42,6 +93,7 @@ export class ReportsService {
     aiSummary: ReportAiSummary | null;
     aiSummaryMeta: ReportAiSummaryMeta | null;
   }> {
+    const texts = reportTexts(locale);
     const generation = this.createGenerationMeta();
 
     try {
@@ -54,8 +106,11 @@ export class ReportsService {
 
       if (variant === 'ai-summary') {
         const stored = await this.loadStoredAiSummary(analysis.id);
-        aiSummary = stored?.summary ?? null;
-        aiSummaryMeta = stored?.meta ?? null;
+        const storedLocale = stored?.meta?.localeUsed;
+        const localeMatches =
+          storedLocale === locale || (!storedLocale && locale === 'en');
+        aiSummary = localeMatches ? (stored?.summary ?? null) : null;
+        aiSummaryMeta = localeMatches ? (stored?.meta ?? null) : null;
       }
 
       generation.status = 'COMPLETED';
@@ -65,7 +120,7 @@ export class ReportsService {
       generation.status = 'FAILED';
       generation.completedAt = new Date();
       generation.error =
-        error instanceof Error ? error.message : 'Unknown error';
+        error instanceof Error ? error.message : texts.unknownError;
       throw error;
     }
   }
@@ -83,6 +138,7 @@ export class ReportsService {
     aiSummaryMeta: ReportAiSummaryMeta | null;
     html: string;
   }> {
+    const texts = reportTexts(locale);
     const report = await this.generateSnapshot(
       analysisId,
       userId,
@@ -91,7 +147,7 @@ export class ReportsService {
     );
     if (variant === 'ai-summary' && !report.aiSummary) {
       throw new BadRequestException(
-        'AI summary has not been generated yet. Generate it first, then export.',
+        texts.aiSummaryMissing,
       );
     }
     const html = this.renderHtml(
@@ -99,6 +155,7 @@ export class ReportsService {
       report.variant,
       report.aiSummary,
       report.aiSummaryMeta,
+      locale,
     );
     return { ...report, html };
   }
@@ -126,8 +183,8 @@ export class ReportsService {
     const pdf = await this.renderPdfFromHtml(report.html, {
       title:
         variant === 'ai-summary'
-          ? 'Relocation Readiness AI Summary'
-          : 'Relocation Readiness Snapshot',
+          ? reportTexts(locale).pdfTitleAi
+          : reportTexts(locale).pdfTitleSnapshot,
       analysisId,
       generatedAtIso: report.snapshot.generatedAt.toISOString(),
       locale,
@@ -138,6 +195,7 @@ export class ReportsService {
   async generateAndPersistAiSummary(
     analysisId: string,
     userId: string,
+    locale: ReportLocale = 'en',
   ): Promise<{
     generation: ReportGenerationMeta;
     snapshot: RelocationReadinessReportSnapshot;
@@ -149,10 +207,11 @@ export class ReportsService {
     generation.status = 'GENERATING';
 
     const analysis = await this.loadAnalysis(analysisId, userId);
-    const snapshot = await this.buildSnapshot(analysis, 'en');
+    const snapshot = await this.buildSnapshot(analysis, locale);
     const enriched = await this.aiEnrichment.summarizeSnapshot(
       snapshot,
       'REASONING',
+      locale,
     );
 
     await (this.prisma as any).analysisAiSummary.upsert({
@@ -234,6 +293,7 @@ export class ReportsService {
     analysis: any,
     locale: ReportLocale,
   ): Promise<RelocationReadinessReportSnapshot> {
+    const texts = reportTexts(locale);
     const fitScore = Number(analysis.fitScore);
     const totalPrepMonths = Number(analysis.totalPrepMonths);
     const skillBreakdownRaw = Array.isArray(analysis.skillBreakdown)
@@ -287,8 +347,8 @@ export class ReportsService {
       .map((gap) => gap.competencyName);
     const gapText =
       topGapNames.length > 0
-        ? `Top gaps: ${topGapNames.join(', ')}`
-        : 'No major gaps detected.';
+        ? `${texts.topGapsPrefix}: ${topGapNames.join(', ')}`
+        : texts.noMajorGaps;
 
     return {
       reportType: 'RELOCATION_READINESS_REPORT',
@@ -327,7 +387,11 @@ export class ReportsService {
         snapshotDate: this.formatDate(analysis.snapshot.snapshotDate, locale),
         source: analysis.snapshot.source,
         totalVacancies: analysis.snapshot.totalVacancies,
-        jobMarketNote: `${analysis.snapshot.country} market snapshot from ${analysis.snapshot.source}. ${gapText}`,
+        jobMarketNote: texts.marketSnapshotNote(
+          analysis.snapshot.country,
+          analysis.snapshot.source,
+          gapText,
+        ),
       },
       legalReadiness: this.legalReadinessEngine.evaluate({
         sourceCountry: analysis.profile.currentCountry,
@@ -389,22 +453,188 @@ export class ReportsService {
     variant: ReportVariant,
     aiSummary: ReportAiSummary | null,
     aiSummaryMeta: ReportAiSummaryMeta | null,
+    locale: ReportLocale,
   ): string {
     if (variant === 'ai-summary') {
-      return this.renderAiSummaryHtml(snapshot, aiSummary, aiSummaryMeta);
+      return this.renderAiSummaryHtml(
+        snapshot,
+        aiSummary,
+        aiSummaryMeta,
+        locale,
+      );
     }
-    return this.renderSnapshotHtml(snapshot);
+    return this.renderSnapshotHtml(snapshot, locale);
   }
 
   private renderSnapshotHtml(
     snapshot: RelocationReadinessReportSnapshot,
+    locale: ReportLocale,
   ): string {
+    const isRu = locale === 'ru';
+    const copy = isRu
+      ? {
+          htmlLang: 'ru',
+          title: 'Отчет готовности к релокации (Snapshot)',
+          generated: 'Сформирован',
+          analysis: 'Анализ',
+          section1: '1. Сводка профиля',
+          role: 'Роль',
+          sourceCountry: 'Исходная страна',
+          target: 'Цель',
+          experience: 'Опыт',
+          years: 'лет',
+          monthsWord: 'месяцев',
+          section2: '2. Соответствие и готовность',
+          fitScore: 'Fit Score',
+          readiness: 'Готовность',
+          prepMonths: 'Подготовка (месяцы)',
+          criticalPathHours: 'Критический путь (часы)',
+          skillBreakdown: 'Разбивка навыков (топ 10 по сохраненному порядку)',
+          competency: 'Компетенция',
+          match: 'Совпадение',
+          weight: 'Вес',
+          type: 'Тип',
+          noSkillBreakdownData: 'Нет данных по разбивке навыков',
+          section3: '3. Пробелы и дорожная карта',
+          detectedGaps: 'Выявленные пробелы',
+          current: 'Текущий',
+          required: 'Требуемый',
+          severity: 'Критичность',
+          noActionableGaps: 'Нет actionable gaps',
+          roadmap: 'Дорожная карта',
+          noRoadmapSteps: 'Шаги дорожной карты недоступны',
+          section4: '4. Сводка рисков',
+          marketRiskVolume: 'Риск рынка (объем вакансий)',
+          legalRisk: 'Юридический риск',
+          financialRisk: 'Финансовый риск',
+          totalVacanciesSnapshot: 'Всего вакансий в snapshot',
+          section5: '5. Контекст рынка',
+          marketSource: 'Источник рынка',
+          snapshotDate: 'Дата snapshot',
+          marketCountry: 'Страна рынка',
+          totalVacancies: 'Всего вакансий',
+          section6: '6. Юридическая и визовая готовность',
+          legalCheckLikely: 'Вероятно требуется виза/юридическая проверка',
+          yes: 'Да',
+          no: 'Нет',
+          why: 'Почему',
+          noRuleTriggers: 'Триггеры правил недоступны.',
+          questionsToClarify: 'Вопросы для уточнения',
+          noAdditionalQuestions: 'Дополнительных вопросов нет.',
+          possibleRoutes: 'Возможные маршруты',
+          noRouteHints: 'Подсказки по маршрутам недоступны.',
+          warnings: 'Предупреждения',
+          noWarnings: 'Специфичных предупреждений нет.',
+          advice: 'Рекомендации',
+          noAdvice: 'Дополнительных рекомендаций нет.',
+          recommendedKnowledgeSlugs: 'Рекомендуемые Knowledge Slug',
+          noRecommendedSlugs: 'Рекомендуемые slug не найдены.',
+          legalDisclaimerFallback:
+            'Этот раздел носит информационный характер и не является юридической консультацией.',
+          section7: '7. Финансовая готовность',
+          monthlyCostEstimate: 'Оценка ежемесячных расходов',
+          runway: 'Финансовый запас',
+          unavailable: 'Недоступно',
+          recommendedSavings: 'Рекомендуемые накопления',
+          financialSummaryUnavailable:
+            'Сводка финансовой готовности недоступна.',
+          costBreakdown: 'Структура расходов',
+          category: 'Категория',
+          estimatedMonthlyCost: 'Оценка ежемесячной стоимости',
+          noCategoryCostData:
+            'Нет данных по категориям стоимости',
+          section8: '8. Лучшие совпадения вакансий',
+          topJobsPlaceholder:
+            'Лучшие совпадения вакансий пока не прикреплены к этому snapshot.',
+          section9: '9. Советы по CV',
+          cvAdvicePlaceholder:
+            'Советы по адаптации CV пока не прикреплены к этому snapshot. Используйте результат issue #52, когда он доступен.',
+          unknown: 'НЕИЗВЕСТНО',
+        }
+      : {
+          htmlLang: 'en',
+          title: 'Relocation Readiness Report (Snapshot)',
+          generated: 'Generated',
+          analysis: 'Analysis',
+          section1: '1. Profile Summary',
+          role: 'Role',
+          sourceCountry: 'Source Country',
+          target: 'Target',
+          experience: 'Experience',
+          years: 'years',
+          monthsWord: 'months',
+          section2: '2. Fit and Readiness',
+          fitScore: 'Fit Score',
+          readiness: 'Readiness',
+          prepMonths: 'Prep (months)',
+          criticalPathHours: 'Critical Path (hours)',
+          skillBreakdown: 'Skill Breakdown (Top 10 by stored order)',
+          competency: 'Competency',
+          match: 'Match',
+          weight: 'Weight',
+          type: 'Type',
+          noSkillBreakdownData: 'No skill breakdown data',
+          section3: '3. Gaps and Roadmap',
+          detectedGaps: 'Detected Gaps',
+          current: 'Current',
+          required: 'Required',
+          severity: 'Severity',
+          noActionableGaps: 'No actionable gaps',
+          roadmap: 'Roadmap',
+          noRoadmapSteps: 'No roadmap steps available',
+          section4: '4. Risk Summary',
+          marketRiskVolume: 'Market Risk (vacancy volume)',
+          legalRisk: 'Legal Risk',
+          financialRisk: 'Financial Risk',
+          totalVacanciesSnapshot: 'Total Vacancies in Snapshot',
+          section5: '5. Market Context',
+          marketSource: 'Market Source',
+          snapshotDate: 'Snapshot Date',
+          marketCountry: 'Market Country',
+          totalVacancies: 'Total Vacancies',
+          section6: '6. Legal and Visa Readiness',
+          legalCheckLikely: 'Visa/Legal Check Likely Required',
+          yes: 'Yes',
+          no: 'No',
+          why: 'Why',
+          noRuleTriggers: 'No rule triggers available.',
+          questionsToClarify: 'Questions to Clarify',
+          noAdditionalQuestions: 'No additional clarification questions.',
+          possibleRoutes: 'Possible Routes to Check',
+          noRouteHints: 'No route hints available.',
+          warnings: 'Warnings',
+          noWarnings: 'No specific warnings.',
+          advice: 'Advice',
+          noAdvice: 'No additional advice.',
+          recommendedKnowledgeSlugs: 'Recommended Knowledge Slugs',
+          noRecommendedSlugs: 'No recommended article slugs.',
+          legalDisclaimerFallback:
+            'This section is informational guidance only and not legal advice.',
+          section7: '7. Financial Readiness',
+          monthlyCostEstimate: 'Monthly Cost Estimate',
+          runway: 'Runway',
+          unavailable: 'Unavailable',
+          recommendedSavings: 'Recommended Savings',
+          financialSummaryUnavailable: 'Financial readiness summary is unavailable.',
+          costBreakdown: 'Cost Breakdown',
+          category: 'Category',
+          estimatedMonthlyCost: 'Estimated Monthly Cost',
+          noCategoryCostData: 'No category-level cost data available',
+          section8: '8. Top Job Matches',
+          topJobsPlaceholder:
+            'Top job matches are not attached to this snapshot yet.',
+          section9: '9. CV Advice',
+          cvAdvicePlaceholder:
+            'CV adaptation advice is not attached to this snapshot yet. Use issue #52 output when available.',
+          unknown: 'UNKNOWN',
+        };
+
     const escapedRole = this.escapeHtml(snapshot.profileSummary.desiredRole);
     const escapedCountry = this.escapeHtml(
       snapshot.profileSummary.targetCountry,
     );
     const escapedCity = this.escapeHtml(
-      snapshot.profileSummary.targetCity ?? 'N/A',
+      snapshot.profileSummary.targetCity ?? copy.unavailable,
     );
     const fitScorePct = Math.round(snapshot.readiness.fitScore * 100);
     const readinessTone =
@@ -492,9 +722,9 @@ export class ReportsService {
       )
       .join('');
     const topJobsPlaceholder =
-      '<li>Top job matches are not attached to this snapshot yet.</li>';
+      `<li>${copy.topJobsPlaceholder}</li>`;
     const cvAdvicePlaceholder =
-      '<li>CV adaptation advice is not attached to this snapshot yet. Use issue #52 output when available.</li>';
+      `<li>${copy.cvAdvicePlaceholder}</li>`;
     const marketRiskLabel =
       snapshot.marketContext.totalVacancies < 100
         ? 'HIGH'
@@ -503,10 +733,10 @@ export class ReportsService {
           : 'LOW';
 
     return `<!doctype html>
-<html lang="en">
+<html lang="${copy.htmlLang}">
 <head>
   <meta charset="utf-8" />
-  <title>Relocation Readiness Snapshot</title>
+  <title>${copy.title}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; line-height: 1.45; }
     h1, h2 { margin: 0 0 12px 0; }
@@ -526,127 +756,127 @@ export class ReportsService {
   </style>
 </head>
 <body>
-  <h1>Relocation Readiness Report (Snapshot)</h1>
-  <p class="muted">Generated ${snapshot.generatedAt.toISOString()} | Analysis ${snapshot.analysisId}</p>
+  <h1>${copy.title}</h1>
+  <p class="muted">${copy.generated} ${snapshot.generatedAt.toISOString()} | ${copy.analysis} ${snapshot.analysisId}</p>
   <div class="section">
-    <h2>1. Profile Summary</h2>
+    <h2>${copy.section1}</h2>
     <div class="grid">
-      <div class="card"><strong>Role:</strong> ${escapedRole}</div>
-      <div class="card"><strong>Source Country:</strong> ${this.escapeHtml(snapshot.profileSummary.currentCountry)}</div>
-      <div class="card"><strong>Target:</strong> ${escapedCountry}, ${escapedCity}</div>
-      <div class="card"><strong>Experience:</strong> ${snapshot.profileSummary.yearsExperience} years</div>
+      <div class="card"><strong>${copy.role}:</strong> ${escapedRole}</div>
+      <div class="card"><strong>${copy.sourceCountry}:</strong> ${this.escapeHtml(snapshot.profileSummary.currentCountry)}</div>
+      <div class="card"><strong>${copy.target}:</strong> ${escapedCountry}, ${escapedCity}</div>
+      <div class="card"><strong>${copy.experience}:</strong> ${snapshot.profileSummary.yearsExperience} ${copy.years}</div>
     </div>
   </div>
 
   <div class="section">
-    <h2>2. Fit and Readiness</h2>
+    <h2>${copy.section2}</h2>
     <div class="grid">
-      <div class="card"><strong>Fit Score:</strong> ${fitScorePct}%</div>
-      <div class="card"><strong>Readiness:</strong> <span class="pill ${readinessTone}">${snapshot.readiness.readinessLevel}</span></div>
-      <div class="card"><strong>Prep (months):</strong> ${snapshot.readiness.totalPrepMonths.toFixed(1)}</div>
-      <div class="card"><strong>Critical Path (hours):</strong> ${snapshot.readiness.timeEstimate?.criticalPathHours ?? 0}</div>
+      <div class="card"><strong>${copy.fitScore}:</strong> ${fitScorePct}%</div>
+      <div class="card"><strong>${copy.readiness}:</strong> <span class="pill ${readinessTone}">${snapshot.readiness.readinessLevel}</span></div>
+      <div class="card"><strong>${copy.prepMonths}:</strong> ${snapshot.readiness.totalPrepMonths.toFixed(1)}</div>
+      <div class="card"><strong>${copy.criticalPathHours}:</strong> ${snapshot.readiness.timeEstimate?.criticalPathHours ?? 0}</div>
     </div>
-    <h3>Skill Breakdown (Top 10 by stored order)</h3>
+    <h3>${copy.skillBreakdown}</h3>
     <table>
       <thead>
         <tr>
-          <th>Competency</th>
-          <th>Match</th>
-          <th>Weight</th>
-          <th>Type</th>
+          <th>${copy.competency}</th>
+          <th>${copy.match}</th>
+          <th>${copy.weight}</th>
+          <th>${copy.type}</th>
         </tr>
       </thead>
-      <tbody>${skillBreakdownRows || '<tr><td colspan="4">No skill breakdown data</td></tr>'}</tbody>
+      <tbody>${skillBreakdownRows || `<tr><td colspan="4">${copy.noSkillBreakdownData}</td></tr>`}</tbody>
     </table>
   </div>
 
   <div class="section">
-    <h2>3. Gaps and Roadmap</h2>
-    <h3>Detected Gaps</h3>
+    <h2>${copy.section3}</h2>
+    <h3>${copy.detectedGaps}</h3>
     <table>
       <thead>
         <tr>
-          <th>Competency</th>
-          <th>Current</th>
-          <th>Required</th>
-          <th>Match</th>
-          <th>Severity</th>
+          <th>${copy.competency}</th>
+          <th>${copy.current}</th>
+          <th>${copy.required}</th>
+          <th>${copy.match}</th>
+          <th>${copy.severity}</th>
         </tr>
       </thead>
-      <tbody>${rows || '<tr><td colspan="5">No actionable gaps</td></tr>'}</tbody>
+      <tbody>${rows || `<tr><td colspan="5">${copy.noActionableGaps}</td></tr>`}</tbody>
     </table>
-    <h3>Roadmap</h3>
-    <ul>${roadmap || '<li>No roadmap steps available</li>'}</ul>
+    <h3>${copy.roadmap}</h3>
+    <ul>${roadmap || `<li>${copy.noRoadmapSteps}</li>`}</ul>
   </div>
 
   <div class="section">
-    <h2>4. Risk Summary</h2>
+    <h2>${copy.section4}</h2>
     <div class="grid">
-      <div class="card"><strong>Market Risk (vacancy volume):</strong> ${marketRiskLabel}</div>
-      <div class="card"><strong>Legal Risk:</strong> ${legal?.overallRisk ?? 'UNKNOWN'}</div>
-      <div class="card"><strong>Financial Risk:</strong> ${financial?.financialRiskLevel ?? 'UNKNOWN'}</div>
-      <div class="card"><strong>Total Vacancies in Snapshot:</strong> ${snapshot.marketContext.totalVacancies}</div>
+      <div class="card"><strong>${copy.marketRiskVolume}:</strong> ${marketRiskLabel}</div>
+      <div class="card"><strong>${copy.legalRisk}:</strong> ${legal?.overallRisk ?? copy.unknown}</div>
+      <div class="card"><strong>${copy.financialRisk}:</strong> ${financial?.financialRiskLevel ?? copy.unknown}</div>
+      <div class="card"><strong>${copy.totalVacanciesSnapshot}:</strong> ${snapshot.marketContext.totalVacancies}</div>
     </div>
   </div>
 
   <div class="section">
-    <h2>5. Market Context</h2>
+    <h2>${copy.section5}</h2>
     <div class="grid">
-      <div class="card"><strong>Market Source:</strong> ${this.escapeHtml(snapshot.marketContext.source)}</div>
-      <div class="card"><strong>Snapshot Date:</strong> ${this.escapeHtml(snapshot.marketContext.snapshotDate)}</div>
-      <div class="card"><strong>Market Country:</strong> ${this.escapeHtml(snapshot.marketContext.country)}${snapshot.marketContext.city ? `, ${this.escapeHtml(snapshot.marketContext.city)}` : ''}</div>
-      <div class="card"><strong>Total Vacancies:</strong> ${snapshot.marketContext.totalVacancies}</div>
+      <div class="card"><strong>${copy.marketSource}:</strong> ${this.escapeHtml(snapshot.marketContext.source)}</div>
+      <div class="card"><strong>${copy.snapshotDate}:</strong> ${this.escapeHtml(snapshot.marketContext.snapshotDate)}</div>
+      <div class="card"><strong>${copy.marketCountry}:</strong> ${this.escapeHtml(snapshot.marketContext.country)}${snapshot.marketContext.city ? `, ${this.escapeHtml(snapshot.marketContext.city)}` : ''}</div>
+      <div class="card"><strong>${copy.totalVacancies}:</strong> ${snapshot.marketContext.totalVacancies}</div>
     </div>
     <p>${this.escapeHtml(snapshot.marketContext.jobMarketNote)}</p>
   </div>
 
   <div class="section">
-    <h2>6. Legal and Visa Readiness</h2>
-    <p><strong>Visa/Legal Check Likely Required:</strong> ${legal?.visaCheckLikelyRequired ? 'Yes' : 'No'}</p>
-    <h3>Why</h3>
-    <ul>${legalReasons || '<li>No rule triggers available.</li>'}</ul>
-    <h3>Questions to Clarify</h3>
-    <ul>${legalQuestions || '<li>No additional clarification questions.</li>'}</ul>
-    <h3>Possible Routes to Check</h3>
-    <ul>${legalRoutes || '<li>No route hints available.</li>'}</ul>
-    <h3>Warnings</h3>
-    <ul>${legalWarnings || '<li>No specific warnings.</li>'}</ul>
-    <h3>Advice</h3>
-    <ul>${legalAdvice || '<li>No additional advice.</li>'}</ul>
-    <h3>Recommended Knowledge Slugs</h3>
-    <ul>${legalArticles || '<li>No recommended article slugs.</li>'}</ul>
-    <p class="muted">${this.escapeHtml(legal?.disclaimer ?? 'This section is informational guidance only and not legal advice.')}</p>
+    <h2>${copy.section6}</h2>
+    <p><strong>${copy.legalCheckLikely}:</strong> ${legal?.visaCheckLikelyRequired ? copy.yes : copy.no}</p>
+    <h3>${copy.why}</h3>
+    <ul>${legalReasons || `<li>${copy.noRuleTriggers}</li>`}</ul>
+    <h3>${copy.questionsToClarify}</h3>
+    <ul>${legalQuestions || `<li>${copy.noAdditionalQuestions}</li>`}</ul>
+    <h3>${copy.possibleRoutes}</h3>
+    <ul>${legalRoutes || `<li>${copy.noRouteHints}</li>`}</ul>
+    <h3>${copy.warnings}</h3>
+    <ul>${legalWarnings || `<li>${copy.noWarnings}</li>`}</ul>
+    <h3>${copy.advice}</h3>
+    <ul>${legalAdvice || `<li>${copy.noAdvice}</li>`}</ul>
+    <h3>${copy.recommendedKnowledgeSlugs}</h3>
+    <ul>${legalArticles || `<li>${copy.noRecommendedSlugs}</li>`}</ul>
+    <p class="muted">${this.escapeHtml(legal?.disclaimer ?? copy.legalDisclaimerFallback)}</p>
   </div>
 
   <div class="section">
-    <h2>7. Financial Readiness</h2>
-    <p><strong>Monthly Cost Estimate:</strong> ${financial ? financial.costEstimate.totalMonthlyEstimateUsd.toFixed(2) : '0.00'} USD</p>
-    <p><strong>Runway:</strong> ${financial?.runwayMonths !== null && financial?.runwayMonths !== undefined ? `${financial.runwayMonths.toFixed(1)} months` : 'Unavailable'}</p>
-    <p><strong>Recommended Savings:</strong> ${financial ? financial.recommendedSavingsAmount.toFixed(2) : '0.00'} USD</p>
-    <p>${this.escapeHtml(financial?.summary ?? 'Financial readiness summary is unavailable.')}</p>
-    <h3>Cost Breakdown</h3>
+    <h2>${copy.section7}</h2>
+    <p><strong>${copy.monthlyCostEstimate}:</strong> ${financial ? financial.costEstimate.totalMonthlyEstimateUsd.toFixed(2) : '0.00'} USD</p>
+    <p><strong>${copy.runway}:</strong> ${financial?.runwayMonths !== null && financial?.runwayMonths !== undefined ? `${financial.runwayMonths.toFixed(1)} ${copy.monthsWord}` : copy.unavailable}</p>
+    <p><strong>${copy.recommendedSavings}:</strong> ${financial ? financial.recommendedSavingsAmount.toFixed(2) : '0.00'} USD</p>
+    <p>${this.escapeHtml(financial?.summary ?? copy.financialSummaryUnavailable)}</p>
+    <h3>${copy.costBreakdown}</h3>
     <table>
       <thead>
         <tr>
-          <th>Category</th>
-          <th>Estimated Monthly Cost</th>
+          <th>${copy.category}</th>
+          <th>${copy.estimatedMonthlyCost}</th>
         </tr>
       </thead>
-      <tbody>${financialCostRows || '<tr><td colspan="2">No category-level cost data available</td></tr>'}</tbody>
+      <tbody>${financialCostRows || `<tr><td colspan="2">${copy.noCategoryCostData}</td></tr>`}</tbody>
     </table>
-    <h3>Warnings</h3>
-    <ul>${financialWarnings || '<li>No specific warnings.</li>'}</ul>
-    <h3>Advice</h3>
-    <ul>${financialAdvice || '<li>No additional advice.</li>'}</ul>
+    <h3>${copy.warnings}</h3>
+    <ul>${financialWarnings || `<li>${copy.noWarnings}</li>`}</ul>
+    <h3>${copy.advice}</h3>
+    <ul>${financialAdvice || `<li>${copy.noAdvice}</li>`}</ul>
   </div>
 
   <div class="section">
-    <h2>8. Top Job Matches</h2>
+    <h2>${copy.section8}</h2>
     <ul>${topJobsPlaceholder}</ul>
   </div>
 
   <div class="section">
-    <h2>9. CV Advice</h2>
+    <h2>${copy.section9}</h2>
     <ul>${cvAdvicePlaceholder}</ul>
   </div>
 </body>
@@ -657,23 +887,53 @@ export class ReportsService {
     snapshot: RelocationReadinessReportSnapshot,
     aiSummary: ReportAiSummary | null,
     aiSummaryMeta: ReportAiSummaryMeta | null,
+    locale: ReportLocale,
   ): string {
+    const texts = reportTexts(locale);
+    const isRu = locale === 'ru';
+    const copy = isRu
+      ? {
+          htmlLang: 'ru',
+          title: 'AI-сводка',
+          generated: 'Сформирован',
+          analysis: 'Анализ',
+          fitScore: 'Fit Score',
+          readiness: 'Готовность',
+          target: 'Цель',
+          aiProvider: 'AI-провайдер',
+          executiveSummary: 'Краткий итог',
+          topStrengths: 'Сильные стороны',
+          topRisks: 'Риски',
+          recommendedStrategy: 'Рекомендуемая стратегия',
+        }
+      : {
+          htmlLang: 'en',
+          title: 'AI Summary',
+          generated: 'Generated',
+          analysis: 'Analysis',
+          fitScore: 'Fit Score',
+          readiness: 'Readiness',
+          target: 'Target',
+          aiProvider: 'AI Provider',
+          executiveSummary: 'Executive Summary',
+          topStrengths: 'Top Strengths',
+          topRisks: 'Top Risks',
+          recommendedStrategy: 'Recommended Strategy',
+        };
+
     const summary = aiSummary ?? {
-      executiveSummary:
-        'AI summary is unavailable. Baseline snapshot data remains available.',
-      topStrengths: ['AI output unavailable for this run.'],
-      topRisks: ['AI output unavailable for this run.'],
-      recommendedStrategy:
-        'Use deterministic roadmap and gap sections from profile snapshot while provider access is restored.',
-      advisoryDisclaimer:
-        'AI-generated advisory text was unavailable for this export. Deterministic report values remain authoritative.',
+      executiveSummary: texts.aiFallbackExecutiveSummary,
+      topStrengths: [texts.aiFallbackStrength],
+      topRisks: [texts.aiFallbackRisk],
+      recommendedStrategy: texts.aiFallbackStrategy,
+      advisoryDisclaimer: texts.aiFallbackDisclaimer,
     };
 
     const providerInfo = aiSummaryMeta
       ? `${aiSummaryMeta.providerUsed} (${this.escapeHtml(aiSummaryMeta.modelUsed)})${
-          aiSummaryMeta.fallbackUsed ? ' via fallback' : ''
+          aiSummaryMeta.fallbackUsed ? texts.viaFallback : ''
         }`
-      : 'Unavailable';
+      : texts.providerUnavailable;
 
     const strengths = summary.topStrengths
       .map((item) => `<li>${this.escapeHtml(item)}</li>`)
@@ -683,10 +943,10 @@ export class ReportsService {
       .join('');
 
     return `<!doctype html>
-<html lang="en">
+<html lang="${copy.htmlLang}">
 <head>
   <meta charset="utf-8" />
-  <title>Relocation Readiness AI Summary</title>
+  <title>${isRu ? 'AI-сводка готовности к релокации' : 'Relocation Readiness AI Summary'}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
     h1, h2 { margin: 0 0 12px 0; }
@@ -697,33 +957,33 @@ export class ReportsService {
   </style>
 </head>
 <body>
-  <h1>AI Summary</h1>
-  <p class="muted">Generated ${snapshot.generatedAt.toISOString()} | Analysis ${snapshot.analysisId}</p>
+  <h1>${copy.title}</h1>
+  <p class="muted">${copy.generated} ${snapshot.generatedAt.toISOString()} | ${copy.analysis} ${snapshot.analysisId}</p>
 
   <div class="grid">
-    <div class="card"><strong>Fit Score:</strong> ${snapshot.readiness.fitScore.toFixed(3)}</div>
-    <div class="card"><strong>Readiness:</strong> ${snapshot.readiness.readinessLevel}</div>
-    <div class="card"><strong>Target:</strong> ${this.escapeHtml(snapshot.profileSummary.targetCountry)}${snapshot.profileSummary.targetCity ? `, ${this.escapeHtml(snapshot.profileSummary.targetCity)}` : ''}</div>
-    <div class="card"><strong>AI Provider:</strong> ${providerInfo}</div>
+    <div class="card"><strong>${copy.fitScore}:</strong> ${snapshot.readiness.fitScore.toFixed(3)}</div>
+    <div class="card"><strong>${copy.readiness}:</strong> ${snapshot.readiness.readinessLevel}</div>
+    <div class="card"><strong>${copy.target}:</strong> ${this.escapeHtml(snapshot.profileSummary.targetCountry)}${snapshot.profileSummary.targetCity ? `, ${this.escapeHtml(snapshot.profileSummary.targetCity)}` : ''}</div>
+    <div class="card"><strong>${copy.aiProvider}:</strong> ${providerInfo}</div>
   </div>
 
   <div class="card">
-    <h2>Executive Summary</h2>
+    <h2>${copy.executiveSummary}</h2>
     <p>${this.escapeHtml(summary.executiveSummary)}</p>
   </div>
 
   <div class="card">
-    <h2>Top Strengths</h2>
+    <h2>${copy.topStrengths}</h2>
     <ul>${strengths}</ul>
   </div>
 
   <div class="card">
-    <h2>Top Risks</h2>
+    <h2>${copy.topRisks}</h2>
     <ul>${risks}</ul>
   </div>
 
   <div class="card">
-    <h2>Recommended Strategy</h2>
+    <h2>${copy.recommendedStrategy}</h2>
     <p>${this.escapeHtml(summary.recommendedStrategy)}</p>
   </div>
 
@@ -742,6 +1002,10 @@ export class ReportsService {
     },
   ): Promise<Buffer> {
     try {
+      const isRu = context.locale === 'ru';
+      const generatedLabel = isRu ? 'Сформирован' : 'Generated';
+      const pageLabel = isRu ? 'Страница' : 'Page';
+      const ofLabel = isRu ? 'из' : 'of';
       const pdfMakeModule: any = await import('pdfmake/build/pdfmake.js');
       const pdfFontsModule: any = await import('pdfmake/build/vfs_fonts.js');
       const pdfMake: any = pdfMakeModule.default ?? pdfMakeModule;
@@ -772,12 +1036,12 @@ export class ReportsService {
           margin: [32, 0, 32, 14],
           columns: [
             {
-              text: `Generated ${context.generatedAtIso}`,
+              text: `${generatedLabel} ${context.generatedAtIso}`,
               fontSize: 8,
               color: '#6b7280',
             },
             {
-              text: `Page ${currentPage} of ${pageCount}`,
+              text: `${pageLabel} ${currentPage} ${ofLabel} ${pageCount}`,
               alignment: 'right',
               fontSize: 8,
               color: '#6b7280',
@@ -804,10 +1068,17 @@ export class ReportsService {
       const buffer = await createdPdf.getBuffer();
       return Buffer.from(buffer);
     } catch (error) {
+      const isRu = context.locale === 'ru';
       const reason =
-        error instanceof Error ? error.message : 'Unknown PDF generation error';
+        error instanceof Error
+          ? error.message
+          : isRu
+            ? 'Неизвестная ошибка генерации PDF'
+            : 'Unknown PDF generation error';
       throw new InternalServerErrorException(
-        `Failed to generate PDF report: ${reason}`,
+        isRu
+          ? `Не удалось сгенерировать PDF-отчет: ${reason}`
+          : `Failed to generate PDF report: ${reason}`,
       );
     }
   }

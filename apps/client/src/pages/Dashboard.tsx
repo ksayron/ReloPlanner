@@ -16,6 +16,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import client from '../api/client';
 import { getBillingStatus, startPremiumCheckout } from '../api/billing';
 import { fetchMyPreferences } from '../api/preferences';
@@ -36,21 +37,15 @@ import type {
   UserPreferences,
 } from '../types';
 import { usePersistentJobStream } from '../hooks/usePersistentJobStream';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 import { buildCheckoutReturnUrls, pollCheckoutStatus } from '../utils/checkout';
 import { formatEnumLabel, getJobStepLabel } from '../utils/jobProgress';
 
-const priorityLabel: Record<string, string> = {
-  CORE: 'Critical',
-  IMPORTANT: 'Important',
-  OPTIONAL: 'Nice to Have',
-  CONTEXTUAL: 'Contextual',
-};
-
-const getFitScoreMessage = (scorePct: number) => {
-  if (scorePct >= 80) return 'Strong readiness for your target role/market. Focus on polishing targeted gaps to improve competitiveness.';
-  if (scorePct >= 60) return 'Moderate readiness. You already match part of the market expectation, but important gaps still impact hiring chances.';
-  if (scorePct >= 40) return 'Early-to-mid readiness. You need focused upskilling on core requirements before the profile is market-competitive.';
-  return 'Low readiness for current target settings. Start with core skills and critical prerequisites to build a viable path.';
+const getFitScoreMessageKey = (scorePct: number) => {
+  if (scorePct >= 80) return 'fitScoreMessageStrong';
+  if (scorePct >= 60) return 'fitScoreMessageModerate';
+  if (scorePct >= 40) return 'fitScoreMessageEarly';
+  return 'fitScoreMessageLow';
 };
 
 const scoreColor = (score: number) => {
@@ -59,26 +54,46 @@ const scoreColor = (score: number) => {
   return 'red';
 };
 
-const formatSnapshotContext = (snapshot: AnalysisHistoryItem['snapshotMetadata']) => {
+const extractPostingCity = (location: string) => {
+  const normalized = location.trim();
+  if (!normalized) return null;
+  const [firstChunk] = normalized.split(',');
+  const city = firstChunk?.trim();
+  return city || normalized;
+};
+
+const formatSnapshotContext = (
+  snapshot: AnalysisHistoryItem['snapshotMetadata'],
+  language: 'en' | 'ru',
+  t: (key: string, options?: Record<string, unknown>) => string,
+) => {
   if (!snapshot) {
-    return 'Based on unavailable market snapshot metadata.';
+    return t('snapshotUnavailable');
   }
 
   const vacancies = Number.isFinite(snapshot.totalVacancies)
-    ? snapshot.totalVacancies.toLocaleString()
-    : 'unknown';
+    ? snapshot.totalVacancies.toLocaleString(language)
+    : t('common:unknown', { ns: 'common' });
   const location = snapshot.city
     ? `${snapshot.city}, ${snapshot.country}`
     : snapshot.country;
-  const source = snapshot.source || 'unknown source';
+  const source = snapshot.source || t('unknownSource');
   const snapshotDate = snapshot.snapshotDate
-    ? new Date(snapshot.snapshotDate).toLocaleDateString()
-    : 'unknown date';
+    ? new Date(snapshot.snapshotDate).toLocaleDateString(language)
+    : t('unknownDate');
 
-  return `Based on ${vacancies} vacancies in ${location} (${source}, ${snapshotDate}).`;
+  return t('snapshotBasedOn', { vacancies, location, source, snapshotDate });
 };
 
 export default function Dashboard() {
+  const { t } = useTranslation(['dashboard', 'common']);
+  const { language } = useAppLanguage();
+  const priorityLabel: Record<string, string> = {
+    CORE: t('dashboard:priorityCore'),
+    IMPORTANT: t('dashboard:priorityImportant'),
+    OPTIONAL: t('dashboard:priorityOptional'),
+    CONTEXTUAL: t('dashboard:priorityContextual'),
+  };
   const { profileId } = useParams<{ profileId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -100,7 +115,7 @@ export default function Dashboard() {
   } | null>(null);
   const [billingStatus, setBillingStatus] = useState<BillingStatusResponse | null>(null);
   const [upgradeModalOpened, setUpgradeModalOpened] = useState(false);
-  const [upgradeFeatureName, setUpgradeFeatureName] = useState<string>('Premium feature');
+  const [upgradeFeatureName, setUpgradeFeatureName] = useState<string>(t('dashboard:premiumFeature'));
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeError, setUpgradeError] = useState<string>('');
   const [checkoutProcessing, setCheckoutProcessing] = useState(false);
@@ -182,7 +197,7 @@ export default function Dashboard() {
   } = usePersistentJobStream({
     enabled: Boolean(profileId),
     storageKey: `analysis-progress:${profileId ?? 'unknown'}`,
-    streamDisconnectedMessage: 'Live progress stream disconnected',
+    streamDisconnectedMessage: t('dashboard:liveProgressDisconnected'),
     hideCompletedAfterMs: 5000,
     loadActiveJob: loadActiveAnalysisJob,
     onCompleted: async (snapshot) => {
@@ -211,7 +226,9 @@ export default function Dashboard() {
         // Keep optimistic state if immediate refetch is temporarily unavailable.
       }
     },
-    onFailed: (snapshot) => snapshot.errorMessage ?? `Analysis failed at step: ${getJobStepLabel(snapshot.currentStep)}`,
+    onFailed: (snapshot) =>
+      snapshot.errorMessage ??
+      t('dashboard:analysisFailedAtStep', { step: getJobStepLabel(snapshot.currentStep) }),
     onActiveJobRestored: () => {
       setNoResults(false);
     },
@@ -227,7 +244,7 @@ export default function Dashboard() {
   } = usePersistentJobStream({
     enabled: Boolean(selectedAnalysisId),
     storageKey: `report-generation:${selectedAnalysisId ?? 'unknown'}`,
-    streamDisconnectedMessage: 'AI report generation stream disconnected',
+    streamDisconnectedMessage: t('dashboard:aiReportStreamDisconnected'),
     hideCompletedAfterMs: 5000,
     loadActiveJob: loadActiveReportJob,
     onCompleted: async (snapshot) => {
@@ -240,7 +257,7 @@ export default function Dashboard() {
       });
       setAiReport(response.data);
     },
-    onFailed: (snapshot) => snapshot.errorMessage ?? 'AI report generation failed',
+    onFailed: (snapshot) => snapshot.errorMessage ?? t('dashboard:aiReportGenerationFailed'),
   });
 
   useEffect(() => {
@@ -258,7 +275,7 @@ export default function Dashboard() {
           setResult(null);
           setSelectedAnalysisId(null);
         } else {
-          setPageError('Failed to load results');
+          setPageError(t('dashboard:failedLoadResults'));
         }
       } finally {
         setLoading(false);
@@ -266,7 +283,7 @@ export default function Dashboard() {
       try {
         await loadHistory();
       } catch {
-        setPageError((prev) => prev || 'Failed to load analysis history');
+        setPageError((prev) => prev || t('dashboard:failedLoadHistory'));
       }
       try {
         const matchesResponse = await client.get<TopMatchesResponse>(
@@ -288,7 +305,7 @@ export default function Dashboard() {
         setWeeklyStudyHours(preferences.weeklyStudyHours ?? null);
       }
     })();
-  }, [loadBillingStatus, loadHistory, profileId]);
+  }, [loadBillingStatus, loadHistory, profileId, t]);
 
   const runAnalysis = async () => {
     if (!profileId || analyzing) return;
@@ -299,7 +316,7 @@ export default function Dashboard() {
         return String(startResponse.data.jobId);
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Analysis failed';
+      const message = err instanceof Error ? err.message : t('dashboard:analysisFailed');
       setJobError(message);
     }
   };
@@ -317,12 +334,12 @@ export default function Dashboard() {
       const urls = buildCheckoutReturnUrls(window.location.pathname, searchParams);
       const checkout = await startPremiumCheckout(urls);
       if (!checkout.checkoutUrl) {
-        throw new Error('Checkout URL was not returned by billing provider.');
+        throw new Error(t('dashboard:checkoutMissingUrl'));
       }
       window.location.assign(checkout.checkoutUrl);
     } catch (err: any) {
       const apiMessage = String(err?.response?.data?.message ?? '').trim();
-      setUpgradeError(apiMessage || 'Upgrade failed');
+      setUpgradeError(apiMessage || t('dashboard:upgradeFailed'));
     } finally {
       setUpgradeLoading(false);
     }
@@ -355,20 +372,18 @@ export default function Dashboard() {
             setTopMatchesAccess(matchesResponse.data?.access ?? null);
           }
         } else if (resolved.paymentStatus === 'CANCELED' || checkoutAction === 'cancel') {
-          setPageError('Checkout was canceled before completion.');
+          setPageError(t('dashboard:checkoutCanceled'));
         } else if (resolved.paymentStatus === 'PENDING') {
-          setPageError(
-            'Checkout is still pending webhook confirmation. Refresh shortly if status does not update.',
-          );
+          setPageError(t('dashboard:checkoutPending'));
         } else {
           setPageError(
-            resolved.errorMessage ?? 'Checkout failed. Please retry with Stripe test card details.',
+            resolved.errorMessage ?? t('dashboard:checkoutFailed'),
           );
         }
       } catch (err: any) {
         if (canceled) return;
         const apiMessage = String(err?.response?.data?.message ?? '').trim();
-        setPageError(apiMessage || 'Failed to resolve checkout status.');
+        setPageError(apiMessage || t('dashboard:resolveCheckoutFailed'));
       } finally {
         if (canceled) return;
         setCheckoutProcessing(false);
@@ -385,6 +400,7 @@ export default function Dashboard() {
     clearCheckoutParams,
     loadBillingStatus,
     profileId,
+    t,
   ]);
 
   const openHistoricalResult = async (analysisId: string) => {
@@ -396,7 +412,7 @@ export default function Dashboard() {
       setSelectedAnalysisId(analysisId);
       setNoResults(false);
     } catch {
-      setPageError('Failed to open selected analysis result');
+      setPageError(t('dashboard:failedOpenSelectedResult'));
     }
   };
 
@@ -417,15 +433,15 @@ export default function Dashboard() {
       billingStatus?.entitlements?.features?.AI_DETAILED_REPORT?.enabled,
     );
     if (format === 'pdf' && !hasPdfExport) {
-      openUpgradeModal('PDF export');
+      openUpgradeModal(t('dashboard:featurePdfExport'));
       return;
     }
     if (reportVariant === 'ai-summary' && !hasAiDetailedReport) {
-      openUpgradeModal('AI summary report');
+      openUpgradeModal(t('dashboard:featureAiSummaryReport'));
       return;
     }
     if (reportVariant === 'ai-summary' && !aiReport?.aiSummary) {
-      setPageError('Generate AI summary first, then export.');
+      setPageError(t('dashboard:generateAiSummaryFirst'));
       return;
     }
     setExporting(format);
@@ -448,11 +464,11 @@ export default function Dashboard() {
       window.URL.revokeObjectURL(href);
     } catch (err: any) {
       if (err?.response?.data?.code === 'UPGRADE_REQUIRED') {
-        openUpgradeModal('Premium report export');
+        openUpgradeModal(t('dashboard:featurePremiumReportExport'));
         return;
       }
       const apiMessage = String(err?.response?.data?.message ?? '').trim();
-      setPageError(apiMessage || `Failed to export ${format.toUpperCase()} report`);
+      setPageError(apiMessage || t('dashboard:failedExport', { format: format.toUpperCase() }));
     } finally {
       setExporting(null);
     }
@@ -464,7 +480,7 @@ export default function Dashboard() {
       billingStatus?.entitlements?.features?.AI_DETAILED_REPORT?.enabled,
     );
     if (!hasAiDetailedReport) {
-      openUpgradeModal('AI summary report');
+      openUpgradeModal(t('dashboard:featureAiSummaryReport'));
       return;
     }
     setPageError('');
@@ -481,10 +497,10 @@ export default function Dashboard() {
       });
     } catch (err: any) {
       if (err?.response?.data?.code === 'UPGRADE_REQUIRED') {
-        openUpgradeModal('AI summary report');
+        openUpgradeModal(t('dashboard:featureAiSummaryReport'));
         return;
       }
-      setPageError((prev) => prev || 'Failed to generate AI summary report');
+      setPageError((prev) => prev || t('dashboard:failedGenerateAiSummary'));
     }
   };
 
@@ -542,17 +558,19 @@ export default function Dashboard() {
     billingStatus?.entitlements?.features?.JOB_MATCH_LIMIT?.limit ??
     null;
   const jobMatchRequestedLimit = topMatchesAccess?.requestedLimit ?? 20;
-  const displayedTopMatches = topMatches.slice(0, 3);
+  const displayedTopMatches = topMatches;
   const isPremiumPlan = billingStatus?.plan.code === 'PREMIUM';
 
   return (
     <Stack className="mx-auto max-w-6xl" gap="lg">
       <Group justify="space-between" wrap="wrap">
-        <Title order={2}>Analysis Dashboard</Title>
-        <Button onClick={runAnalysis} loading={analyzing} color="brand.7">{result ? 'Re-run Analysis' : 'Run Analysis'}</Button>
+        <Title order={2}>{t('dashboard:title')}</Title>
+        <Button onClick={runAnalysis} loading={analyzing} color="brand.7">
+          {result ? t('dashboard:rerunAnalysis') : t('dashboard:runAnalysis')}
+        </Button>
       </Group>
       {checkoutProcessing ? (
-        <Alert color="blue">Processing Stripe checkout status...</Alert>
+        <Alert color="blue">{t('dashboard:processingCheckout')}</Alert>
       ) : null}
       {error && <Alert color="red">{error}</Alert>}
       {result?.marketConfidence?.lowVolumeDetected && result.marketConfidence.warning ? (
@@ -564,7 +582,7 @@ export default function Dashboard() {
       {showProgressPanel && (
         <Paper withBorder radius="lg" p="lg" className="bg-white">
           <JobProgressPanel
-            title="Analysis Progress"
+            title={t('dashboard:analysisProgress')}
             job={
               job ?? {
                 id: 'analysis-running',
@@ -583,7 +601,7 @@ export default function Dashboard() {
             }
             jobHistory={jobHistory}
             onRetry={runAnalysis}
-            retryLabel="Retry Analysis"
+            retryLabel={t('dashboard:retryAnalysis')}
           />
         </Paper>
       )}
@@ -591,25 +609,29 @@ export default function Dashboard() {
       <Card withBorder radius="lg" p="lg" className="bg-white">
         <Stack>
           <Group justify="space-between" align="center" wrap="wrap">
-            <Title order={3}>Analysis History</Title>
+            <Title order={3}>{t('dashboard:historyTitle')}</Title>
             {historyLoading ? <Loader size="sm" color="brand.7" /> : null}
           </Group>
-          {history.length === 0 && <Text c="dimmed">No saved analyses yet.</Text>}
+          {history.length === 0 && <Text c="dimmed">{t('dashboard:noSavedAnalyses')}</Text>}
           {history.length > 0 && (
             <Accordion variant="separated" radius="md">
               {history.map((item) => (
                 <Accordion.Item key={item.id} value={item.id}>
                   <Accordion.Control>
                     <Group justify="space-between" wrap="wrap">
-                      <Text fw={600}>{new Date(item.createdAt).toLocaleString()}</Text>
+                      <Text fw={600}>{new Date(item.createdAt).toLocaleString(language)}</Text>
                       <Badge color="brand.1" variant="light">
-                        Fit: {Math.round(item.fitScore * 100)}%
+                        {t('dashboard:fitBadge')}: {Math.round(item.fitScore * 100)}%
                       </Badge>
                     </Group>
                   </Accordion.Control>
                   <Accordion.Panel>
                     <Stack gap="sm">
-                      <Text size="sm" c="dimmed">{formatSnapshotContext(item.snapshotMetadata)}</Text>
+                      <Text size="sm" c="dimmed">
+                        {formatSnapshotContext(item.snapshotMetadata, language, (key, options) =>
+                          t(`dashboard:${key}`, options),
+                        )}
+                      </Text>
                       <Button
                         size="xs"
                         variant={selectedAnalysisId === item.id ? 'light' : 'filled'}
@@ -618,7 +640,9 @@ export default function Dashboard() {
                         disabled={selectedAnalysisId === item.id}
                         w="fit-content"
                       >
-                        {selectedAnalysisId === item.id ? 'Opened' : 'Open'}
+                        {selectedAnalysisId === item.id
+                          ? t('dashboard:opened')
+                          : t('dashboard:open')}
                       </Button>
                     </Stack>
                   </Accordion.Panel>
@@ -631,19 +655,28 @@ export default function Dashboard() {
       {profileId ? <LegalReadinessCard profileId={profileId} /> : null}
       {profileId ? <FinancialReadinessCard profileId={profileId} /> : null}
 
-      {noResults && !result && !analyzing && <Paper withBorder radius="lg" p="xl" className="bg-white text-center"><Stack align="center"><Text>No analysis results yet.</Text><Button onClick={runAnalysis} color="brand.7">Run Analysis</Button></Stack></Paper>}
+      {noResults && !result && !analyzing && (
+        <Paper withBorder radius="lg" p="xl" className="bg-white text-center">
+          <Stack align="center">
+            <Text>{t('dashboard:noAnalysisResults')}</Text>
+            <Button onClick={runAnalysis} color="brand.7">
+              {t('dashboard:runAnalysis')}
+            </Button>
+          </Stack>
+        </Paper>
+      )}
 
       {result && (
         <>
           <Card withBorder radius="lg" p="xl" className="bg-white">
             <Tabs value={reportVariant} onChange={(value) => setReportVariant((value as ReportVariant) ?? 'snapshot')}>
               <Tabs.List>
-                <Tabs.Tab value="snapshot">Profile Snapshot (No AI)</Tabs.Tab>
+                <Tabs.Tab value="snapshot">{t('dashboard:profileSnapshotNoAi')}</Tabs.Tab>
                 <Tabs.Tab value="ai-summary">
                   <Group gap={6} wrap="nowrap">
-                    <span>AI Summary</span>
+                    <span>{t('dashboard:aiSummary')}</span>
                     <Badge size="xs" variant="light" color="grape">
-                      Premium
+                      {t('common:premium', { ns: 'common' })}
                     </Badge>
                   </Group>
                 </Tabs.Tab>
@@ -651,29 +684,55 @@ export default function Dashboard() {
 
               <Tabs.Panel value="snapshot" pt="lg">
                 <Stack align="center" gap="sm">
-                  <Title order={3}>Fit Score</Title>
+                  <Title order={3}>{t('dashboard:fitScore')}</Title>
                   <Text fz="3rem" fw={700} c={`${scoreColor(fitScorePct)}.7`}>{fitScorePct}%</Text>
-                  <Text ta="center" c="dimmed" maw={760}>{getFitScoreMessage(fitScorePct)}</Text>
-                  <Text c="dimmed">Critical-path estimate: {result.totalPrepMonths} months</Text>
-                  <Text size="sm" c="dimmed">{formatSnapshotContext(result.snapshotMetadata)}</Text>
+                  <Text ta="center" c="dimmed" maw={760}>
+                    {t(`dashboard:${getFitScoreMessageKey(fitScorePct)}`)}
+                  </Text>
+                  <Text c="dimmed">
+                    {t('dashboard:criticalPathEstimate', { months: result.totalPrepMonths })}
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    {formatSnapshotContext(result.snapshotMetadata, language, (key, options) =>
+                      t(`dashboard:${key}`, options),
+                    )}
+                  </Text>
                   <Group gap="xs">
-                    <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">Save as PDF</Button>
+                    <Button onClick={() => exportReport('pdf')} loading={exporting === 'pdf'} disabled={exporting !== null} color="brand.7">
+                      {t('dashboard:savePdf')}
+                    </Button>
                     <Badge size="sm" variant="light" color="grape">
-                      Premium
+                      {t('common:premium', { ns: 'common' })}
                     </Badge>
-                    <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">Save as HTML</Button>
+                    <Button onClick={() => exportReport('html')} loading={exporting === 'html'} disabled={exporting !== null} variant="outline" color="brand.8">
+                      {t('dashboard:saveHtml')}
+                    </Button>
                   </Group>
                   {!pdfExportEnabled ? (
                     <Text size="sm" c="dimmed">
-                      PDF export is available on Premium. Click "Save as PDF" to upgrade.
+                      {t('dashboard:pdfOnPremiumHint')}
                     </Text>
                   ) : null}
                   <SkillFitRadarChart items={result.analysisItems} />
-                  {result.timeEstimate && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}><Badge size="lg" variant="light" color="brand.1">Optimistic: {result.timeEstimate.optimisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Realistic: {result.timeEstimate.realisticHours}h</Badge><Badge size="lg" variant="light" color="brand.1">Critical Path: {result.timeEstimate.criticalPathHours}h</Badge></SimpleGrid>}
+                  {result.timeEstimate && (
+                    <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" w="100%" maw={820}>
+                      <Badge size="lg" variant="light" color="brand.1">
+                        {t('dashboard:optimistic')}: {result.timeEstimate.optimisticHours}h
+                      </Badge>
+                      <Badge size="lg" variant="light" color="brand.1">
+                        {t('dashboard:realistic')}: {result.timeEstimate.realisticHours}h
+                      </Badge>
+                      <Badge size="lg" variant="light" color="brand.1">
+                        {t('dashboard:criticalPath')}: {result.timeEstimate.criticalPathHours}h
+                      </Badge>
+                    </SimpleGrid>
+                  )}
                   {result.timeEstimate && weeklyStudyHours ? (
                     <Text size="sm" c="dimmed">
-                      At {weeklyStudyHours}h/week, realistic pace is about{' '}
-                      {Math.max(1, Math.ceil(result.timeEstimate.realisticHours / weeklyStudyHours))} weeks.
+                      {t('dashboard:realisticPaceWeeks', {
+                        weeklyHours: weeklyStudyHours,
+                        weeks: Math.max(1, Math.ceil(result.timeEstimate.realisticHours / weeklyStudyHours)),
+                      })}
                     </Text>
                   ) : null}
                 </Stack>
@@ -682,7 +741,7 @@ export default function Dashboard() {
               <Tabs.Panel value="ai-summary" pt="lg">
                 <Stack gap="sm">
                   <Group justify="space-between" wrap="wrap">
-                    <Title order={3}>AI Summary Report</Title>
+                    <Title order={3}>{t('dashboard:aiSummaryReport')}</Title>
                     <Group>
                       <Button
                         onClick={() => exportReport('pdf')}
@@ -690,7 +749,7 @@ export default function Dashboard() {
                         disabled={exporting !== null || aiReportLoading || !aiReport?.aiSummary}
                         color="brand.7"
                       >
-                        Save as PDF
+                        {t('dashboard:savePdf')}
                       </Button>
                       <Button
                         onClick={() => exportReport('html')}
@@ -699,20 +758,20 @@ export default function Dashboard() {
                         variant="outline"
                         color="brand.8"
                       >
-                        Save as HTML
+                        {t('dashboard:saveHtml')}
                       </Button>
                     </Group>
                   </Group>
                   {!aiDetailedEnabled && (
                     <Alert color="yellow">
-                      AI detailed report is locked on Free plan.
+                      {t('dashboard:aiDetailedLocked')}
                       <Group mt="xs">
                         <Button
                           size="xs"
                           color="brand.7"
-                          onClick={() => openUpgradeModal('AI detailed report')}
+                          onClick={() => openUpgradeModal(t('dashboard:featureAiDetailedReport'))}
                         >
-                          Upgrade
+                          {t('dashboard:upgrade')}
                         </Button>
                       </Group>
                     </Alert>
@@ -725,16 +784,16 @@ export default function Dashboard() {
                       color="brand.7"
                       w="fit-content"
                     >
-                      {aiReport ? 'Regenerate AI Summary' : 'Generate AI Summary'}
+                      {aiReport ? t('dashboard:regenerateAiSummary') : t('dashboard:generateAiSummary')}
                     </Button>
                     <Badge size="sm" variant="light" color="grape">
-                      Premium
+                      {t('common:premium', { ns: 'common' })}
                     </Badge>
                   </Group>
                   {aiReportLoading && <Loader color="brand.7" size="sm" />}
                   {(aiReportLoading || aiReportJob) && (
                     <JobProgressPanel
-                      title="AI Report Generation Progress"
+                      title={t('dashboard:aiReportGenerationProgress')}
                       job={
                         aiReportJob ?? {
                           id: 'report-generation-running',
@@ -753,34 +812,34 @@ export default function Dashboard() {
                       }
                       jobHistory={aiReportJobHistory}
                       onRetry={generateAiSummary}
-                      retryLabel="Retry AI Summary"
+                      retryLabel={t('dashboard:retryAiSummary')}
                     />
                   )}
                   {!aiReportLoading && !aiReportRequested && (
                     <Text size="sm" c="dimmed">
-                      AI summary is generated only on explicit request.
+                      {t('dashboard:aiSummaryOnRequest')}
                     </Text>
                   )}
                   {!aiReportLoading && aiReport?.aiSummaryMeta && (
                     <Text size="sm" c="dimmed">
-                      Provider: {aiReport.aiSummaryMeta.providerUsed} ({aiReport.aiSummaryMeta.modelUsed})
-                      {aiReport.aiSummaryMeta.fallbackUsed ? ' via fallback chain' : ''}
+                      {t('dashboard:provider')}: {aiReport.aiSummaryMeta.providerUsed} ({aiReport.aiSummaryMeta.modelUsed})
+                      {aiReport.aiSummaryMeta.fallbackUsed ? t('dashboard:viaFallbackChain') : ''}
                     </Text>
                   )}
                   {!aiReportLoading && !aiReport?.aiSummary && (
                     <Alert color="yellow">
-                      AI summary is unavailable right now. Snapshot export remains available.
+                      {t('dashboard:aiSummaryUnavailable')}
                     </Alert>
                   )}
                   {!aiReportLoading && aiReport?.aiSummary && (
                     <>
                       <Card withBorder radius="md" p="sm">
-                        <Text fw={700}>Executive Summary</Text>
+                        <Text fw={700}>{t('dashboard:executiveSummary')}</Text>
                         <Text size="sm">{aiReport.aiSummary.executiveSummary}</Text>
                       </Card>
                       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
                         <Card withBorder radius="md" p="sm">
-                          <Text fw={700}>Top Strengths</Text>
+                          <Text fw={700}>{t('dashboard:topStrengths')}</Text>
                           <Stack gap={4} mt={6}>
                             {aiReport.aiSummary.topStrengths.map((item, idx) => (
                               <Text key={`strength-${idx}`} size="sm">- {item}</Text>
@@ -788,7 +847,7 @@ export default function Dashboard() {
                           </Stack>
                         </Card>
                         <Card withBorder radius="md" p="sm">
-                          <Text fw={700}>Top Risks</Text>
+                          <Text fw={700}>{t('dashboard:topRisks')}</Text>
                           <Stack gap={4} mt={6}>
                             {aiReport.aiSummary.topRisks.map((item, idx) => (
                               <Text key={`risk-${idx}`} size="sm">- {item}</Text>
@@ -797,7 +856,7 @@ export default function Dashboard() {
                         </Card>
                       </SimpleGrid>
                       <Card withBorder radius="md" p="sm">
-                        <Text fw={700}>Recommended Strategy</Text>
+                        <Text fw={700}>{t('dashboard:recommendedStrategy')}</Text>
                         <Text size="sm">{aiReport.aiSummary.recommendedStrategy}</Text>
                       </Card>
                       <Text size="xs" c="dimmed">{aiReport.aiSummary.advisoryDisclaimer}</Text>
@@ -808,70 +867,121 @@ export default function Dashboard() {
             </Tabs>
           </Card>
 
-          <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Fit Score Contributors</Title><Text size="sm" c="dimmed">Top bar: your current level. Bottom bar: expected target level for this competency.</Text>{groupOrder.map((group) => { const contributors = groupedContributors[group] ?? []; if (contributors.length === 0) return null; return <Stack key={group} gap="xs"><Text fw={700}>{priorityLabel[group] ?? formatEnumLabel(group)}</Text>{contributors.map((contributor) => { const item = analysisByCompetency.get(contributor.competencyId); const currentPct = Math.round((Number(item?.normalizedCurrentScore ?? contributor.matchScore) || 0) * 100); const expectedPct = Math.round((Number(item?.normalizedRequiredScore ?? 1) || 0) * 100); const matchPct = Math.round((Number(contributor.matchScore) || 0) * 100); return <Card key={contributor.competencyId} withBorder radius="md" p="sm"><Stack gap={6}><Group justify="space-between" wrap="wrap"><Text>{contributor.competencyName}</Text><Text size="sm" c="dimmed">{currentPct}/{expectedPct}%</Text></Group><Progress value={currentPct} color={scoreColor(matchPct)} /><Progress value={expectedPct} color="dark" /></Stack></Card>; })}</Stack>; })}</Stack></Card>
+          <Card withBorder radius="lg" p="lg" className="bg-white">
+            <Stack>
+              <Title order={3}>{t('dashboard:fitScoreContributors')}</Title>
+              <Text size="sm" c="dimmed">{t('dashboard:contributorsHint')}</Text>
+              {groupOrder.map((group) => {
+                const contributors = groupedContributors[group] ?? [];
+                if (contributors.length === 0) return null;
+                return (
+                  <Stack key={group} gap="xs">
+                    <Text fw={700}>{priorityLabel[group] ?? formatEnumLabel(group)}</Text>
+                    {contributors.map((contributor) => {
+                      const item = analysisByCompetency.get(contributor.competencyId);
+                      const currentPct = Math.round(
+                        (Number(item?.normalizedCurrentScore ?? contributor.matchScore) || 0) * 100,
+                      );
+                      const expectedPct = Math.round(
+                        (Number(item?.normalizedRequiredScore ?? 1) || 0) * 100,
+                      );
+                      const matchPct = Math.round((Number(contributor.matchScore) || 0) * 100);
+                      return (
+                        <Card key={contributor.competencyId} withBorder radius="md" p="sm">
+                          <Stack gap={6}>
+                            <Group justify="space-between" wrap="wrap">
+                              <Text>{contributor.competencyName}</Text>
+                              <Text size="sm" c="dimmed">{currentPct}/{expectedPct}%</Text>
+                            </Group>
+                            <Progress value={currentPct} color={scoreColor(matchPct)} />
+                            <Progress value={expectedPct} color="dark" />
+                          </Stack>
+                        </Card>
+                      );
+                    })}
+                  </Stack>
+                );
+              })}
+            </Stack>
+          </Card>
 
-          <Card withBorder radius="lg" p="lg" className="bg-white"><Stack><Title order={3}>Actionable Gaps</Title>{result.actionableGaps.length === 0 && <Text c="dimmed">No actionable gaps identified.</Text>}{result.actionableGaps.map((gap) => <Card key={gap.competency.id} withBorder radius="md" p="sm"><Stack gap={4}><Group justify="space-between" wrap="wrap"><Text fw={600}>{gap.competency.name}</Text><Badge variant="light" color="brand.1">{gap.currentLevel} to {gap.requiredLevel}</Badge></Group><Text size="sm" c="dimmed">{formatEnumLabel(gap.priority)} / {formatEnumLabel(gap.roleRelevance)} / {formatEnumLabel(gap.recommendationType)}</Text><Text size="sm">{gap.reason}</Text></Stack></Card>)}</Stack></Card>
+          <Card withBorder radius="lg" p="lg" className="bg-white">
+            <Stack>
+              <Title order={3}>{t('dashboard:actionableGaps')}</Title>
+              {result.actionableGaps.length === 0 && (
+                <Text c="dimmed">{t('dashboard:noActionableGaps')}</Text>
+              )}
+              {result.actionableGaps.map((gap) => (
+                <Card key={gap.competency.id} withBorder radius="md" p="sm">
+                  <Stack gap={4}>
+                    <Group justify="space-between" wrap="wrap">
+                      <Text fw={600}>{gap.competency.name}</Text>
+                      <Badge variant="light" color="brand.1">
+                        {gap.currentLevel} {'->'} {gap.requiredLevel}
+                      </Badge>
+                    </Group>
+                    <Text size="sm" c="dimmed">
+                      {formatEnumLabel(gap.priority)} / {formatEnumLabel(gap.roleRelevance)} / {formatEnumLabel(gap.recommendationType)}
+                    </Text>
+                    <Text size="sm">{gap.reason}</Text>
+                  </Stack>
+                </Card>
+              ))}
+            </Stack>
+          </Card>
 
-          <Button component={RouterLink} to={`/progress/${profileId}`} color="brand.7" w="fit-content">View Progress Tracker</Button>
+          <Button component={RouterLink} to={`/progress/${profileId}`} color="brand.7" w="fit-content">
+            {t('dashboard:viewProgressTracker')}
+          </Button>
 
           <Card withBorder radius="lg" p="lg" className="bg-white">
             <Stack>
               <Group justify="space-between" wrap="wrap">
-                <Title order={3}>Top Matching Jobs</Title>
+                <Title order={3}>Job postings for you</Title>
                 <Group gap="xs">
                   {jobMatchLimit ? (
                     <Badge color="gray" variant="light">
-                      Top {jobMatchLimit} of {jobMatchRequestedLimit}
+                      Showing {jobMatchLimit} of {jobMatchRequestedLimit}
                     </Badge>
                   ) : null}
                   <Badge color="grape" variant="light">
-                    Premium: Top 20
+                    Premium: up to 20
                   </Badge>
                 </Group>
               </Group>
               {topMatchesAccess?.upgradeRequired ? (
                 <Alert color="yellow">
-                  Current plan allows top {topMatchesAccess.maxAllowedLimit ?? 0} matches.
-                  Premium unlocks up to {topMatchesAccess.requestedLimit} matches.
+                  Current plan allows {topMatchesAccess.maxAllowedLimit ?? 0} job postings.
+                  {' '}
+                  Premium unlocks up to {topMatchesAccess.requestedLimit} job postings.
                   <Group mt="xs">
                     <Button
                       size="xs"
                       color="brand.7"
-                      onClick={() => openUpgradeModal('Expanded job matching')}
+                      onClick={() => openUpgradeModal(t('dashboard:featureExpandedJobMatching'))}
                     >
-                      Upgrade
+                      {t('dashboard:upgrade')}
                     </Button>
                   </Group>
                 </Alert>
               ) : null}
               {!topMatchesAccess?.upgradeRequired ? (
                 <Alert color="blue">
-                  Showing top 3 jobs in dashboard.
                   {isPremiumPlan
-                    ? ' Expanded premium jobs view is in development.'
-                    : ' Upgrade to Premium to access expanded jobs (feature page in development).'}
+                    ? 'Browse the full jobs catalog in the Jobs tab.'
+                    : 'Upgrade to Premium to unlock the full jobs catalog in the Jobs tab.'}
                 </Alert>
               ) : null}
               {topMatches.length === 0 && (
-                <Text c="dimmed">No matching vacancies found yet for your current role/country profile.</Text>
+                <Text c="dimmed">{t('dashboard:noMatchingVacancies')}</Text>
               )}
               {displayedTopMatches.map((match) => (
                 <Card key={match.posting.id} withBorder radius="md" p="sm">
                   <Stack gap={6}>
-                    <Group justify="space-between" wrap="wrap">
-                      <Text fw={700}>{match.posting.title}</Text>
-                      <Badge color="brand.1" variant="light">{Math.round(match.score * 100)}%</Badge>
-                    </Group>
-                    <Text size="sm">{match.posting.company} - {match.posting.location}</Text>
-                    <Text size="sm" c="dimmed">
-                      {match.posting.salaryMinUsd && match.posting.salaryMaxUsd
-                        ? `${match.posting.salaryMinUsd.toLocaleString()}-${match.posting.salaryMaxUsd.toLocaleString()} ${match.posting.salaryCurrency ?? 'USD'}`
-                        : 'Salary not specified'}
-                    </Text>
-                    <Text size="sm">{match.rationale}</Text>
-                    <Text size="xs" c="dimmed">
-                      Matched: {match.matchedSkills.slice(0, 3).join(', ') || 'none'} | Missing: {match.missingSkills.slice(0, 3).join(', ') || 'none'}
-                    </Text>
+                    <Text fw={700}>{match.posting.title}</Text>
+                    {extractPostingCity(match.posting.location) ? (
+                      <Text size="sm" c="dimmed">{extractPostingCity(match.posting.location)}</Text>
+                    ) : null}
                     {match.posting.sourceUrl ? (
                       <Button
                         component="a"
@@ -883,7 +993,7 @@ export default function Dashboard() {
                         color="brand.8"
                         w="fit-content"
                       >
-                        Open vacancy
+                        {t('dashboard:openVacancy')}
                       </Button>
                     ) : null}
                   </Stack>
@@ -894,21 +1004,21 @@ export default function Dashboard() {
                   {isPremiumPlan ? (
                     <Button
                       component={RouterLink}
-                      to="/in-development"
+                      to="/jobs"
                       size="sm"
                       variant="outline"
                       color="brand.8"
                     >
-                      Show More Jobs (In Development)
+                      Browse Jobs Catalog
                     </Button>
                   ) : (
                     <Button
                       size="sm"
                       variant="outline"
                       color="grape"
-                      onClick={() => openUpgradeModal('Expanded job matching')}
+                      onClick={() => openUpgradeModal(t('dashboard:featureExpandedJobMatching'))}
                     >
-                      Show More Jobs (Premium)
+                      Browse Jobs Catalog
                     </Button>
                   )}
                 </Group>

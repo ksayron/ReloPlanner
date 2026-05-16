@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -11,6 +11,8 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 import client from '../api/client';
 import type { LegalReadinessResult } from '../types';
 
@@ -21,18 +23,12 @@ function resolveRiskColor(level: LegalReadinessResult['overallRisk']) {
   return 'gray';
 }
 
-function getLocale(): string {
-  const fromStorage =
-    localStorage.getItem('locale') ?? localStorage.getItem('language') ?? '';
-  const fallback = fromStorage || navigator.language || 'en';
-  return fallback.slice(0, 2).toLowerCase();
-}
-
 export default function LegalReadinessCard({ profileId }: { profileId: string }) {
+  const { t } = useTranslation('components');
+  const { language } = useAppLanguage();
   const [result, setResult] = useState<LegalReadinessResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const locale = useMemo(() => getLocale(), []);
 
   useEffect(() => {
     setLoading(true);
@@ -44,18 +40,18 @@ export default function LegalReadinessCard({ profileId }: { profileId: string })
         );
         setResult(response.data);
       } catch {
-        setError('Failed to evaluate legal readiness.');
+        setError(t('failedLegalReadiness'));
       } finally {
         setLoading(false);
       }
     })();
-  }, [profileId]);
+  }, [profileId, t]);
 
   return (
     <Card withBorder radius="lg" p="lg" className="bg-white">
       <Stack gap="md">
         <Group justify="space-between" wrap="wrap">
-          <Title order={3}>Legal / Visa Readiness</Title>
+          <Title order={3}>{t('legalVisaReadiness')}</Title>
           {loading ? <Loader size="sm" color="brand.7" /> : null}
         </Group>
 
@@ -65,18 +61,18 @@ export default function LegalReadinessCard({ profileId }: { profileId: string })
           <>
             <Group gap="sm" wrap="wrap">
               <Badge color={resolveRiskColor(result.overallRisk)} variant="light">
-                Risk: {result.overallRisk}
+                {t('risk')}: {result.overallRisk}
               </Badge>
               <Badge color={result.visaCheckLikelyRequired ? 'orange' : 'teal'} variant="light">
-                Visa/Legal Check: {result.visaCheckLikelyRequired ? 'Likely Required' : 'Lower Complexity'}
+                {t('visaLegalCheck')}: {result.visaCheckLikelyRequired ? t('likelyRequired') : t('lowerComplexity')}
               </Badge>
             </Group>
 
             <Stack gap={6}>
-              <Text fw={700}>Why</Text>
+              <Text fw={700}>{t('why')}</Text>
               {result.triggeredRules.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No specific legal-readiness rules were triggered.
+                  {t('noLegalRulesTriggered')}
                 </Text>
               ) : (
                 result.triggeredRules.map((rule) => (
@@ -88,10 +84,10 @@ export default function LegalReadinessCard({ profileId }: { profileId: string })
             </Stack>
 
             <Stack gap={6}>
-              <Text fw={700}>Questions to Clarify</Text>
+              <Text fw={700}>{t('questionsToClarify')}</Text>
               {result.questions.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No additional clarification questions right now.
+                  {t('noQuestionsNow')}
                 </Text>
               ) : (
                 result.questions.map((question) => (
@@ -103,10 +99,10 @@ export default function LegalReadinessCard({ profileId }: { profileId: string })
             </Stack>
 
             <Stack gap={6}>
-              <Text fw={700}>Possible Routes to Check</Text>
+              <Text fw={700}>{t('possibleRoutes')}</Text>
               {result.possibleRoutes.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No route hints available for current profile data.
+                  {t('noRouteHints')}
                 </Text>
               ) : (
                 result.possibleRoutes.map((route) => (
@@ -118,10 +114,10 @@ export default function LegalReadinessCard({ profileId }: { profileId: string })
             </Stack>
 
             <Stack gap={6}>
-              <Text fw={700}>Warnings</Text>
+              <Text fw={700}>{t('warnings')}</Text>
               {result.warnings.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No specific warnings.
+                  {t('noSpecificWarnings')}
                 </Text>
               ) : (
                 result.warnings.map((warning) => (
@@ -133,10 +129,10 @@ export default function LegalReadinessCard({ profileId }: { profileId: string })
             </Stack>
 
             <Stack gap={6}>
-              <Text fw={700}>Advice</Text>
+              <Text fw={700}>{t('advice')}</Text>
               {result.advice.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No additional advice.
+                  {t('noAdditionalAdvice')}
                 </Text>
               ) : (
                 result.advice.map((advice) => (
@@ -148,17 +144,17 @@ export default function LegalReadinessCard({ profileId }: { profileId: string })
             </Stack>
 
             <Stack gap={6}>
-              <Text fw={700}>Recommended Reading</Text>
+              <Text fw={700}>{t('recommendedReading')}</Text>
               {result.recommendedArticleSlugs.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No recommended article slugs.
+                  {t('noRecommendedSlugs')}
                 </Text>
               ) : (
                 result.recommendedArticleSlugs.map((slug) => (
                   <Button
                     key={slug}
                     component={RouterLink}
-                    to={`/knowledge/${slug}?language=${locale}`}
+                    to={`/knowledge/${slug}?language=${language}`}
                     variant="subtle"
                     color="brand.7"
                     w="fit-content"

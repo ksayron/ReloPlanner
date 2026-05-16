@@ -54,7 +54,10 @@ export class OpenRouterProvider implements AiProvider {
                 content:
                   'You produce concise advisory JSON for relocation readiness reports. Output JSON only.',
               },
-              { role: 'user', content: buildAiSummaryPrompt(request.snapshot) },
+              {
+                role: 'user',
+                content: buildAiSummaryPrompt(request.snapshot, request.locale),
+              },
             ],
           },
           {
@@ -74,7 +77,7 @@ export class OpenRouterProvider implements AiProvider {
         }
 
         return {
-          summary: parseAiSummaryJson(raw),
+          summary: parseAiSummaryJson(raw, request.locale),
           model,
         };
       } catch (error: unknown) {

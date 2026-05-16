@@ -10,6 +10,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../api/AuthContext';
 
 function normalizeReturnTo(value: string | null) {
@@ -20,6 +21,7 @@ function normalizeReturnTo(value: string | null) {
 }
 
 export default function OAuthGithubCompleteEmail() {
+  const { t } = useTranslation('auth');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { completeOAuthEmail, loading } = useAuth();
@@ -37,7 +39,7 @@ export default function OAuthGithubCompleteEmail() {
     setError(null);
 
     if (!ticket) {
-      setError('Missing OAuth email ticket. Please retry GitHub login.');
+      setError(t('missingTicket'));
       return;
     }
 
@@ -59,7 +61,7 @@ export default function OAuthGithubCompleteEmail() {
           ?.data?.message === 'string'
           ? (err as { response?: { data?: { message?: string } } }).response!
               .data!.message!
-          : 'Unable to complete GitHub login with this email.';
+          : t('unableToCompleteGithubWithEmail');
       setError(message);
     }
   };
@@ -69,24 +71,23 @@ export default function OAuthGithubCompleteEmail() {
       <Paper withBorder radius="lg" p="xl" className="bg-white">
         <form onSubmit={handleSubmit}>
           <Stack gap="md">
-            <Title order={2}>Complete GitHub Login</Title>
+            <Title order={2}>{t('completeGithubLogin')}</Title>
             <Text size="sm" c="dimmed">
-              GitHub did not return an email address. Enter your email to finish
-              account linking.
+              {t('githubNoEmailExplanation')}
             </Text>
             {error && <Alert color="red">{error}</Alert>}
             <TextInput
-              label="Email"
+              label={t('email')}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}
               required
             />
             <Button type="submit" loading={loading} color="brand.7" fullWidth>
-              Continue
+              {t('continue')}
             </Button>
             <Anchor href="/login" size="sm" ta="center" c="dimmed">
-              Back to login
+              {t('backToLogin')}
             </Anchor>
           </Stack>
         </form>

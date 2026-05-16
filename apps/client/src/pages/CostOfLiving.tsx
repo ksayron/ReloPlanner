@@ -10,10 +10,14 @@ import {
   Table,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import client from '../api/client';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 import type { CostComparison } from '../types';
 
 export default function CostOfLiving() {
+  const { t } = useTranslation('cost');
+  const { language } = useAppLanguage();
   const [cities, setCities] = useState<string[]>([]);
   const [city1, setCity1] = useState('');
   const [city2, setCity2] = useState('');
@@ -33,7 +37,7 @@ export default function CostOfLiving() {
         if (!cityList.includes(city2)) setCity2('');
       } catch {
         setCities([]);
-        setError('Failed to load city options');
+        setError(t('failedLoadCities'));
       } finally {
         setLoadingCities(false);
       }
@@ -51,7 +55,7 @@ export default function CostOfLiving() {
       const res = await client.get('/cost-of-living/compare', { params: { city1, city2 } });
       setResult(res.data);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to fetch comparison data');
+      setError(err?.response?.data?.message || t('failedFetchComparison'));
     } finally {
       setLoading(false);
     }
@@ -67,13 +71,13 @@ export default function CostOfLiving() {
 
   return (
     <Stack className="mx-auto max-w-5xl" gap="lg">
-      <Title order={2}>Cost of Living Comparison</Title>
+      <Title order={2}>{t('title')}</Title>
 
       <Paper withBorder radius="lg" p="lg" className="bg-white">
         <Group align="end" wrap="wrap">
           <Select
-            label="City 1"
-            placeholder="Select city"
+            label={t('city1')}
+            placeholder={t('selectCity')}
             data={cities}
             value={city1}
             onChange={(value) => setCity1(value || '')}
@@ -81,8 +85,8 @@ export default function CostOfLiving() {
             w={220}
           />
           <Select
-            label="City 2"
-            placeholder="Select city"
+            label={t('city2')}
+            placeholder={t('selectCity')}
             data={cities.filter((city) => city !== city1)}
             value={city2}
             onChange={(value) => setCity2(value || '')}
@@ -95,15 +99,13 @@ export default function CostOfLiving() {
             disabled={cities.length === 0 || !city1 || !city2}
             color="brand.7"
           >
-            Compare
+            {t('compare')}
           </Button>
         </Group>
       </Paper>
 
       {cities.length === 0 && (
-        <Alert color="yellow">
-          No cost-of-living city data is synced yet. Ask an admin to run data sync in Admin - Sync.
-        </Alert>
+        <Alert color="yellow">{t('noDataAlert')}</Alert>
       )}
 
       {error && <Alert color="red">{error}</Alert>}
@@ -113,10 +115,10 @@ export default function CostOfLiving() {
           <Table striped highlightOnHover withTableBorder withColumnBorders>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Category</Table.Th>
+                <Table.Th>{t('category')}</Table.Th>
                 <Table.Th className="text-right">{result.city1} (USD)</Table.Th>
                 <Table.Th className="text-right">{result.city2} (USD)</Table.Th>
-                <Table.Th className="text-right">Diff</Table.Th>
+                <Table.Th className="text-right">{t('diff')}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -130,13 +132,19 @@ export default function CostOfLiving() {
                   <Table.Tr key={row.category}>
                     <Table.Td>{row.category}</Table.Td>
                     <Table.Td className="text-right">
-                      {row.city1Amount != null ? `$${Number(row.city1Amount).toFixed(0)}` : 'N/A'}
+                      {row.city1Amount != null
+                        ? `$${Number(row.city1Amount).toLocaleString(language, { maximumFractionDigits: 0 })}`
+                        : t('na')}
                     </Table.Td>
                     <Table.Td className="text-right">
-                      {row.city2Amount != null ? `$${Number(row.city2Amount).toFixed(0)}` : 'N/A'}
+                      {row.city2Amount != null
+                        ? `$${Number(row.city2Amount).toLocaleString(language, { maximumFractionDigits: 0 })}`
+                        : t('na')}
                     </Table.Td>
                     <Table.Td className={`text-right ${diffColor}`}>
-                      {diff != null ? `${diff > 0 ? '+' : ''}$${diff.toFixed(0)}` : 'N/A'}
+                      {diff != null
+                        ? `${diff > 0 ? '+' : ''}$${diff.toLocaleString(language, { maximumFractionDigits: 0 })}`
+                        : t('na')}
                     </Table.Td>
                   </Table.Tr>
                 );

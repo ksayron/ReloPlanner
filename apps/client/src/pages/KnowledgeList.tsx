@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -13,34 +13,18 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import { fetchKnowledgeList } from '../api/knowledge';
 import { getBillingStatus, startPremiumCheckout } from '../api/billing';
 import { fetchMyPreferences } from '../api/preferences';
 import PremiumUpgradeModal from '../components/PremiumUpgradeModal';
 import { buildCheckoutReturnUrls, pollCheckoutStatus } from '../utils/checkout';
 import type { KnowledgeArticleListItem, KnowledgeCategory } from '../types';
-
-const CATEGORY_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'All Categories' },
-  { value: 'VISA', label: 'Visa' },
-  { value: 'LEGAL', label: 'Legal' },
-  { value: 'COST', label: 'Cost' },
-  { value: 'JOB', label: 'Job' },
-  { value: 'CV', label: 'CV' },
-  { value: 'LANGUAGE', label: 'Language' },
-  { value: 'HOUSING', label: 'Housing' },
-];
-
-const COUNTRY_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'All Countries' },
-  { value: 'PL', label: 'Poland' },
-  { value: 'NL', label: 'Netherlands' },
-  { value: 'DE', label: 'Germany' },
-  { value: 'GB', label: 'United Kingdom' },
-  { value: 'CA', label: 'Canada' },
-];
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 export default function KnowledgeList() {
+  const { t } = useTranslation('knowledge');
+  const { language } = useAppLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<KnowledgeArticleListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,9 +34,34 @@ export default function KnowledgeList() {
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeError, setUpgradeError] = useState('');
   const [checkoutProcessing, setCheckoutProcessing] = useState(false);
-  const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'ru'>('en');
   const [defaultCountry, setDefaultCountry] = useState('');
   const [preferencesResolved, setPreferencesResolved] = useState(false);
+
+  const categoryOptions: Array<{ value: string; label: string }> = useMemo(
+    () => [
+      { value: '', label: t('allCategories') },
+      { value: 'VISA', label: t('visa') },
+      { value: 'LEGAL', label: t('legal') },
+      { value: 'COST', label: t('cost') },
+      { value: 'JOB', label: t('job') },
+      { value: 'CV', label: t('cv') },
+      { value: 'LANGUAGE', label: t('languageCategory') },
+      { value: 'HOUSING', label: t('housing') },
+    ],
+    [t],
+  );
+
+  const countryOptions: Array<{ value: string; label: string }> = useMemo(
+    () => [
+      { value: '', label: t('allCountries') },
+      { value: 'PL', label: 'Poland' },
+      { value: 'NL', label: 'Netherlands' },
+      { value: 'DE', label: 'Germany' },
+      { value: 'GB', label: 'United Kingdom' },
+      { value: 'CA', label: 'Canada' },
+    ],
+    [t],
+  );
 
   const selectedCountry = searchParams.get('country') ?? '';
   const selectedCategory = searchParams.get('category') ?? '';
@@ -68,21 +77,16 @@ export default function KnowledgeList() {
 
   const query = useMemo(() => {
     const next: { country?: string; category?: KnowledgeCategory; language: string } = {
-      language: preferredLanguage,
+      language,
     };
     if (selectedCountry) next.country = selectedCountry;
     if (selectedCategory) next.category = selectedCategory as KnowledgeCategory;
     return next;
-  }, [preferredLanguage, selectedCategory, selectedCountry]);
+  }, [language, selectedCategory, selectedCountry]);
 
   useEffect(() => {
     void (async () => {
       const preferences = await fetchMyPreferences();
-      if (preferences?.preferredLanguage === 'ru') {
-        setPreferredLanguage('ru');
-      } else {
-        setPreferredLanguage('en');
-      }
       setDefaultCountry(preferences?.defaultTargetCountry ?? '');
       setPreferencesResolved(true);
     })();
@@ -112,12 +116,12 @@ export default function KnowledgeList() {
         setItems(response.items);
         setCurrentPlanCode(response.access?.planCode ?? 'FREE');
       } catch {
-        setError('Failed to load knowledge base articles.');
+        setError(t('failedLoadList'));
       } finally {
         setLoading(false);
       }
     })();
-  }, [query]);
+  }, [query, t]);
 
   const triggerUpgrade = async () => {
     setUpgradeLoading(true);
@@ -126,11 +130,11 @@ export default function KnowledgeList() {
       const urls = buildCheckoutReturnUrls(window.location.pathname, searchParams);
       const checkout = await startPremiumCheckout(urls);
       if (!checkout.checkoutUrl) {
-        throw new Error('Checkout URL was not returned by billing provider.');
+        throw new Error(t('checkoutMissingUrl'));
       }
       window.location.assign(checkout.checkoutUrl);
     } catch (err: any) {
-      setUpgradeError(String(err?.response?.data?.message ?? 'Upgrade failed'));
+      setUpgradeError(String(err?.response?.data?.message ?? t('upgradeFailed')));
     } finally {
       setUpgradeLoading(false);
     }
@@ -155,19 +159,17 @@ export default function KnowledgeList() {
           setItems(refreshed.items);
           setUpgradeOpened(false);
         } else if (resolved.paymentStatus === 'CANCELED' || checkoutAction === 'cancel') {
-          setUpgradeError('Checkout was canceled before completion.');
+          setUpgradeError(t('checkoutCanceled'));
         } else if (resolved.paymentStatus === 'PENDING') {
-          setUpgradeError(
-            'Checkout is still pending webhook confirmation. Refresh shortly if status does not update.',
-          );
+          setUpgradeError(t('checkoutPending'));
         } else {
           setUpgradeError(
-            resolved.errorMessage ?? 'Checkout failed. Please retry with Stripe test card details.',
+            resolved.errorMessage ?? t('checkoutFailed'),
           );
         }
       } catch (err: any) {
         if (canceled) return;
-        setUpgradeError(String(err?.response?.data?.message ?? 'Failed to resolve checkout status.'));
+        setUpgradeError(String(err?.response?.data?.message ?? t('resolveCheckoutFailed')));
       } finally {
         if (canceled) return;
         setCheckoutProcessing(false);
@@ -178,7 +180,7 @@ export default function KnowledgeList() {
     return () => {
       canceled = true;
     };
-  }, [checkoutAction, checkoutSessionId, clearCheckoutParams, query]);
+  }, [checkoutAction, checkoutSessionId, clearCheckoutParams, query, t]);
 
   const onCountryChange = (value: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -196,29 +198,27 @@ export default function KnowledgeList() {
 
   return (
     <Stack gap="lg">
-      <Title order={2}>Knowledge Base</Title>
-      <Text c="dimmed">
-        Curated relocation guidance for legal preparation, job search, cost planning, and adaptation.
-      </Text>
+      <Title order={2}>{t('title')}</Title>
+      <Text c="dimmed">{t('subtitle')}</Text>
       <Group gap="xs">
         <Badge color={currentPlanCode === 'PREMIUM' ? 'teal' : 'gray'} variant="light">
-          Plan: {currentPlanCode === 'PREMIUM' ? 'Premium' : 'Free'}
+          {t('plan')}: {currentPlanCode === 'PREMIUM' ? t('premium') : t('free')}
         </Badge>
         <Badge color="grape" variant="light">
-          Premium articles available
+          {t('premiumArticlesAvailable')}
         </Badge>
       </Group>
 
       <Group grow>
         <Select
-          label="Country"
-          data={COUNTRY_OPTIONS}
+          label={t('country')}
+          data={countryOptions}
           value={selectedCountry}
           onChange={onCountryChange}
         />
         <Select
-          label="Category"
-          data={CATEGORY_OPTIONS}
+          label={t('category')}
+          data={categoryOptions}
           value={selectedCategory}
           onChange={onCategoryChange}
         />
@@ -226,7 +226,7 @@ export default function KnowledgeList() {
 
       {error && <Alert color="red">{error}</Alert>}
       {checkoutProcessing ? (
-        <Alert color="blue">Processing Stripe checkout status...</Alert>
+        <Alert color="blue">{t('processingCheckout')}</Alert>
       ) : null}
       {loading && (
         <Group justify="center" py="xl">
@@ -236,7 +236,7 @@ export default function KnowledgeList() {
 
       {!loading && !error && items.length === 0 && (
         <Card withBorder radius="md" p="lg">
-          <Text c="dimmed">No articles found for selected filters.</Text>
+          <Text c="dimmed">{t('noArticles')}</Text>
         </Card>
       )}
 
@@ -257,7 +257,7 @@ export default function KnowledgeList() {
                   </Badge>
                   {article.accessLevel === 'PREMIUM' ? (
                     <Badge size="sm" variant="light" color="grape">
-                      Premium
+                      {t('premium')}
                     </Badge>
                   ) : null}
                   {article.topicTags.slice(0, 2).map((tag) => (
@@ -279,7 +279,7 @@ export default function KnowledgeList() {
                       setUpgradeOpened(true);
                     }}
                   >
-                    Unlock with Premium
+                    {t('unlockWithPremium')}
                   </Button>
                 ) : (
                   <Button
@@ -289,7 +289,7 @@ export default function KnowledgeList() {
                     color="brand.8"
                     w="fit-content"
                   >
-                    Read Article
+                    {t('readArticle')}
                   </Button>
                 )}
               </Stack>

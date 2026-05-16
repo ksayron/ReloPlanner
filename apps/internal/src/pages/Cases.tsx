@@ -12,8 +12,10 @@ import {
 } from '@mantine/core';
 import { Link as RouterLink } from 'react-router-dom';
 import type { RelocationCase } from '@reloplanner/shared-contracts';
+import { useTranslation } from 'react-i18next';
 import { assignCaseToSelf, listCases } from '../api/cases';
 import { useAuth } from '@reloplanner/shared-frontend';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 const statusColor: Record<string, string> = {
   DRAFT: 'gray',
@@ -24,7 +26,18 @@ const statusColor: Record<string, string> = {
   COMPLETED: 'teal',
 };
 
+const statusLabelKey: Record<string, string> = {
+  DRAFT: 'statusDraft',
+  SUBMITTED: 'statusSubmitted',
+  IN_PROGRESS: 'statusInProgress',
+  NEEDS_USER_INPUT: 'statusNeedsUserInput',
+  CANCELED: 'statusCanceled',
+  COMPLETED: 'statusCompleted',
+};
+
 export default function Cases() {
+  const { t } = useTranslation(['cases', 'common']);
+  const { language } = useAppLanguage();
   const { user } = useAuth();
   const [items, setItems] = useState<RelocationCase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +50,7 @@ export default function Cases() {
     try {
       setItems(await listCases());
     } catch {
-      setError('Failed to load case queue');
+      setError(t('failedLoad', { ns: 'cases' }));
     } finally {
       setLoading(false);
     }
@@ -54,7 +67,7 @@ export default function Cases() {
       await assignCaseToSelf(caseId);
       await load();
     } catch {
-      setError('Failed to assign case to you');
+      setError(t('failedAssignToMe', { ns: 'cases' }));
     } finally {
       setBusyCaseId(null);
     }
@@ -71,37 +84,41 @@ export default function Cases() {
   return (
     <Stack className="mx-auto max-w-6xl" gap="lg">
       <Title order={2}>
-        {user?.role === 'SPECIALIST' ? 'Case Pool' : 'Internal Case Queue'}
+        {user?.role === 'SPECIALIST'
+          ? t('specialistTitle', { ns: 'cases' })
+          : t('adminTitle', { ns: 'cases' })}
       </Title>
       {error ? <Alert color="red">{error}</Alert> : null}
 
-      {items.length === 0 ? <Text c="dimmed">No cases available right now.</Text> : null}
+      {items.length === 0 ? <Text c="dimmed">{t('empty', { ns: 'cases' })}</Text> : null}
       {items.map((item) => (
         <Card key={item.id} withBorder radius="lg" p="lg" className="bg-white">
           <Stack gap="xs">
             <Group justify="space-between">
               <Text fw={700}>{item.title}</Text>
               <Badge color={statusColor[item.status] ?? 'gray'} variant="light">
-                {item.status.replaceAll('_', ' ')}
+                {t(statusLabelKey[item.status] ?? 'unknown', { ns: 'common' })}
               </Badge>
             </Group>
             <Text size="sm" c="dimmed">
-              Owner: {item.owner.displayName || item.owner.email}
+              {t('owner', { ns: 'cases' })}: {item.owner.displayName || item.owner.email}
             </Text>
             <Text size="sm" c="dimmed">
-              Profile: {item.profile?.desiredRole || 'N/A'} to {item.profile?.targetCountry || 'N/A'}
+              {t('profile', { ns: 'cases' })}: {item.profile?.desiredRole || t('na', { ns: 'common' })}{' '}
+              {'->'} {item.profile?.targetCountry || t('na', { ns: 'common' })}
               {item.profile?.targetCity ? `, ${item.profile.targetCity}` : ''}
             </Text>
             <Text size="sm" c="dimmed">
-              Specialist: {item.specialist?.displayName || item.specialist?.email || 'Not assigned'}
+              {t('specialist', { ns: 'cases' })}:{' '}
+              {item.specialist?.displayName || item.specialist?.email || t('notAssigned', { ns: 'common' })}
             </Text>
             <Group justify="space-between">
               <Group gap="sm">
                 {typeof item.unreadCount === 'number' && item.unreadCount > 0 ? (
-                  <Badge color="red">{item.unreadCount} unread</Badge>
+                  <Badge color="red">{t('unread', { ns: 'cases', count: item.unreadCount })}</Badge>
                 ) : null}
                 <Text size="sm" c="dimmed">
-                  Updated: {new Date(item.updatedAt).toLocaleString()}
+                  {t('updated', { ns: 'cases' })}: {new Date(item.updatedAt).toLocaleString(language)}
                 </Text>
               </Group>
               <Button
@@ -110,7 +127,7 @@ export default function Cases() {
                 color="brand.7"
                 variant="light"
               >
-                Open workspace
+                {t('openWorkspace', { ns: 'cases' })}
               </Button>
               {user?.role === 'SPECIALIST' && !item.specialist ? (
                 <Button
@@ -119,7 +136,7 @@ export default function Cases() {
                   onClick={() => void handleAssignToMe(item.id)}
                   loading={busyCaseId === item.id}
                 >
-                  Assign to me
+                  {t('assignToMe', { ns: 'cases' })}
                 </Button>
               ) : null}
             </Group>
